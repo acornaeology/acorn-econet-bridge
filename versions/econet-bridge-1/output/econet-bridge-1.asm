@@ -2089,12 +2089,10 @@ adlc_b_tx2      = &d803
 ; control registers in ways that will disturb any in-flight frames.
 ; Typical usage is with a loopback cable between the two Econet
 ; ports.
-; Disable interrupts during self-test
 .self_test
-    sei                                                               ; f000: 78          x
-; Clear &03 (self-test scratch)
-    lda #0                                                            ; f001: a9 00       ..
-    sta l0003                                                         ; f003: 85 03       ..
+    sei                                                               ; f000: 78          x              ; Mask IRQs -- this routine polls and must not re-enter
+    lda #0                                                            ; f001: a9 00       ..             ; A = 0: initial value for the scratch pass-phase flag
+    sta l0003                                                         ; f003: 85 03       ..             ; &03 = pass-phase; toggled by self_test_pass_done
 ; ***************************************************************************************
 ; Reset both ADLCs and light the status LED
 ; 
@@ -2111,30 +2109,24 @@ adlc_b_tx2      = &d803
 ; Re-entered at &F26C after certain test paths need to reset the
 ; chips again; the LED stays lit until a normal reset runs
 ; adlc_b_full_reset and clears CR3.
-; CR1=&C1: reset TX+RX, AC=1 (both ADLCs)
 ; &f005 referenced 1 time by &f26c
 .self_test_reset_adlcs
-    lda #&c1                                                          ; f005: a9 c1       ..
-    sta adlc_a_cr1                                                    ; f007: 8d 00 c8    ...
-    sta adlc_b_cr1                                                    ; f00a: 8d 00 d8    ...
-; CR4=&1E (both): 8-bit RX, abort extend, NRZ
-    lda #&1e                                                          ; f00d: a9 1e       ..
-    sta adlc_a_tx2                                                    ; f00f: 8d 03 c8    ...
-    sta adlc_b_tx2                                                    ; f012: 8d 03 d8    ...
-; CR3=&80 (both): bit 7=1 -> LOC/DTR pin LOW (inverted)
-    lda #&80                                                          ; f015: a9 80       ..
-    sta adlc_a_cr2                                                    ; f017: 8d 01 c8    ...
-; On ADLC B -> LED ON; on ADLC A pin NC, no effect
-    lda #&80                                                          ; f01a: a9 80       ..
-    sta adlc_b_cr2                                                    ; f01c: 8d 01 d8    ...
-; CR1=&82 (both): TX in reset, AC=0; CR3 values persist
-    lda #&82                                                          ; f01f: a9 82       ..
-    sta adlc_a_cr1                                                    ; f021: 8d 00 c8    ...
-    sta adlc_b_cr1                                                    ; f024: 8d 00 d8    ...
-; CR2=&67 (both): clear status, FC_TDRA, 2/1-byte, PSE
-    lda #&67 ; 'g'                                                    ; f027: a9 67       .g
-    sta adlc_a_cr2                                                    ; f029: 8d 01 c8    ...
-    sta adlc_b_cr2                                                    ; f02c: 8d 01 d8    ...
+    lda #&c1                                                          ; f005: a9 c1       ..             ; Mask: reset TX+RX, AC=1 to reach CR3/CR4
+    sta adlc_a_cr1                                                    ; f007: 8d 00 c8    ...            ; Drop ADLC A into full reset
+    sta adlc_b_cr1                                                    ; f00a: 8d 00 d8    ...            ; Drop ADLC B into full reset
+    lda #&1e                                                          ; f00d: a9 1e       ..             ; Mask: 8-bit RX, abort-extend, NRZ encoding
+    sta adlc_a_tx2                                                    ; f00f: 8d 03 c8    ...            ; Program ADLC A's CR4 (via tx2 while AC=1)
+    sta adlc_b_tx2                                                    ; f012: 8d 03 d8    ...            ; Program ADLC B's CR4
+    lda #&80                                                          ; f015: a9 80       ..             ; Mask &80: CR3 bit 7 = light the LED via LOC/DTR
+    sta adlc_a_cr2                                                    ; f017: 8d 01 c8    ...            ; Program ADLC A's CR3 (pin not wired; no effect)
+    lda #&80                                                          ; f01a: a9 80       ..             ; Mask &80 again (separate load for symmetry)
+    sta adlc_b_cr2                                                    ; f01c: 8d 01 d8    ...            ; Program ADLC B's CR3 -- lights the status LED
+    lda #&82                                                          ; f01f: a9 82       ..             ; Mask: TX in reset, RX IRQ enabled, AC=0
+    sta adlc_a_cr1                                                    ; f021: 8d 00 c8    ...            ; Release CR1 AC bit on ADLC A (CR3 value sticks)
+    sta adlc_b_cr1                                                    ; f024: 8d 00 d8    ...            ; Release CR1 AC bit on ADLC B (CR3 value sticks)
+    lda #&67 ; 'g'                                                    ; f027: a9 67       .g             ; Mask: clear status, FC_TDRA, 2/1-byte, PSE
+    sta adlc_a_cr2                                                    ; f029: 8d 01 c8    ...            ; Commit CR2 on ADLC A
+    sta adlc_b_cr2                                                    ; f02c: 8d 01 d8    ...            ; Commit CR2 on ADLC B; falls through to ZP test
 ; ***************************************************************************************
 ; Zero-page integrity test (&00-&02)
 ; 
@@ -2145,27 +2137,24 @@ adlc_b_tx2      = &d803
 ; later self-test stages (ROM checksum, RAM scan). A full ZP test
 ; isn't needed — the main reset handler has already exercised ZP
 ; indirectly via the RAM test.
-; First pattern: &55
 ; &f02f referenced 1 time by &f289
 .self_test_zp
-    lda #&55 ; 'U'                                                    ; f02f: a9 55       .U
+    lda #&55 ; 'U'                                                    ; f02f: a9 55       .U             ; First test pattern = &55 (0101_0101)
 ; &f031 referenced 1 time by &f049
-.loop_cf031
-    sta l0000                                                         ; f031: 85 00       ..
-    sta l0001                                                         ; f033: 85 01       ..
-    sta l0002                                                         ; f035: 85 02       ..
-    cmp l0000                                                         ; f037: c5 00       ..
-    bne cf09d                                                         ; f039: d0 62       .b
-    cmp l0001                                                         ; f03b: c5 01       ..
-    bne cf09d                                                         ; f03d: d0 5e       .^
-    cmp l0002                                                         ; f03f: c5 02       ..
-    bne cf09d                                                         ; f041: d0 5a       .Z
-; If pattern was &AA, ZP test done
-    cmp #&aa                                                          ; f043: c9 aa       ..
-    beq self_test_rom_checksum                                        ; f045: f0 05       ..
-; Second pattern: &AA, loop back through the test
-    lda #&aa                                                          ; f047: a9 aa       ..
-    jmp loop_cf031                                                    ; f049: 4c 31 f0    L1.
+.self_test_zp_write_read
+    sta l0000                                                         ; f031: 85 00       ..             ; Write pattern to scratch byte &00
+    sta l0001                                                         ; f033: 85 01       ..             ; Write pattern to scratch byte &01
+    sta l0002                                                         ; f035: 85 02       ..             ; Write pattern to scratch byte &02
+    cmp l0000                                                         ; f037: c5 00       ..             ; Check &00 still reads as pattern
+    bne cf09d                                                         ; f039: d0 62       .b             ; Mismatch -> ram_test_fail (distinct blink pattern)
+    cmp l0001                                                         ; f03b: c5 01       ..             ; Check &01 still reads as pattern
+    bne cf09d                                                         ; f03d: d0 5e       .^             ; Mismatch -> ram_test_fail
+    cmp l0002                                                         ; f03f: c5 02       ..             ; Check &02 still reads as pattern
+    bne cf09d                                                         ; f041: d0 5a       .Z             ; Mismatch -> ram_test_fail
+    cmp #&aa                                                          ; f043: c9 aa       ..             ; Was the pattern &AA? then both halves passed
+    beq self_test_rom_checksum                                        ; f045: f0 05       ..             ; Yes -> continue to ROM checksum
+    lda #&aa                                                          ; f047: a9 aa       ..             ; Second test pattern = &AA (1010_1010)
+    jmp self_test_zp_write_read                                       ; f049: 4c 31 f0    L1.            ; Loop back to rerun the three-byte check
 
 ; 
 ; ***************************************************************************************
@@ -2177,36 +2166,29 @@ adlc_b_tx2      = &d803
 ; 
 ; Runtime pointer in &00/&01 starts at &E000; &02 holds the page
 ; counter (32 pages = 8 KiB).
-; Pointer &00/&01 = &E000 (ROM base)
 ; &f04c referenced 1 time by &f045
 .self_test_rom_checksum
-    lda #0                                                            ; f04c: a9 00       ..
-    sta l0000                                                         ; f04e: 85 00       ..
-; &02 = 32 (pages to sum)
-    lda #&20 ; ' '                                                    ; f050: a9 20       .
-    sta l0002                                                         ; f052: 85 02       ..
-    lda #&e0                                                          ; f054: a9 e0       ..
-    sta l0001                                                         ; f056: 85 01       ..
-; Running total starts at A=Y=0
-    ldy #0                                                            ; f058: a0 00       ..
-    tya                                                               ; f05a: 98          .              ; A=&00
+    lda #0                                                            ; f04c: a9 00       ..             ; A = 0: low byte of the ROM pointer
+    sta l0000                                                         ; f04e: 85 00       ..             ; Store pointer_lo = 0
+    lda #&20 ; ' '                                                    ; f050: a9 20       .              ; A = &20: 32 pages remaining to sum
+    sta l0002                                                         ; f052: 85 02       ..             ; Store page counter
+    lda #&e0                                                          ; f054: a9 e0       ..             ; A = &E0: pointer_hi starts at ROM base &E000
+    sta l0001                                                         ; f056: 85 01       ..             ; Store pointer_hi = &E0
+    ldy #0                                                            ; f058: a0 00       ..             ; Y = 0: within-page byte offset
+    tya                                                               ; f05a: 98          .              ; A = 0: seed the running sum
 ; &f05b referenced 2 times by &f05f, &f065
-.cf05b
-    clc                                                               ; f05b: 18          .
-; Add next ROM byte to running sum
-    adc (l0000),y                                                     ; f05c: 71 00       q.
-    iny                                                               ; f05e: c8          .
-    bne cf05b                                                         ; f05f: d0 fa       ..
-; Advance to next page
-    inc l0001                                                         ; f061: e6 01       ..
-    dec l0002                                                         ; f063: c6 02       ..
-    bne cf05b                                                         ; f065: d0 f4       ..
-; Expected total: &55
-    cmp #&55 ; 'U'                                                    ; f067: c9 55       .U
-    beq self_test_ram_pattern                                         ; f069: f0 05       ..
-; Fail code 2: ROM checksum
-    lda #2                                                            ; f06b: a9 02       ..
-    jmp self_test_fail                                                ; f06d: 4c c7 f2    L..
+.self_test_rom_checksum_loop
+    clc                                                               ; f05b: 18          .              ; Clear carry before the addition
+    adc (l0000),y                                                     ; f05c: 71 00       q.             ; Add next ROM byte at (pointer),Y into running sum
+    iny                                                               ; f05e: c8          .              ; Advance to next byte within the page
+    bne self_test_rom_checksum_loop                                   ; f05f: d0 fa       ..             ; Loop 256 times through the current page
+    inc l0001                                                         ; f061: e6 01       ..             ; Roll the pointer to the next 256-byte page
+    dec l0002                                                         ; f063: c6 02       ..             ; One page done; decrement the page counter
+    bne self_test_rom_checksum_loop                                   ; f065: d0 f4       ..             ; Loop until all 32 ROM pages have been summed
+    cmp #&55 ; 'U'                                                    ; f067: c9 55       .U             ; Compare running sum with the expected &55
+    beq self_test_ram_pattern                                         ; f069: f0 05       ..             ; Match -> ROM is intact, proceed to RAM test
+    lda #2                                                            ; f06b: a9 02       ..             ; Mismatch: load error code 2 (ROM checksum fail)
+    jmp self_test_fail                                                ; f06d: 4c c7 f2    L..            ; Jump to the countable-blink failure handler
 
 ; ***************************************************************************************
 ; RAM pattern test: write &55/&AA to every byte, verify
@@ -2542,19 +2524,19 @@ adlc_b_tx2      = &d803
 ;   Code 7 at &F255: net_num_a != 1
 ;   Code 8 at &F261: net_num_b != 2
 .self_test_check_netnums
-    lda net_num_a                                                     ; f24c: ad 00 c0    ...
-    cmp #1                                                            ; f24f: c9 01       ..
-    beq cf258                                                         ; f251: f0 05       ..
-    lda #7                                                            ; f253: a9 07       ..
-    jmp self_test_fail                                                ; f255: 4c c7 f2    L..
+    lda net_num_a                                                     ; f24c: ad 00 c0    ...            ; Fetch the side-A jumper setting
+    cmp #1                                                            ; f24f: c9 01       ..             ; Expected self-test value = 1
+    beq self_test_check_netnum_b                                      ; f251: f0 05       ..             ; Match -> move on to check side B
+    lda #7                                                            ; f253: a9 07       ..             ; Mismatch: load error code 7
+    jmp self_test_fail                                                ; f255: 4c c7 f2    L..            ; Jump to countable-blink failure handler
 
 ; &f258 referenced 1 time by &f251
-.cf258
-    lda net_num_b                                                     ; f258: ad 00 d0    ...
-    cmp #2                                                            ; f25b: c9 02       ..
-    beq self_test_pass_done                                           ; f25d: f0 05       ..
-    lda #8                                                            ; f25f: a9 08       ..
-    jmp self_test_fail                                                ; f261: 4c c7 f2    L..
+.self_test_check_netnum_b
+    lda net_num_b                                                     ; f258: ad 00 d0    ...            ; Fetch the side-B jumper setting
+    cmp #2                                                            ; f25b: c9 02       ..             ; Expected self-test value = 2
+    beq self_test_pass_done                                           ; f25d: f0 05       ..             ; Match -> end-of-pass bookkeeping
+    lda #8                                                            ; f25f: a9 08       ..             ; Mismatch: load error code 8
+    jmp self_test_fail                                                ; f261: 4c c7 f2    L..            ; Jump to countable-blink failure handler
 
 ; ***************************************************************************************
 ; End-of-pass: toggle scratch flag and loop for another pass
@@ -2572,25 +2554,25 @@ adlc_b_tx2      = &d803
 ; intermittent faults.
 ; &f264 referenced 1 time by &f25d
 .self_test_pass_done
-    lda l0003                                                         ; f264: a5 03       ..
-    eor #&ff                                                          ; f266: 49 ff       I.
-    sta l0003                                                         ; f268: 85 03       ..
-    bmi cf26f                                                         ; f26a: 30 03       0.
-    jmp self_test_reset_adlcs                                         ; f26c: 4c 05 f0    L..
+    lda l0003                                                         ; f264: a5 03       ..             ; Read the pass-phase flag at &03
+    eor #&ff                                                          ; f266: 49 ff       I.             ; Invert it so we alternate between passes
+    sta l0003                                                         ; f268: 85 03       ..             ; Store the flipped phase back
+    bmi self_test_alt_pass                                            ; f26a: 30 03       0.             ; If bit 7 set, start a full self_test_reset_adlcs pass
+    jmp self_test_reset_adlcs                                         ; f26c: 4c 05 f0    L..            ; Jump up to redo from the top
 
 ; &f26f referenced 1 time by &f26a
-.cf26f
-    lda #&c1                                                          ; f26f: a9 c1       ..
-    sta adlc_a_cr1                                                    ; f271: 8d 00 c8    ...
-    lda #0                                                            ; f274: a9 00       ..
-    sta adlc_a_cr2                                                    ; f276: 8d 01 c8    ...
-    lda #&82                                                          ; f279: a9 82       ..
-    sta adlc_a_cr1                                                    ; f27b: 8d 00 c8    ...
-    sta adlc_b_cr1                                                    ; f27e: 8d 00 d8    ...
-    lda #&67 ; 'g'                                                    ; f281: a9 67       .g
-    sta adlc_a_cr2                                                    ; f283: 8d 01 c8    ...
-    sta adlc_b_cr2                                                    ; f286: 8d 01 d8    ...
-    jmp self_test_zp                                                  ; f289: 4c 2f f0    L/.
+.self_test_alt_pass
+    lda #&c1                                                          ; f26f: a9 c1       ..             ; Alt-pass: full reset first but CR3=&00 only on A
+    sta adlc_a_cr1                                                    ; f271: 8d 00 c8    ...            ; ADLC A CR1 = &C1 (reset + AC=1)
+    lda #0                                                            ; f274: a9 00       ..             ; A = 0: CR3=&00 for A (LED state unchanged on B)
+    sta adlc_a_cr2                                                    ; f276: 8d 01 c8    ...            ; Program CR3 on A only this pass
+    lda #&82                                                          ; f279: a9 82       ..             ; Mask: back to normal listen-mode CR1
+    sta adlc_a_cr1                                                    ; f27b: 8d 00 c8    ...            ; Commit CR1 on ADLC A
+    sta adlc_b_cr1                                                    ; f27e: 8d 00 d8    ...            ; Commit CR1 on ADLC B
+    lda #&67 ; 'g'                                                    ; f281: a9 67       .g             ; Mask: standard listen-mode CR2
+    sta adlc_a_cr2                                                    ; f283: 8d 01 c8    ...            ; Commit CR2 on ADLC A
+    sta adlc_b_cr2                                                    ; f286: 8d 01 d8    ...            ; Commit CR2 on ADLC B
+    jmp self_test_zp                                                  ; f289: 4c 2f f0    L/.            ; Enter the ZP test again (skip the ADLC reset)
 
 ; ***************************************************************************************
 ; RAM-failure blink pattern (does not use RAM)
@@ -3016,183 +2998,183 @@ adlc_b_tx2      = &d803
 save pydis_start, pydis_end
 
 ; Label references by decreasing frequency:
-;     adlc_a_cr2:                 39
-;     adlc_b_cr2:                 34
-;     adlc_a_cr1:                 32
-;     adlc_b_cr1:                 29
-;     adlc_a_tx:                  26
-;     adlc_b_tx:                  26
-;     mem_ptr_hi:                 23
-;     mem_ptr_lo:                 23
-;     rx_dst_stn:                 20
-;     wait_adlc_a_irq:            19
-;     wait_adlc_b_irq:            19
-;     l0000:                      15
-;     l0001:                      15
-;     main_loop:                  14
-;     net_num_a:                  13
-;     cf151:                      12
-;     cf1f2:                      12
-;     net_num_b:                  12
-;     rx_len:                     12
-;     l0002:                      10
-;     tx_src_net:                 10
-;     rx_dst_net:                  8
-;     tx_dst_net:                  8
-;     ctr24_lo:                    7
-;     pydis_start:                 7
-;     reachable_via_a:             7
-;     reachable_via_b:             7
-;     reset:                       7
-;     self_test_fail:              7
-;     transmit_frame_a:            7
-;     transmit_frame_b:            7
-;     announce_flag:               6
-;     cf09d:                       6
-;     tx_end_hi:                   6
-;     tx_end_lo:                   6
-;     ce5b1:                       5
-;     ce642:                       5
-;     handshake_rx_a:              5
-;     handshake_rx_b:              5
-;     main_loop_poll:              5
-;     tx_ctrl:                     5
-;     announce_count:              4
-;     announce_tmr_hi:             4
-;     announce_tmr_lo:             4
-;     build_query_response:        4
-;     ctr24_hi:                    4
-;     ctr24_mid:                   4
-;     rx_frame_a_bail:             4
-;     rx_frame_b_bail:             4
-;     rx_query_net:                4
-;     rx_src_net:                  4
-;     tx_dst_stn:                  4
-;     tx_port:                     4
-;     wait_adlc_a_idle:            4
-;     wait_adlc_b_idle:            4
-;     ce6a2:                       3
-;     ce6ee:                       3
-;     cf105:                       3
-;     cf2fa:                       3
-;     init_reachable_nets:         3
-;     l0003:                       3
-;     top_ram_page:                3
-;     tx_data0:                    3
-;     adlc_a_listen:               2
-;     adlc_a_tx2:                  2
-;     adlc_b_listen:               2
-;     adlc_b_tx2:                  2
-;     build_announce_b:            2
-;     ce4cc:                       2
-;     ce523:                       2
-;     ce593:                       2
-;     ce624:                       2
-;     cf05b:                       2
-;     cf07e:                       2
-;     cf0ac:                       2
-;     cf0c6:                       2
-;     cf100:                       2
-;     cf29a:                       2
-;     cf2a9:                       2
-;     cf2d0:                       2
-;     cf2d9:                       2
-;     cf2e8:                       2
-;     re_announce_done:            2
-;     rx_a_forward:                2
-;     rx_a_not_for_us:             2
-;     rx_a_to_forward:             2
-;     rx_b_forward:                2
-;     rx_b_not_for_us:             2
-;     rx_b_to_forward:             2
-;     rx_ctrl:                     2
-;     rx_frame_a_dispatch:         2
-;     rx_frame_b_dispatch:         2
-;     rx_port:                     2
-;     stagger_delay:               2
-;     tx_src_stn:                  2
-;     adlc_a_full_reset:           1
-;     adlc_b_full_reset:           1
-;     ce05d:                       1
-;     ce073:                       1
-;     ce081:                       1
-;     ce15c:                       1
-;     ce169:                       1
-;     ce1d3:                       1
-;     ce2dd:                       1
-;     ce2ea:                       1
-;     ce354:                       1
-;     ce4d4:                       1
-;     ce4d9:                       1
-;     ce4e9:                       1
-;     ce506:                       1
-;     ce52b:                       1
-;     ce530:                       1
-;     ce540:                       1
-;     ce55d:                       1
-;     ce5b6:                       1
-;     ce5cf:                       1
-;     ce5e1:                       1
-;     ce5f5:                       1
-;     ce647:                       1
-;     ce660:                       1
-;     ce672:                       1
-;     ce686:                       1
-;     ce6bf:                       1
-;     ce6d3:                       1
-;     ce70b:                       1
-;     ce71f:                       1
-;     cf156:                       1
-;     cf15c:                       1
-;     cf1f7:                       1
-;     cf1fd:                       1
-;     cf258:                       1
-;     cf26f:                       1
-;     cf291:                       1
-;     init_reachable_nets_clear:   1
-;     loop_cf031:                  1
-;     loop_cf125:                  1
-;     loop_cf189:                  1
-;     loop_cf1c6:                  1
-;     loop_cf22a:                  1
-;     main_loop_idle:              1
-;     ram_test_done:               1
-;     ram_test_fail:               1
-;     ram_test_loop:               1
-;     re_announce_rearm:           1
-;     re_announce_side_b:          1
-;     rx_a_forward_ack_round:      1
-;     rx_a_forward_done:           1
-;     rx_a_forward_pair_loop:      1
-;     rx_a_handle_80:              1
-;     rx_a_handle_81:              1
-;     rx_a_handle_82:              1
-;     rx_a_learn_loop:             1
-;     rx_b_forward_ack_round:      1
-;     rx_b_forward_done:           1
-;     rx_b_forward_pair_loop:      1
-;     rx_b_handle_80:              1
-;     rx_b_handle_81:              1
-;     rx_b_handle_82:              1
-;     rx_b_learn_loop:             1
-;     rx_frame_a:                  1
-;     rx_frame_a_drain:            1
-;     rx_frame_a_end:              1
-;     rx_frame_b:                  1
-;     rx_frame_b_drain:            1
-;     rx_frame_b_end:              1
-;     rx_query_port:               1
-;     rx_src_stn:                  1
-;     self_test_loopback_a_to_b:   1
-;     self_test_pass_done:         1
-;     self_test_ram_incr:          1
-;     self_test_ram_pattern:       1
-;     self_test_reset_adlcs:       1
-;     self_test_rom_checksum:      1
-;     self_test_zp:                1
-;     stagger_delay_inner:         1
-;     stagger_delay_outer:         1
-;     stagger_delay_prelude:       1
+;     adlc_a_cr2:                   39
+;     adlc_b_cr2:                   34
+;     adlc_a_cr1:                   32
+;     adlc_b_cr1:                   29
+;     adlc_a_tx:                    26
+;     adlc_b_tx:                    26
+;     mem_ptr_hi:                   23
+;     mem_ptr_lo:                   23
+;     rx_dst_stn:                   20
+;     wait_adlc_a_irq:              19
+;     wait_adlc_b_irq:              19
+;     l0000:                        15
+;     l0001:                        15
+;     main_loop:                    14
+;     net_num_a:                    13
+;     cf151:                        12
+;     cf1f2:                        12
+;     net_num_b:                    12
+;     rx_len:                       12
+;     l0002:                        10
+;     tx_src_net:                   10
+;     rx_dst_net:                    8
+;     tx_dst_net:                    8
+;     ctr24_lo:                      7
+;     pydis_start:                   7
+;     reachable_via_a:               7
+;     reachable_via_b:               7
+;     reset:                         7
+;     self_test_fail:                7
+;     transmit_frame_a:              7
+;     transmit_frame_b:              7
+;     announce_flag:                 6
+;     cf09d:                         6
+;     tx_end_hi:                     6
+;     tx_end_lo:                     6
+;     ce5b1:                         5
+;     ce642:                         5
+;     handshake_rx_a:                5
+;     handshake_rx_b:                5
+;     main_loop_poll:                5
+;     tx_ctrl:                       5
+;     announce_count:                4
+;     announce_tmr_hi:               4
+;     announce_tmr_lo:               4
+;     build_query_response:          4
+;     ctr24_hi:                      4
+;     ctr24_mid:                     4
+;     rx_frame_a_bail:               4
+;     rx_frame_b_bail:               4
+;     rx_query_net:                  4
+;     rx_src_net:                    4
+;     tx_dst_stn:                    4
+;     tx_port:                       4
+;     wait_adlc_a_idle:              4
+;     wait_adlc_b_idle:              4
+;     ce6a2:                         3
+;     ce6ee:                         3
+;     cf105:                         3
+;     cf2fa:                         3
+;     init_reachable_nets:           3
+;     l0003:                         3
+;     top_ram_page:                  3
+;     tx_data0:                      3
+;     adlc_a_listen:                 2
+;     adlc_a_tx2:                    2
+;     adlc_b_listen:                 2
+;     adlc_b_tx2:                    2
+;     build_announce_b:              2
+;     ce4cc:                         2
+;     ce523:                         2
+;     ce593:                         2
+;     ce624:                         2
+;     cf07e:                         2
+;     cf0ac:                         2
+;     cf0c6:                         2
+;     cf100:                         2
+;     cf29a:                         2
+;     cf2a9:                         2
+;     cf2d0:                         2
+;     cf2d9:                         2
+;     cf2e8:                         2
+;     re_announce_done:              2
+;     rx_a_forward:                  2
+;     rx_a_not_for_us:               2
+;     rx_a_to_forward:               2
+;     rx_b_forward:                  2
+;     rx_b_not_for_us:               2
+;     rx_b_to_forward:               2
+;     rx_ctrl:                       2
+;     rx_frame_a_dispatch:           2
+;     rx_frame_b_dispatch:           2
+;     rx_port:                       2
+;     self_test_rom_checksum_loop:   2
+;     stagger_delay:                 2
+;     tx_src_stn:                    2
+;     adlc_a_full_reset:             1
+;     adlc_b_full_reset:             1
+;     ce05d:                         1
+;     ce073:                         1
+;     ce081:                         1
+;     ce15c:                         1
+;     ce169:                         1
+;     ce1d3:                         1
+;     ce2dd:                         1
+;     ce2ea:                         1
+;     ce354:                         1
+;     ce4d4:                         1
+;     ce4d9:                         1
+;     ce4e9:                         1
+;     ce506:                         1
+;     ce52b:                         1
+;     ce530:                         1
+;     ce540:                         1
+;     ce55d:                         1
+;     ce5b6:                         1
+;     ce5cf:                         1
+;     ce5e1:                         1
+;     ce5f5:                         1
+;     ce647:                         1
+;     ce660:                         1
+;     ce672:                         1
+;     ce686:                         1
+;     ce6bf:                         1
+;     ce6d3:                         1
+;     ce70b:                         1
+;     ce71f:                         1
+;     cf156:                         1
+;     cf15c:                         1
+;     cf1f7:                         1
+;     cf1fd:                         1
+;     cf291:                         1
+;     init_reachable_nets_clear:     1
+;     loop_cf125:                    1
+;     loop_cf189:                    1
+;     loop_cf1c6:                    1
+;     loop_cf22a:                    1
+;     main_loop_idle:                1
+;     ram_test_done:                 1
+;     ram_test_fail:                 1
+;     ram_test_loop:                 1
+;     re_announce_rearm:             1
+;     re_announce_side_b:            1
+;     rx_a_forward_ack_round:        1
+;     rx_a_forward_done:             1
+;     rx_a_forward_pair_loop:        1
+;     rx_a_handle_80:                1
+;     rx_a_handle_81:                1
+;     rx_a_handle_82:                1
+;     rx_a_learn_loop:               1
+;     rx_b_forward_ack_round:        1
+;     rx_b_forward_done:             1
+;     rx_b_forward_pair_loop:        1
+;     rx_b_handle_80:                1
+;     rx_b_handle_81:                1
+;     rx_b_handle_82:                1
+;     rx_b_learn_loop:               1
+;     rx_frame_a:                    1
+;     rx_frame_a_drain:              1
+;     rx_frame_a_end:                1
+;     rx_frame_b:                    1
+;     rx_frame_b_drain:              1
+;     rx_frame_b_end:                1
+;     rx_query_port:                 1
+;     rx_src_stn:                    1
+;     self_test_alt_pass:            1
+;     self_test_check_netnum_b:      1
+;     self_test_loopback_a_to_b:     1
+;     self_test_pass_done:           1
+;     self_test_ram_incr:            1
+;     self_test_ram_pattern:         1
+;     self_test_reset_adlcs:         1
+;     self_test_rom_checksum:        1
+;     self_test_zp:                  1
+;     self_test_zp_write_read:       1
+;     stagger_delay_inner:           1
+;     stagger_delay_outer:           1
+;     stagger_delay_prelude:         1
 
 ; Automatically generated labels:
 ;     ce05d
@@ -3232,7 +3214,6 @@ save pydis_start, pydis_end
 ;     ce6ee
 ;     ce70b
 ;     ce71f
-;     cf05b
 ;     cf07e
 ;     cf09d
 ;     cf0ac
@@ -3245,8 +3226,6 @@ save pydis_start, pydis_end
 ;     cf1f2
 ;     cf1f7
 ;     cf1fd
-;     cf258
-;     cf26f
 ;     cf291
 ;     cf29a
 ;     cf2a9
@@ -3258,7 +3237,6 @@ save pydis_start, pydis_end
 ;     l0001
 ;     l0002
 ;     l0003
-;     loop_cf031
 ;     loop_cf125
 ;     loop_cf189
 ;     loop_cf1c6

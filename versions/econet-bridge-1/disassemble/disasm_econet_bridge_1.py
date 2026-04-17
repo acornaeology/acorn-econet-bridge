@@ -1494,8 +1494,9 @@ control registers in ways that will disturb any in-flight frames.
 Typical usage is with a loopback cable between the two Econet
 ports.""")
 
-comment(0xF000, "Disable interrupts during self-test")
-comment(0xF001, "Clear &03 (self-test scratch)")
+comment(0xF000, "Mask IRQs -- this routine polls and must not re-enter", inline=True)
+comment(0xF001, "A = 0: initial value for the scratch pass-phase flag", inline=True)
+comment(0xF003, "&03 = pass-phase; toggled by self_test_pass_done", inline=True)
 
 label(0xF005, "self_test_reset_adlcs")
 subroutine(0xF005, "self_test_reset_adlcs", hook=None,
@@ -1516,12 +1517,22 @@ Re-entered at &F26C after certain test paths need to reset the
 chips again; the LED stays lit until a normal reset runs
 adlc_b_full_reset and clears CR3.""")
 
-comment(0xF005, "CR1=&C1: reset TX+RX, AC=1 (both ADLCs)")
-comment(0xF00D, "CR4=&1E (both): 8-bit RX, abort extend, NRZ")
-comment(0xF015, "CR3=&80 (both): bit 7=1 -> LOC/DTR pin LOW (inverted)")
-comment(0xF01A, "On ADLC B -> LED ON; on ADLC A pin NC, no effect")
-comment(0xF01F, "CR1=&82 (both): TX in reset, AC=0; CR3 values persist")
-comment(0xF027, "CR2=&67 (both): clear status, FC_TDRA, 2/1-byte, PSE")
+comment(0xF005, "Mask: reset TX+RX, AC=1 to reach CR3/CR4", inline=True)
+comment(0xF007, "Drop ADLC A into full reset", inline=True)
+comment(0xF00A, "Drop ADLC B into full reset", inline=True)
+comment(0xF00D, "Mask: 8-bit RX, abort-extend, NRZ encoding", inline=True)
+comment(0xF00F, "Program ADLC A's CR4 (via tx2 while AC=1)", inline=True)
+comment(0xF012, "Program ADLC B's CR4", inline=True)
+comment(0xF015, "Mask &80: CR3 bit 7 = light the LED via LOC/DTR", inline=True)
+comment(0xF017, "Program ADLC A's CR3 (pin not wired; no effect)", inline=True)
+comment(0xF01A, "Mask &80 again (separate load for symmetry)", inline=True)
+comment(0xF01C, "Program ADLC B's CR3 -- lights the status LED", inline=True)
+comment(0xF01F, "Mask: TX in reset, RX IRQ enabled, AC=0", inline=True)
+comment(0xF021, "Release CR1 AC bit on ADLC A (CR3 value sticks)", inline=True)
+comment(0xF024, "Release CR1 AC bit on ADLC B (CR3 value sticks)", inline=True)
+comment(0xF027, "Mask: clear status, FC_TDRA, 2/1-byte, PSE", inline=True)
+comment(0xF029, "Commit CR2 on ADLC A", inline=True)
+comment(0xF02C, "Commit CR2 on ADLC B; falls through to ZP test", inline=True)
 
 label(0xF02F, "self_test_zp")
 subroutine(0xF02F, "self_test_zp", hook=None, is_entry_point=False,
@@ -1535,9 +1546,21 @@ later self-test stages (ROM checksum, RAM scan). A full ZP test
 isn't needed — the main reset handler has already exercised ZP
 indirectly via the RAM test.""")
 
-comment(0xF02F, "First pattern: &55")
-comment(0xF043, "If pattern was &AA, ZP test done")
-comment(0xF047, "Second pattern: &AA, loop back through the test")
+comment(0xF02F, "First test pattern = &55 (0101_0101)", inline=True)
+label(0xF031, "self_test_zp_write_read")
+comment(0xF031, "Write pattern to scratch byte &00", inline=True)
+comment(0xF033, "Write pattern to scratch byte &01", inline=True)
+comment(0xF035, "Write pattern to scratch byte &02", inline=True)
+comment(0xF037, "Check &00 still reads as pattern", inline=True)
+comment(0xF039, "Mismatch -> ram_test_fail (distinct blink pattern)", inline=True)
+comment(0xF03B, "Check &01 still reads as pattern", inline=True)
+comment(0xF03D, "Mismatch -> ram_test_fail", inline=True)
+comment(0xF03F, "Check &02 still reads as pattern", inline=True)
+comment(0xF041, "Mismatch -> ram_test_fail", inline=True)
+comment(0xF043, "Was the pattern &AA? then both halves passed", inline=True)
+comment(0xF045, "Yes -> continue to ROM checksum", inline=True)
+comment(0xF047, "Second test pattern = &AA (1010_1010)", inline=True)
+comment(0xF049, "Loop back to rerun the three-byte check", inline=True)
 
 label(0xF04C, "self_test_rom_checksum")
 comment(0xF04C, "")  # separator for reader
@@ -1553,13 +1576,26 @@ self_test_fail with A=2.
 Runtime pointer in &00/&01 starts at &E000; &02 holds the page
 counter (32 pages = 8 KiB).""")
 
-comment(0xF04C, "Pointer &00/&01 = &E000 (ROM base)")
-comment(0xF050, "&02 = 32 (pages to sum)")
-comment(0xF058, "Running total starts at A=Y=0")
-comment(0xF05C, "Add next ROM byte to running sum")
-comment(0xF061, "Advance to next page")
-comment(0xF067, "Expected total: &55")
-comment(0xF06B, "Fail code 2: ROM checksum")
+comment(0xF04C, "A = 0: low byte of the ROM pointer", inline=True)
+comment(0xF04E, "Store pointer_lo = 0", inline=True)
+comment(0xF050, "A = &20: 32 pages remaining to sum", inline=True)
+comment(0xF052, "Store page counter", inline=True)
+comment(0xF054, "A = &E0: pointer_hi starts at ROM base &E000", inline=True)
+comment(0xF056, "Store pointer_hi = &E0", inline=True)
+comment(0xF058, "Y = 0: within-page byte offset", inline=True)
+comment(0xF05A, "A = 0: seed the running sum", inline=True)
+label(0xF05B, "self_test_rom_checksum_loop")
+comment(0xF05B, "Clear carry before the addition", inline=True)
+comment(0xF05C, "Add next ROM byte at (pointer),Y into running sum", inline=True)
+comment(0xF05E, "Advance to next byte within the page", inline=True)
+comment(0xF05F, "Loop 256 times through the current page", inline=True)
+comment(0xF061, "Roll the pointer to the next 256-byte page", inline=True)
+comment(0xF063, "One page done; decrement the page counter", inline=True)
+comment(0xF065, "Loop until all 32 ROM pages have been summed", inline=True)
+comment(0xF067, "Compare running sum with the expected &55", inline=True)
+comment(0xF069, "Match -> ROM is intact, proceed to RAM test", inline=True)
+comment(0xF06B, "Mismatch: load error code 2 (ROM checksum fail)", inline=True)
+comment(0xF06D, "Jump to the countable-blink failure handler", inline=True)
 
 label(0xF070, "self_test_ram_pattern")
 subroutine(0xF070, "self_test_ram_pattern", hook=None,
@@ -1649,6 +1685,18 @@ Failure paths:
   Code 7 at &F255: net_num_a != 1
   Code 8 at &F261: net_num_b != 2""")
 
+comment(0xF24C, "Fetch the side-A jumper setting", inline=True)
+comment(0xF24F, "Expected self-test value = 1", inline=True)
+comment(0xF251, "Match -> move on to check side B", inline=True)
+comment(0xF253, "Mismatch: load error code 7", inline=True)
+comment(0xF255, "Jump to countable-blink failure handler", inline=True)
+label(0xF258, "self_test_check_netnum_b")
+comment(0xF258, "Fetch the side-B jumper setting", inline=True)
+comment(0xF25B, "Expected self-test value = 2", inline=True)
+comment(0xF25D, "Match -> end-of-pass bookkeeping", inline=True)
+comment(0xF25F, "Mismatch: load error code 8", inline=True)
+comment(0xF261, "Jump to countable-blink failure handler", inline=True)
+
 label(0xF264, "self_test_pass_done")
 subroutine(0xF264, "self_test_pass_done", hook=None,
     is_entry_point=False,
@@ -1665,6 +1713,24 @@ Two-pass structure lets the operator see continuous LED activity
 (via the self-test ADLC reset's CR3=&80) for as long as the test
 is running, with minor variation between passes catching some
 intermittent faults.""")
+
+comment(0xF264, "Read the pass-phase flag at &03", inline=True)
+comment(0xF266, "Invert it so we alternate between passes", inline=True)
+comment(0xF268, "Store the flipped phase back", inline=True)
+comment(0xF26A, "If bit 7 set, start a full self_test_reset_adlcs pass", inline=True)
+comment(0xF26C, "Jump up to redo from the top", inline=True)
+label(0xF26F, "self_test_alt_pass")
+comment(0xF26F, "Alt-pass: full reset first but CR3=&00 only on A", inline=True)
+comment(0xF271, "ADLC A CR1 = &C1 (reset + AC=1)", inline=True)
+comment(0xF274, "A = 0: CR3=&00 for A (LED state unchanged on B)", inline=True)
+comment(0xF276, "Program CR3 on A only this pass", inline=True)
+comment(0xF279, "Mask: back to normal listen-mode CR1", inline=True)
+comment(0xF27B, "Commit CR1 on ADLC A", inline=True)
+comment(0xF27E, "Commit CR1 on ADLC B", inline=True)
+comment(0xF281, "Mask: standard listen-mode CR2", inline=True)
+comment(0xF283, "Commit CR2 on ADLC A", inline=True)
+comment(0xF286, "Commit CR2 on ADLC B", inline=True)
+comment(0xF289, "Enter the ZP test again (skip the ADLC reset)", inline=True)
 
 label(0xF28C, "ram_test_fail")
 subroutine(0xF28C, "ram_test_fail", hook=None,
