@@ -77,7 +77,7 @@ Writeups of interesting details uncovered during the disassembly work.
 - [J.G. Harston's mdfs.net Econet Bridge archive](https://mdfs.net/System/ROMs/Econet/Bridge/)
   Directory listing for the Acorn Econet Bridge on mdfs.net.
 - [J.G. Harston's Bridge disassembly (BBC BASIC embedded-assembler source)](https://mdfs.net/System/ROMs/Econet/Bridge/BRIDGE.SRC)
-  A parallel disassembly of the same variant as this one, using BBC BASIC's inline assembler, with memory-layout comments and protocol-level terminology (BridgeReset / BridgeReply / WhatNet / IsNet / BridgeQuery port). Valuable corroboration for our analysis; our annotations are informed by his nomenclature but independently phrased.
+  A parallel disassembly of the same binary variant using BBC BASIC's inline assembler, with memory-layout comments and protocol-level terminology (BridgeReset / BridgeReply / WhatNet / IsNet / BridgeQuery port). Useful as a second reading, though JGH is another reverse-engineer rather than an authoritative source -- his comments are paraphrased rather than quoted, and weighed against our own analysis.
 - [Motorola MC68B54P ADLC datasheet (PDF)](docs/Motorola-MC68B54P-datasheet.pdf)
   Datasheet for the Advanced Data Link Controller used on each Econet port of the Bridge. Authoritative reference for CR1-CR4 and SR1/SR2 bit meanings.
 
