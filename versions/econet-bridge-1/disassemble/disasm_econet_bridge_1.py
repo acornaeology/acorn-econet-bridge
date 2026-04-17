@@ -635,6 +635,59 @@ label(0xE2C8, "rx_b_to_forward")
 label(0xE2CB, "rx_frame_b_dispatch")
 
 
+label(0xE1D6, "rx_a_handle_80")
+subroutine(0xE1D6, "rx_a_handle_80", hook=None, is_entry_point=False,
+    title="Side-A initial bridge announcement (ctrl=&80)",
+    description="""\
+Called when a received frame on side A is broadcast + port=&9C +
+ctrl=&80. An initial announcement means another bridge has just
+come up (or announced fresh topology), so:
+
+  1. Wipe all learned routing state via init_reachable_nets -- the
+     network topology may have changed, so accumulated knowledge
+     is suspect.
+
+  2. Schedule a burst of our own re-announcements: ten cycles with
+     a staggered initial timer value seeded from net_num_b. Using
+     the network number as part of the timer phase means bridges
+     on different networks won't step on each other's announces.
+     announce_flag is set to &40 (enable, bit 7 clear = side A).
+
+  3. Fall through to rx_a_handle_81, which processes the incoming
+     payload and learns the networks it lists.""")
+
+comment(0xE1D6, "Forget learned routes (topology change)")
+comment(0xE1D9, "Seed timer high byte from our B-side net number")
+comment(0xE1DF, "Timer low byte = 0")
+comment(0xE1E4, "Queue 10 re-announces")
+comment(0xE1E9, "Flag = &40 (enable, side A)")
+
+label(0xE1EE, "rx_a_handle_81")
+subroutine(0xE1EE, "rx_a_handle_81", hook=None, is_entry_point=False,
+    title="Side-A re-announcement (ctrl=&81); learn + re-forward",
+    description="""\
+Also reached via fall-through from rx_a_handle_80. Processes the
+announcement payload: each byte from offset 6 to rx_len is a
+network number reachable through the announcer (and therefore,
+from us, reachable by forwarding to side A). Mark each such
+network in reachable_via_a.
+
+After learning, append our own net_num_a to the payload and bump
+rx_len. Falling through to rx_a_forward then re-broadcasts the
+augmented announcement out of ADLC B, so any bridges beyond us
+on that side hear about these networks -- plus us, as one more
+hop along the route. Classic distance-vector flooding.""")
+
+comment(0xE1EE, "Y = 6: start of announcement payload")
+label(0xE1F0, "rx_a_learn_loop")
+comment(0xE1F0, "Read next network number from payload")
+comment(0xE1F3, "X = network number")
+comment(0xE1F6, "Mark network X as reachable via side A")
+comment(0xE1FA, "End of payload?")
+comment(0xE1FF, "Append our net_num_a to the payload")
+comment(0xE205, "Bump the frame length by one byte")
+
+
 label(0xE079, "main_loop_poll")
 comment(0xE079, "Test SR1 bit 7 on B (IRQ summary)")
 comment(0xE07C, "No IRQ on B, check A")

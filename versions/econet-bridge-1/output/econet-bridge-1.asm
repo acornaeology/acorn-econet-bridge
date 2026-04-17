@@ -491,10 +491,10 @@ adlc_b_tx2      = &d803
     lda rx_ctrl                                                       ; e182: ad 40 02    .@.
 ; &81 -> re-announcement handler
     cmp #&81                                                          ; e185: c9 81       ..
-    beq ce1ee                                                         ; e187: f0 65       .e
+    beq rx_a_handle_81                                                ; e187: f0 65       .e
 ; &80 -> initial announcement handler
     cmp #&80                                                          ; e189: c9 80       ..
-    beq ce1d6                                                         ; e18b: f0 49       .I
+    beq rx_a_handle_80                                                ; e18b: f0 49       .I
 ; &82 -> bridge query (shares &83 path)
     cmp #&82                                                          ; e18d: c9 82       ..
     beq ce19d                                                         ; e18f: f0 0c       ..
@@ -530,31 +530,76 @@ adlc_b_tx2      = &d803
 .ce1d3
     jmp main_loop                                                     ; e1d3: 4c 51 e0    LQ.
 
+; ***************************************************************************************
+; Side-A initial bridge announcement (ctrl=&80)
+; 
+; Called when a received frame on side A is broadcast + port=&9C +
+; ctrl=&80. An initial announcement means another bridge has just
+; come up (or announced fresh topology), so:
+; 
+;   1. Wipe all learned routing state via init_reachable_nets -- the
+;      network topology may have changed, so accumulated knowledge
+;      is suspect.
+; 
+;   2. Schedule a burst of our own re-announcements: ten cycles with
+;      a staggered initial timer value seeded from net_num_b. Using
+;      the network number as part of the timer phase means bridges
+;      on different networks won't step on each other's announces.
+;      announce_flag is set to &40 (enable, bit 7 clear = side A).
+; 
+;   3. Fall through to rx_a_handle_81, which processes the incoming
+;      payload and learns the networks it lists.
+; Forget learned routes (topology change)
 ; &e1d6 referenced 1 time by &e18b
-.ce1d6
+.rx_a_handle_80
     jsr init_reachable_nets                                           ; e1d6: 20 24 e4     $.
+; Seed timer high byte from our B-side net number
     lda net_num_b                                                     ; e1d9: ad 00 d0    ...
     sta announce_tmr_hi                                               ; e1dc: 8d 2b 02    .+.
+; Timer low byte = 0
     lda #0                                                            ; e1df: a9 00       ..
     sta announce_tmr_lo                                               ; e1e1: 8d 2a 02    .*.
+; Queue 10 re-announces
     lda #&0a                                                          ; e1e4: a9 0a       ..
     sta announce_count                                                ; e1e6: 8d 2c 02    .,.
+; Flag = &40 (enable, side A)
     lda #&40 ; '@'                                                    ; e1e9: a9 40       .@
     sta announce_flag                                                 ; e1eb: 8d 29 02    .).
+; ***************************************************************************************
+; Side-A re-announcement (ctrl=&81); learn + re-forward
+; 
+; Also reached via fall-through from rx_a_handle_80. Processes the
+; announcement payload: each byte from offset 6 to rx_len is a
+; network number reachable through the announcer (and therefore,
+; from us, reachable by forwarding to side A). Mark each such
+; network in reachable_via_a.
+; 
+; After learning, append our own net_num_a to the payload and bump
+; rx_len. Falling through to rx_a_forward then re-broadcasts the
+; augmented announcement out of ADLC B, so any bridges beyond us
+; on that side hear about these networks -- plus us, as one more
+; hop along the route. Classic distance-vector flooding.
+; Y = 6: start of announcement payload
 ; &e1ee referenced 1 time by &e187
-.ce1ee
+.rx_a_handle_81
     ldy #6                                                            ; e1ee: a0 06       ..
+; Read next network number from payload
 ; &e1f0 referenced 1 time by &e1fd
-.loop_ce1f0
+.rx_a_learn_loop
     lda rx_dst_stn,y                                                  ; e1f0: b9 3c 02    .<.
+; X = network number
     tax                                                               ; e1f3: aa          .
     lda #&ff                                                          ; e1f4: a9 ff       ..
+; Mark network X as reachable via side A
     sta reachable_via_a,x                                             ; e1f6: 9d 5a 03    .Z.
     iny                                                               ; e1f9: c8          .
+; End of payload?
     cpy rx_len                                                        ; e1fa: cc 28 02    .(.
-    bne loop_ce1f0                                                    ; e1fd: d0 f1       ..
+    bne rx_a_learn_loop                                               ; e1fd: d0 f1       ..
+; Append our net_num_a to the payload
     lda net_num_a                                                     ; e1ff: ad 00 c0    ...
     sta rx_dst_stn,y                                                  ; e202: 99 3c 02    .<.
+; Bump the frame length by one byte
     inc rx_len                                                        ; e205: ee 28 02    .(.
 ; &e208 referenced 2 times by &e147, &e193
 .ce208
@@ -2610,8 +2655,6 @@ save pydis_start, pydis_end
 ;     ce169:                    1
 ;     ce19d:                    1
 ;     ce1d3:                    1
-;     ce1d6:                    1
-;     ce1ee:                    1
 ;     ce23e:                    1
 ;     ce260:                    1
 ;     ce2dd:                    1
@@ -2655,7 +2698,6 @@ save pydis_start, pydis_end
 ;     cf28c:                    1
 ;     cf291:                    1
 ;     l0248:                    1
-;     loop_ce1f0:               1
 ;     loop_ce216:               1
 ;     loop_ce371:               1
 ;     loop_ce397:               1
@@ -2673,6 +2715,9 @@ save pydis_start, pydis_end
 ;     ram_test_loop:            1
 ;     re_announce_rearm:        1
 ;     re_announce_side_b:       1
+;     rx_a_handle_80:           1
+;     rx_a_handle_81:           1
+;     rx_a_learn_loop:          1
 ;     rx_frame_a:               1
 ;     rx_frame_a_drain:         1
 ;     rx_frame_a_end:           1
@@ -2692,8 +2737,6 @@ save pydis_start, pydis_end
 ;     ce169
 ;     ce19d
 ;     ce1d3
-;     ce1d6
-;     ce1ee
 ;     ce208
 ;     ce23e
 ;     ce260
@@ -2766,7 +2809,6 @@ save pydis_start, pydis_end
 ;     l0002
 ;     l0003
 ;     l0248
-;     loop_ce1f0
 ;     loop_ce216
 ;     loop_ce371
 ;     loop_ce397
