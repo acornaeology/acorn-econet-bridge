@@ -777,6 +777,42 @@ Called from five sites: &E24E, &E25A, &E336, &E351, &E3D5.
 See handshake_rx_a for the per-instruction explanation.""")
 
 
+label(0xE448, "stagger_delay")
+subroutine(0xE448, "stagger_delay", hook=None,
+    title="Fixed prelude + per-count delay scaled by ctr24_lo",
+    description="""\
+A calibrated busy-wait used by the query-response paths to stagger
+their transmissions. Called from rx_a_handle_82 (&E1AC) and
+rx_b_handle_82 (&E32D), in each case with ctr24_lo pre-loaded
+with the bridge's opposite-side network number (net_num_b for
+A-side responses, net_num_a for B-side responses).
+
+Two phases:
+
+  Prelude (~&40 * (dey/bne) cycles): a fixed settling delay,
+  the same regardless of caller. Roughly &40 * 5 = 320 cycles
+  = ~160 us at 2 MHz.
+
+  Per-count loop (ctr24_lo iterations * (&14 * (dey/bne) + dec/bne)
+  cycles): roughly ctr24_lo * 110 cycles. For a typical network
+  number of ~24, that's ~2600 cycles = ~1.3 ms.
+
+For the range of network numbers permitted (1-127), the total
+delay runs from ~215 us to ~7 ms. This spread means multiple
+bridges on the same segment responding to a broadcast query
+(ctrl=&82) transmit their responses at measurably different
+times, reducing the chance of collisions on the shared medium.
+Bridges with higher network numbers back off longer -- a cheap
+deterministic priority scheme that requires no coordination.""")
+
+comment(0xE448, "Y = &40: fixed prelude count")
+comment(0xE44A, "Tight dey/bne prelude (~160 us)")
+comment(0xE44D, "Y = &14: per-iteration inner count")
+comment(0xE44F, "Tight dey/bne inner loop (~50 us)")
+comment(0xE452, "Decrement outer counter")
+comment(0xE455, "Loop for ctr24_lo iterations total")
+
+
 label(0xE48D, "build_query_response")
 subroutine(0xE48D, "build_query_response", hook=None,
     title="Build a reply-scout frame addressed back to the querier",

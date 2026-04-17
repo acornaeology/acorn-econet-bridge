@@ -567,7 +567,7 @@ adlc_b_tx2      = &d803
 ; Seed delay counter from net_num_b (stagger)
     sta ctr24_lo                                                      ; e1a9: 8d 14 02    ...
 ; Delay before transmit -- collision avoidance
-    jsr sub_ce448                                                     ; e1ac: 20 48 e4     H.
+    jsr stagger_delay                                                 ; e1ac: 20 48 e4     H.
 ; CSMA on A
     jsr wait_adlc_a_idle                                              ; e1af: 20 dc e6     ..
 ; Transmit reply scout (dst = querier)
@@ -914,7 +914,7 @@ adlc_b_tx2      = &d803
     lda net_num_a                                                     ; e324: ad 00 c0    ...
     sta tx_src_net                                                    ; e327: 8d 5d 04    .].
     sta ctr24_lo                                                      ; e32a: 8d 14 02    ...
-    jsr sub_ce448                                                     ; e32d: 20 48 e4     H.
+    jsr stagger_delay                                                 ; e32d: 20 48 e4     H.
     jsr wait_adlc_b_idle                                              ; e330: 20 90 e6     ..
     jsr transmit_frame_b                                              ; e333: 20 c0 e4     ..
     jsr handshake_rx_b                                                ; e336: 20 ff e5     ..
@@ -1162,21 +1162,53 @@ adlc_b_tx2      = &d803
     sta reachable_via_a,y                                             ; e444: 99 5a 03    .Z.
     rts                                                               ; e447: 60          `
 
+; ***************************************************************************************
+; Fixed prelude + per-count delay scaled by ctr24_lo
+; 
+; A calibrated busy-wait used by the query-response paths to stagger
+; their transmissions. Called from rx_a_handle_82 (&E1AC) and
+; rx_b_handle_82 (&E32D), in each case with ctr24_lo pre-loaded
+; with the bridge's opposite-side network number (net_num_b for
+; A-side responses, net_num_a for B-side responses).
+; 
+; Two phases:
+; 
+;   Prelude (~&40 * (dey/bne) cycles): a fixed settling delay,
+;   the same regardless of caller. Roughly &40 * 5 = 320 cycles
+;   = ~160 us at 2 MHz.
+; 
+;   Per-count loop (ctr24_lo iterations * (&14 * (dey/bne) + dec/bne)
+;   cycles): roughly ctr24_lo * 110 cycles. For a typical network
+;   number of ~24, that's ~2600 cycles = ~1.3 ms.
+; 
+; For the range of network numbers permitted (1-127), the total
+; delay runs from ~215 us to ~7 ms. This spread means multiple
+; bridges on the same segment responding to a broadcast query
+; (ctrl=&82) transmit their responses at measurably different
+; times, reducing the chance of collisions on the shared medium.
+; Bridges with higher network numbers back off longer -- a cheap
+; deterministic priority scheme that requires no coordination.
+; Y = &40: fixed prelude count
 ; &e448 referenced 2 times by &e1ac, &e32d
-.sub_ce448
+.stagger_delay
     ldy #&40 ; '@'                                                    ; e448: a0 40       .@
+; Tight dey/bne prelude (~160 us)
 ; &e44a referenced 1 time by &e44b
 .loop_ce44a
     dey                                                               ; e44a: 88          .
     bne loop_ce44a                                                    ; e44b: d0 fd       ..
+; Y = &14: per-iteration inner count
 ; &e44d referenced 1 time by &e455
 .loop_ce44d
     ldy #&14                                                          ; e44d: a0 14       ..
+; Tight dey/bne inner loop (~50 us)
 ; &e44f referenced 1 time by &e450
 .loop_ce44f
     dey                                                               ; e44f: 88          .
     bne loop_ce44f                                                    ; e450: d0 fd       ..
+; Decrement outer counter
     dec ctr24_lo                                                      ; e452: ce 14 02    ...
+; Loop for ctr24_lo iterations total
     bne loop_ce44d                                                    ; e455: d0 f6       ..
     rts                                                               ; e457: 60          `
 
@@ -2932,7 +2964,7 @@ save pydis_start, pydis_end
 ;     rx_frame_a_dispatch:      2
 ;     rx_frame_b_dispatch:      2
 ;     rx_port:                  2
-;     sub_ce448:                2
+;     stagger_delay:            2
 ;     tx_src_stn:               2
 ;     adlc_a_full_reset:        1
 ;     adlc_b_full_reset:        1
@@ -3095,7 +3127,6 @@ save pydis_start, pydis_end
 ;     loop_cf189
 ;     loop_cf1c6
 ;     loop_cf22a
-;     sub_ce448
 
 ; Stats:
 ;     Total size (Code + Data) = 8192 bytes
