@@ -2218,23 +2218,203 @@ subroutine(0xF10A, "self_test_loopback_a_to_b", hook=None,
     description="""\
 Assumes a loopback cable is connected between the two Econet
 ports. Reconfigures ADLC A for transmit (CR1=&44) and ADLC B for
-receive (CR1=&82), then sends a sequence of bytes out A and
-verifies they are received on B in the correct order.
+receive (CR1=&82), then sends a 256-byte sequence (0,1,2,...,255)
+out of A and verifies each byte is received on B in order by
+incrementing X alongside the sender's Y.
 
-Checks each byte against an expected value (X register,
-incrementing) and confirms the Frame Valid bit at end of frame.
+Four phases:
+  1. Pre-fill the A TX FIFO with bytes 0-7 (Y=0..7) while B is
+     still settling -- priming the pipeline before any RX checks
+     begin.
+  2. Wait for B's first RX IRQ, verify AP, read and match bytes
+     0 and 1. This is the special "opening" case because the
+     AP/RDA transitions happen on the first two bytes only.
+  3. Streaming loop: repeatedly send a pair via A, read a pair
+     via B, compare against X (increments in lockstep), and loop
+     until Y wraps to 0 (256 bytes sent).
+  4. Program CR2=&3F on A to flush the final byte with an
+     end-of-frame marker. Drain the remaining bytes on B
+     (another 255 iterations to empty B's FIFO), then wait for
+     the Frame Valid bit to confirm a clean end-of-frame.
 
-Failure: Code 5 at &F153 -- TX on A or RX on B didn't match.""")
+Every mismatch or missing status bit jumps to the shared fail
+target at &F151 which loads code 5 and hands off to self_test_fail.
+Falls through to self_test_loopback_b_to_a on success.""")
+
+comment(0xF10A, "A = &C0: ADLC full reset", inline=True)
+comment(0xF10C, "Reset ADLC A", inline=True)
+comment(0xF10F, "Reset ADLC B", inline=True)
+comment(0xF112, "A = &82: CR1 for receive (TX reset, RX IRQ enabled)", inline=True)
+comment(0xF114, "B becomes the receiver", inline=True)
+comment(0xF117, "A = &E7: CR2 for active TX (listen + IRQs armed)", inline=True)
+comment(0xF119, "Program CR2 on ADLC A", inline=True)
+comment(0xF11C, "A = &44: CR1 for active TX (TX on, IRQ off)", inline=True)
+comment(0xF11E, "A becomes the transmitter", inline=True)
+comment(0xF121, "Y = 0: outbound byte counter / data value", inline=True)
+comment(0xF123, "X = 0: expected RX byte on B", inline=True)
+
+label(0xF125, "loopback_a_to_b_prefill")
+comment(0xF125, "Wait for A's TDRA IRQ", inline=True)
+comment(0xF128, "BIT SR1 (read CR1 addr) -- test V = TDRA (bit 6)", inline=True)
+comment(0xF12B, "Not TDRA -> A's TX stalled; fail", inline=True)
+comment(0xF12D, "Push Y into A's TX FIFO (even byte of pair)", inline=True)
+comment(0xF130, "Advance Y", inline=True)
+comment(0xF131, "Push Y into A's TX FIFO (odd byte of pair)", inline=True)
+comment(0xF134, "Advance Y past the pair", inline=True)
+comment(0xF135, "Pre-filled 8 bytes yet?", inline=True)
+comment(0xF137, "Keep prefilling", inline=True)
+
+comment(0xF139, "Wait for B's first RX IRQ", inline=True)
+comment(0xF13C, "A = &01: SR2 mask for AP (Address Present)", inline=True)
+comment(0xF13E, "BIT SR2 -- first byte should assert AP", inline=True)
+comment(0xF141, "No AP on first byte -> fail", inline=True)
+comment(0xF143, "Compare B's FIFO byte against X (expect 0)", inline=True)
+comment(0xF146, "Mismatch -> fail", inline=True)
+comment(0xF148, "Advance X past the first byte", inline=True)
+comment(0xF149, "Wait for B's next RX IRQ", inline=True)
+comment(0xF14C, "BIT SR2 -- RDA (bit 7) asserted?", inline=True)
+comment(0xF14F, "RDA set -> good, compare second byte", inline=True)
+
+label(0xF151, "loopback_a_to_b_fail")
+comment(0xF151, "A = 5: error code for A-to-B loopback failure", inline=True)
+comment(0xF153, "Hand off to countable-blink failure handler", inline=True)
+
+label(0xF156, "loopback_a_to_b_head_ok")
+comment(0xF156, "Compare B's second FIFO byte against X (expect 1)", inline=True)
+comment(0xF159, "Mismatch -> fail", inline=True)
+comment(0xF15B, "Advance X past the second byte", inline=True)
+
+label(0xF15C, "loopback_a_to_b_stream_loop")
+comment(0xF15C, "Wait for A's TDRA IRQ (TX slot ready)", inline=True)
+comment(0xF15F, "BIT SR1 -- test V = TDRA", inline=True)
+comment(0xF162, "TX stalled mid-stream -> fail", inline=True)
+comment(0xF164, "Push even byte (Y) into A's TX FIFO", inline=True)
+comment(0xF167, "Advance Y", inline=True)
+comment(0xF168, "Push odd byte (Y) into A's TX FIFO", inline=True)
+comment(0xF16B, "Advance Y past the pair", inline=True)
+comment(0xF16C, "Wait for B's RX IRQ (pair received)", inline=True)
+comment(0xF16F, "BIT SR2 -- RDA still asserted?", inline=True)
+comment(0xF172, "RDA cleared early -> fail", inline=True)
+comment(0xF174, "Compare B's even byte against X", inline=True)
+comment(0xF177, "Mismatch -> fail", inline=True)
+comment(0xF179, "Advance X", inline=True)
+comment(0xF17A, "Compare B's odd byte against X", inline=True)
+comment(0xF17D, "Mismatch -> fail", inline=True)
+comment(0xF17F, "Advance X past the pair", inline=True)
+comment(0xF180, "Y wrapped back to 0 -> all 256 bytes sent", inline=True)
+comment(0xF182, "Not done -> keep streaming", inline=True)
+comment(0xF184, "A = &3F: CR2 end-of-frame-with-flush", inline=True)
+comment(0xF186, "Commit: A pushes the final byte and closes the frame", inline=True)
+
+label(0xF189, "loopback_a_to_b_flush_loop")
+comment(0xF189, "Wait for B's remaining RX IRQ", inline=True)
+comment(0xF18C, "BIT SR2 -- RDA still asserted?", inline=True)
+comment(0xF18F, "Drain interrupted -> fail", inline=True)
+comment(0xF191, "Compare B's residual byte against X", inline=True)
+comment(0xF194, "Mismatch -> fail", inline=True)
+comment(0xF196, "Advance X", inline=True)
+comment(0xF197, "Compare B's next residual byte against X", inline=True)
+comment(0xF19A, "Mismatch -> fail", inline=True)
+comment(0xF19C, "Advance X past the pair", inline=True)
+comment(0xF19D, "X wrapped to 0 -> B has drained all 256 bytes", inline=True)
+comment(0xF19F, "Not done -> keep draining", inline=True)
+comment(0xF1A1, "Wait for the trailing end-of-frame IRQ on B", inline=True)
+comment(0xF1A4, "A = &02: SR2 mask for FV (Frame Valid)", inline=True)
+comment(0xF1A6, "BIT SR2 -- confirm FV is set", inline=True)
+comment(0xF1A9, "FV missing -> malformed frame, fail", inline=True)
 
 label(0xF1AB, "self_test_loopback_b_to_a")
 subroutine(0xF1AB, "self_test_loopback_b_to_a", hook=None,
     is_entry_point=False,
     title="Loopback test: transmit on ADLC B, receive on ADLC A",
     description="""\
-Mirror of self_test_loopback_a_to_b. ADLC B transmits, ADLC A
-receives, same byte-sequence verification.
+Mirror of self_test_loopback_a_to_b with adlc_a_* and adlc_b_*
+swapped: ADLC B becomes transmitter (CR1=&44), ADLC A the
+receiver (CR1=&82), and the same 256-byte sequence is sent and
+verified. Fail target loads code 6 (instead of 5). See
+self_test_loopback_a_to_b for the four-phase breakdown.""")
 
-Failure: Code 6 at &F1F4.""")
+comment(0xF1AB, "A = &C0: ADLC full reset", inline=True)
+comment(0xF1AD, "Reset ADLC A", inline=True)
+comment(0xF1B0, "Reset ADLC B", inline=True)
+comment(0xF1B3, "A = &82: CR1 for receive (TX reset, RX IRQ enabled)", inline=True)
+comment(0xF1B5, "A becomes the receiver", inline=True)
+comment(0xF1B8, "A = &E7: CR2 for active TX (listen + IRQs armed)", inline=True)
+comment(0xF1BA, "Program CR2 on ADLC B", inline=True)
+comment(0xF1BD, "A = &44: CR1 for active TX (TX on, IRQ off)", inline=True)
+comment(0xF1BF, "B becomes the transmitter", inline=True)
+comment(0xF1C2, "Y = 0: outbound byte counter / data value", inline=True)
+comment(0xF1C4, "X = 0: expected RX byte on A", inline=True)
+
+label(0xF1C6, "loopback_b_to_a_prefill")
+comment(0xF1C6, "Wait for B's TDRA IRQ", inline=True)
+comment(0xF1C9, "BIT SR1 (read CR1 addr) -- test V = TDRA (bit 6)", inline=True)
+comment(0xF1CC, "Not TDRA -> B's TX stalled; fail", inline=True)
+comment(0xF1CE, "Push Y into B's TX FIFO (even byte of pair)", inline=True)
+comment(0xF1D1, "Advance Y", inline=True)
+comment(0xF1D2, "Push Y into B's TX FIFO (odd byte of pair)", inline=True)
+comment(0xF1D5, "Advance Y past the pair", inline=True)
+comment(0xF1D6, "Pre-filled 8 bytes yet?", inline=True)
+comment(0xF1D8, "Keep prefilling", inline=True)
+
+comment(0xF1DA, "Wait for A's first RX IRQ", inline=True)
+comment(0xF1DD, "A = &01: SR2 mask for AP (Address Present)", inline=True)
+comment(0xF1DF, "BIT SR2 -- first byte should assert AP", inline=True)
+comment(0xF1E2, "No AP on first byte -> fail", inline=True)
+comment(0xF1E4, "Compare A's FIFO byte against X (expect 0)", inline=True)
+comment(0xF1E7, "Mismatch -> fail", inline=True)
+comment(0xF1E9, "Advance X past the first byte", inline=True)
+comment(0xF1EA, "Wait for A's next RX IRQ", inline=True)
+comment(0xF1ED, "BIT SR2 -- RDA (bit 7) asserted?", inline=True)
+comment(0xF1F0, "RDA set -> good, compare second byte", inline=True)
+
+label(0xF1F2, "loopback_b_to_a_fail")
+comment(0xF1F2, "A = 6: error code for B-to-A loopback failure", inline=True)
+comment(0xF1F4, "Hand off to countable-blink failure handler", inline=True)
+
+label(0xF1F7, "loopback_b_to_a_head_ok")
+comment(0xF1F7, "Compare A's second FIFO byte against X (expect 1)", inline=True)
+comment(0xF1FA, "Mismatch -> fail", inline=True)
+comment(0xF1FC, "Advance X past the second byte", inline=True)
+
+label(0xF1FD, "loopback_b_to_a_stream_loop")
+comment(0xF1FD, "Wait for B's TDRA IRQ (TX slot ready)", inline=True)
+comment(0xF200, "BIT SR1 -- test V = TDRA", inline=True)
+comment(0xF203, "TX stalled mid-stream -> fail", inline=True)
+comment(0xF205, "Push even byte (Y) into B's TX FIFO", inline=True)
+comment(0xF208, "Advance Y", inline=True)
+comment(0xF209, "Push odd byte (Y) into B's TX FIFO", inline=True)
+comment(0xF20C, "Advance Y past the pair", inline=True)
+comment(0xF20D, "Wait for A's RX IRQ (pair received)", inline=True)
+comment(0xF210, "BIT SR2 -- RDA still asserted?", inline=True)
+comment(0xF213, "RDA cleared early -> fail", inline=True)
+comment(0xF215, "Compare A's even byte against X", inline=True)
+comment(0xF218, "Mismatch -> fail", inline=True)
+comment(0xF21A, "Advance X", inline=True)
+comment(0xF21B, "Compare A's odd byte against X", inline=True)
+comment(0xF21E, "Mismatch -> fail", inline=True)
+comment(0xF220, "Advance X past the pair", inline=True)
+comment(0xF221, "Y wrapped back to 0 -> all 256 bytes sent", inline=True)
+comment(0xF223, "Not done -> keep streaming", inline=True)
+comment(0xF225, "A = &3F: CR2 end-of-frame-with-flush", inline=True)
+comment(0xF227, "Commit: B pushes the final byte and closes the frame", inline=True)
+
+label(0xF22A, "loopback_b_to_a_flush_loop")
+comment(0xF22A, "Wait for A's remaining RX IRQ", inline=True)
+comment(0xF22D, "BIT SR2 -- RDA still asserted?", inline=True)
+comment(0xF230, "Drain interrupted -> fail", inline=True)
+comment(0xF232, "Compare A's residual byte against X", inline=True)
+comment(0xF235, "Mismatch -> fail", inline=True)
+comment(0xF237, "Advance X", inline=True)
+comment(0xF238, "Compare A's next residual byte against X", inline=True)
+comment(0xF23B, "Mismatch -> fail", inline=True)
+comment(0xF23D, "Advance X past the pair", inline=True)
+comment(0xF23E, "X wrapped to 0 -> A has drained all 256 bytes", inline=True)
+comment(0xF240, "Not done -> keep draining", inline=True)
+comment(0xF242, "Wait for the trailing end-of-frame IRQ on A", inline=True)
+comment(0xF245, "A = &02: SR2 mask for FV (Frame Valid)", inline=True)
+comment(0xF247, "BIT SR2 -- confirm FV is set", inline=True)
+comment(0xF24A, "FV missing -> malformed frame, fail", inline=True)
 
 label(0xF24C, "self_test_check_netnums")
 subroutine(0xF24C, "self_test_check_netnums", hook=None,

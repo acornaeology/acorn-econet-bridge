@@ -2160,185 +2160,201 @@ adlc_b_tx2      = &d803
 ; 
 ; Assumes a loopback cable is connected between the two Econet
 ; ports. Reconfigures ADLC A for transmit (CR1=&44) and ADLC B for
-; receive (CR1=&82), then sends a sequence of bytes out A and
-; verifies they are received on B in the correct order.
+; receive (CR1=&82), then sends a 256-byte sequence (0,1,2,...,255)
+; out of A and verifies each byte is received on B in order by
+; incrementing X alongside the sender's Y.
 ; 
-; Checks each byte against an expected value (X register,
-; incrementing) and confirms the Frame Valid bit at end of frame.
+; Four phases:
+;   1. Pre-fill the A TX FIFO with bytes 0-7 (Y=0..7) while B is
+;      still settling -- priming the pipeline before any RX checks
+;      begin.
+;   2. Wait for B's first RX IRQ, verify AP, read and match bytes
+;      0 and 1. This is the special "opening" case because the
+;      AP/RDA transitions happen on the first two bytes only.
+;   3. Streaming loop: repeatedly send a pair via A, read a pair
+;      via B, compare against X (increments in lockstep), and loop
+;      until Y wraps to 0 (256 bytes sent).
+;   4. Program CR2=&3F on A to flush the final byte with an
+;      end-of-frame marker. Drain the remaining bytes on B
+;      (another 255 iterations to empty B's FIFO), then wait for
+;      the Frame Valid bit to confirm a clean end-of-frame.
 ; 
-; Failure: Code 5 at &F153 -- TX on A or RX on B didn't match.
+; Every mismatch or missing status bit jumps to the shared fail
+; target at &F151 which loads code 5 and hands off to self_test_fail.
+; Falls through to self_test_loopback_b_to_a on success.
 ; &f10a referenced 1 time by &f0fe
 .self_test_loopback_a_to_b
-    lda #&c0                                                          ; f10a: a9 c0       ..
-    sta adlc_a_cr1                                                    ; f10c: 8d 00 c8    ...
-    sta adlc_b_cr1                                                    ; f10f: 8d 00 d8    ...
-    lda #&82                                                          ; f112: a9 82       ..
-    sta adlc_b_cr1                                                    ; f114: 8d 00 d8    ...
-    lda #&e7                                                          ; f117: a9 e7       ..
-    sta adlc_a_cr2                                                    ; f119: 8d 01 c8    ...
-    lda #&44 ; 'D'                                                    ; f11c: a9 44       .D
-    sta adlc_a_cr1                                                    ; f11e: 8d 00 c8    ...
-    ldy #0                                                            ; f121: a0 00       ..
-    ldx #0                                                            ; f123: a2 00       ..
+    lda #&c0                                                          ; f10a: a9 c0       ..             ; A = &C0: ADLC full reset
+    sta adlc_a_cr1                                                    ; f10c: 8d 00 c8    ...            ; Reset ADLC A
+    sta adlc_b_cr1                                                    ; f10f: 8d 00 d8    ...            ; Reset ADLC B
+    lda #&82                                                          ; f112: a9 82       ..             ; A = &82: CR1 for receive (TX reset, RX IRQ enabled)
+    sta adlc_b_cr1                                                    ; f114: 8d 00 d8    ...            ; B becomes the receiver
+    lda #&e7                                                          ; f117: a9 e7       ..             ; A = &E7: CR2 for active TX (listen + IRQs armed)
+    sta adlc_a_cr2                                                    ; f119: 8d 01 c8    ...            ; Program CR2 on ADLC A
+    lda #&44 ; 'D'                                                    ; f11c: a9 44       .D             ; A = &44: CR1 for active TX (TX on, IRQ off)
+    sta adlc_a_cr1                                                    ; f11e: 8d 00 c8    ...            ; A becomes the transmitter
+    ldy #0                                                            ; f121: a0 00       ..             ; Y = 0: outbound byte counter / data value
+    ldx #0                                                            ; f123: a2 00       ..             ; X = 0: expected RX byte on B
 ; &f125 referenced 1 time by &f137
-.loop_cf125
-    jsr wait_adlc_a_irq                                               ; f125: 20 e4 e3     ..
-    bit adlc_a_cr1                                                    ; f128: 2c 00 c8    ,..
-    bvc cf151                                                         ; f12b: 50 24       P$
-    sty adlc_a_tx                                                     ; f12d: 8c 02 c8    ...
-    iny                                                               ; f130: c8          .
-    sty adlc_a_tx                                                     ; f131: 8c 02 c8    ...
-    iny                                                               ; f134: c8          .
-    cpy #8                                                            ; f135: c0 08       ..
-    bne loop_cf125                                                    ; f137: d0 ec       ..
-    jsr wait_adlc_b_irq                                               ; f139: 20 ea e3     ..
-    lda #1                                                            ; f13c: a9 01       ..
-    bit adlc_b_cr2                                                    ; f13e: 2c 01 d8    ,..
-    beq cf151                                                         ; f141: f0 0e       ..
-    cpx adlc_b_tx                                                     ; f143: ec 02 d8    ...
-    bne cf151                                                         ; f146: d0 09       ..
-    inx                                                               ; f148: e8          .
-    jsr wait_adlc_b_irq                                               ; f149: 20 ea e3     ..
-    bit adlc_b_cr2                                                    ; f14c: 2c 01 d8    ,..
-    bmi cf156                                                         ; f14f: 30 05       0.
+.loopback_a_to_b_prefill
+    jsr wait_adlc_a_irq                                               ; f125: 20 e4 e3     ..            ; Wait for A's TDRA IRQ
+    bit adlc_a_cr1                                                    ; f128: 2c 00 c8    ,..            ; BIT SR1 (read CR1 addr) -- test V = TDRA (bit 6)
+    bvc loopback_a_to_b_fail                                          ; f12b: 50 24       P$             ; Not TDRA -> A's TX stalled; fail
+    sty adlc_a_tx                                                     ; f12d: 8c 02 c8    ...            ; Push Y into A's TX FIFO (even byte of pair)
+    iny                                                               ; f130: c8          .              ; Advance Y
+    sty adlc_a_tx                                                     ; f131: 8c 02 c8    ...            ; Push Y into A's TX FIFO (odd byte of pair)
+    iny                                                               ; f134: c8          .              ; Advance Y past the pair
+    cpy #8                                                            ; f135: c0 08       ..             ; Pre-filled 8 bytes yet?
+    bne loopback_a_to_b_prefill                                       ; f137: d0 ec       ..             ; Keep prefilling
+    jsr wait_adlc_b_irq                                               ; f139: 20 ea e3     ..            ; Wait for B's first RX IRQ
+    lda #1                                                            ; f13c: a9 01       ..             ; A = &01: SR2 mask for AP (Address Present)
+    bit adlc_b_cr2                                                    ; f13e: 2c 01 d8    ,..            ; BIT SR2 -- first byte should assert AP
+    beq loopback_a_to_b_fail                                          ; f141: f0 0e       ..             ; No AP on first byte -> fail
+    cpx adlc_b_tx                                                     ; f143: ec 02 d8    ...            ; Compare B's FIFO byte against X (expect 0)
+    bne loopback_a_to_b_fail                                          ; f146: d0 09       ..             ; Mismatch -> fail
+    inx                                                               ; f148: e8          .              ; Advance X past the first byte
+    jsr wait_adlc_b_irq                                               ; f149: 20 ea e3     ..            ; Wait for B's next RX IRQ
+    bit adlc_b_cr2                                                    ; f14c: 2c 01 d8    ,..            ; BIT SR2 -- RDA (bit 7) asserted?
+    bmi loopback_a_to_b_head_ok                                       ; f14f: 30 05       0.             ; RDA set -> good, compare second byte
 ; &f151 referenced 12 times by &f12b, &f141, &f146, &f159, &f162, &f172, &f177, &f17d, &f18f, &f194, &f19a, &f1a9
-.cf151
-    lda #5                                                            ; f151: a9 05       ..
-    jmp self_test_fail                                                ; f153: 4c c7 f2    L..
+.loopback_a_to_b_fail
+    lda #5                                                            ; f151: a9 05       ..             ; A = 5: error code for A-to-B loopback failure
+    jmp self_test_fail                                                ; f153: 4c c7 f2    L..            ; Hand off to countable-blink failure handler
 
 ; &f156 referenced 1 time by &f14f
-.cf156
-    cpx adlc_b_tx                                                     ; f156: ec 02 d8    ...
-    bne cf151                                                         ; f159: d0 f6       ..
-    inx                                                               ; f15b: e8          .
+.loopback_a_to_b_head_ok
+    cpx adlc_b_tx                                                     ; f156: ec 02 d8    ...            ; Compare B's second FIFO byte against X (expect 1)
+    bne loopback_a_to_b_fail                                          ; f159: d0 f6       ..             ; Mismatch -> fail
+    inx                                                               ; f15b: e8          .              ; Advance X past the second byte
 ; &f15c referenced 1 time by &f182
-.cf15c
-    jsr wait_adlc_a_irq                                               ; f15c: 20 e4 e3     ..
-    bit adlc_a_cr1                                                    ; f15f: 2c 00 c8    ,..
-    bvc cf151                                                         ; f162: 50 ed       P.
-    sty adlc_a_tx                                                     ; f164: 8c 02 c8    ...
-    iny                                                               ; f167: c8          .
-    sty adlc_a_tx                                                     ; f168: 8c 02 c8    ...
-    iny                                                               ; f16b: c8          .
-    jsr wait_adlc_b_irq                                               ; f16c: 20 ea e3     ..
-    bit adlc_b_cr2                                                    ; f16f: 2c 01 d8    ,..
-    bpl cf151                                                         ; f172: 10 dd       ..
-    cpx adlc_b_tx                                                     ; f174: ec 02 d8    ...
-    bne cf151                                                         ; f177: d0 d8       ..
-    inx                                                               ; f179: e8          .
-    cpx adlc_b_tx                                                     ; f17a: ec 02 d8    ...
-    bne cf151                                                         ; f17d: d0 d2       ..
-    inx                                                               ; f17f: e8          .
-    cpy #0                                                            ; f180: c0 00       ..
-    bne cf15c                                                         ; f182: d0 d8       ..
-    lda #&3f ; '?'                                                    ; f184: a9 3f       .?
-    sta adlc_a_cr2                                                    ; f186: 8d 01 c8    ...
+.loopback_a_to_b_stream_loop
+    jsr wait_adlc_a_irq                                               ; f15c: 20 e4 e3     ..            ; Wait for A's TDRA IRQ (TX slot ready)
+    bit adlc_a_cr1                                                    ; f15f: 2c 00 c8    ,..            ; BIT SR1 -- test V = TDRA
+    bvc loopback_a_to_b_fail                                          ; f162: 50 ed       P.             ; TX stalled mid-stream -> fail
+    sty adlc_a_tx                                                     ; f164: 8c 02 c8    ...            ; Push even byte (Y) into A's TX FIFO
+    iny                                                               ; f167: c8          .              ; Advance Y
+    sty adlc_a_tx                                                     ; f168: 8c 02 c8    ...            ; Push odd byte (Y) into A's TX FIFO
+    iny                                                               ; f16b: c8          .              ; Advance Y past the pair
+    jsr wait_adlc_b_irq                                               ; f16c: 20 ea e3     ..            ; Wait for B's RX IRQ (pair received)
+    bit adlc_b_cr2                                                    ; f16f: 2c 01 d8    ,..            ; BIT SR2 -- RDA still asserted?
+    bpl loopback_a_to_b_fail                                          ; f172: 10 dd       ..             ; RDA cleared early -> fail
+    cpx adlc_b_tx                                                     ; f174: ec 02 d8    ...            ; Compare B's even byte against X
+    bne loopback_a_to_b_fail                                          ; f177: d0 d8       ..             ; Mismatch -> fail
+    inx                                                               ; f179: e8          .              ; Advance X
+    cpx adlc_b_tx                                                     ; f17a: ec 02 d8    ...            ; Compare B's odd byte against X
+    bne loopback_a_to_b_fail                                          ; f17d: d0 d2       ..             ; Mismatch -> fail
+    inx                                                               ; f17f: e8          .              ; Advance X past the pair
+    cpy #0                                                            ; f180: c0 00       ..             ; Y wrapped back to 0 -> all 256 bytes sent
+    bne loopback_a_to_b_stream_loop                                   ; f182: d0 d8       ..             ; Not done -> keep streaming
+    lda #&3f ; '?'                                                    ; f184: a9 3f       .?             ; A = &3F: CR2 end-of-frame-with-flush
+    sta adlc_a_cr2                                                    ; f186: 8d 01 c8    ...            ; Commit: A pushes the final byte and closes the frame
 ; &f189 referenced 1 time by &f19f
-.loop_cf189
-    jsr wait_adlc_b_irq                                               ; f189: 20 ea e3     ..
-    bit adlc_b_cr2                                                    ; f18c: 2c 01 d8    ,..
-    bpl cf151                                                         ; f18f: 10 c0       ..
-    cpx adlc_b_tx                                                     ; f191: ec 02 d8    ...
-    bne cf151                                                         ; f194: d0 bb       ..
-    inx                                                               ; f196: e8          .
-    cpx adlc_b_tx                                                     ; f197: ec 02 d8    ...
-    bne cf151                                                         ; f19a: d0 b5       ..
-    inx                                                               ; f19c: e8          .
-    cpx #0                                                            ; f19d: e0 00       ..
-    bne loop_cf189                                                    ; f19f: d0 e8       ..
-    jsr wait_adlc_b_irq                                               ; f1a1: 20 ea e3     ..
-    lda #2                                                            ; f1a4: a9 02       ..
-    bit adlc_b_cr2                                                    ; f1a6: 2c 01 d8    ,..
-    beq cf151                                                         ; f1a9: f0 a6       ..
+.loopback_a_to_b_flush_loop
+    jsr wait_adlc_b_irq                                               ; f189: 20 ea e3     ..            ; Wait for B's remaining RX IRQ
+    bit adlc_b_cr2                                                    ; f18c: 2c 01 d8    ,..            ; BIT SR2 -- RDA still asserted?
+    bpl loopback_a_to_b_fail                                          ; f18f: 10 c0       ..             ; Drain interrupted -> fail
+    cpx adlc_b_tx                                                     ; f191: ec 02 d8    ...            ; Compare B's residual byte against X
+    bne loopback_a_to_b_fail                                          ; f194: d0 bb       ..             ; Mismatch -> fail
+    inx                                                               ; f196: e8          .              ; Advance X
+    cpx adlc_b_tx                                                     ; f197: ec 02 d8    ...            ; Compare B's next residual byte against X
+    bne loopback_a_to_b_fail                                          ; f19a: d0 b5       ..             ; Mismatch -> fail
+    inx                                                               ; f19c: e8          .              ; Advance X past the pair
+    cpx #0                                                            ; f19d: e0 00       ..             ; X wrapped to 0 -> B has drained all 256 bytes
+    bne loopback_a_to_b_flush_loop                                    ; f19f: d0 e8       ..             ; Not done -> keep draining
+    jsr wait_adlc_b_irq                                               ; f1a1: 20 ea e3     ..            ; Wait for the trailing end-of-frame IRQ on B
+    lda #2                                                            ; f1a4: a9 02       ..             ; A = &02: SR2 mask for FV (Frame Valid)
+    bit adlc_b_cr2                                                    ; f1a6: 2c 01 d8    ,..            ; BIT SR2 -- confirm FV is set
+    beq loopback_a_to_b_fail                                          ; f1a9: f0 a6       ..             ; FV missing -> malformed frame, fail
 ; ***************************************************************************************
 ; Loopback test: transmit on ADLC B, receive on ADLC A
 ; 
-; Mirror of self_test_loopback_a_to_b. ADLC B transmits, ADLC A
-; receives, same byte-sequence verification.
-; 
-; Failure: Code 6 at &F1F4.
+; Mirror of self_test_loopback_a_to_b with adlc_a_* and adlc_b_*
+; swapped: ADLC B becomes transmitter (CR1=&44), ADLC A the
+; receiver (CR1=&82), and the same 256-byte sequence is sent and
+; verified. Fail target loads code 6 (instead of 5). See
+; self_test_loopback_a_to_b for the four-phase breakdown.
 .self_test_loopback_b_to_a
-    lda #&c0                                                          ; f1ab: a9 c0       ..
-    sta adlc_a_cr1                                                    ; f1ad: 8d 00 c8    ...
-    sta adlc_b_cr1                                                    ; f1b0: 8d 00 d8    ...
-    lda #&82                                                          ; f1b3: a9 82       ..
-    sta adlc_a_cr1                                                    ; f1b5: 8d 00 c8    ...
-    lda #&e7                                                          ; f1b8: a9 e7       ..
-    sta adlc_b_cr2                                                    ; f1ba: 8d 01 d8    ...
-    lda #&44 ; 'D'                                                    ; f1bd: a9 44       .D
-    sta adlc_b_cr1                                                    ; f1bf: 8d 00 d8    ...
-    ldy #0                                                            ; f1c2: a0 00       ..
-    ldx #0                                                            ; f1c4: a2 00       ..
+    lda #&c0                                                          ; f1ab: a9 c0       ..             ; A = &C0: ADLC full reset
+    sta adlc_a_cr1                                                    ; f1ad: 8d 00 c8    ...            ; Reset ADLC A
+    sta adlc_b_cr1                                                    ; f1b0: 8d 00 d8    ...            ; Reset ADLC B
+    lda #&82                                                          ; f1b3: a9 82       ..             ; A = &82: CR1 for receive (TX reset, RX IRQ enabled)
+    sta adlc_a_cr1                                                    ; f1b5: 8d 00 c8    ...            ; A becomes the receiver
+    lda #&e7                                                          ; f1b8: a9 e7       ..             ; A = &E7: CR2 for active TX (listen + IRQs armed)
+    sta adlc_b_cr2                                                    ; f1ba: 8d 01 d8    ...            ; Program CR2 on ADLC B
+    lda #&44 ; 'D'                                                    ; f1bd: a9 44       .D             ; A = &44: CR1 for active TX (TX on, IRQ off)
+    sta adlc_b_cr1                                                    ; f1bf: 8d 00 d8    ...            ; B becomes the transmitter
+    ldy #0                                                            ; f1c2: a0 00       ..             ; Y = 0: outbound byte counter / data value
+    ldx #0                                                            ; f1c4: a2 00       ..             ; X = 0: expected RX byte on A
 ; &f1c6 referenced 1 time by &f1d8
-.loop_cf1c6
-    jsr wait_adlc_b_irq                                               ; f1c6: 20 ea e3     ..
-    bit adlc_b_cr1                                                    ; f1c9: 2c 00 d8    ,..
-    bvc cf1f2                                                         ; f1cc: 50 24       P$
-    sty adlc_b_tx                                                     ; f1ce: 8c 02 d8    ...
-    iny                                                               ; f1d1: c8          .
-    sty adlc_b_tx                                                     ; f1d2: 8c 02 d8    ...
-    iny                                                               ; f1d5: c8          .
-    cpy #8                                                            ; f1d6: c0 08       ..
-    bne loop_cf1c6                                                    ; f1d8: d0 ec       ..
-    jsr wait_adlc_a_irq                                               ; f1da: 20 e4 e3     ..
-    lda #1                                                            ; f1dd: a9 01       ..
-    bit adlc_a_cr2                                                    ; f1df: 2c 01 c8    ,..
-    beq cf1f2                                                         ; f1e2: f0 0e       ..
-    cpx adlc_a_tx                                                     ; f1e4: ec 02 c8    ...
-    bne cf1f2                                                         ; f1e7: d0 09       ..
-    inx                                                               ; f1e9: e8          .
-    jsr wait_adlc_a_irq                                               ; f1ea: 20 e4 e3     ..
-    bit adlc_a_cr2                                                    ; f1ed: 2c 01 c8    ,..
-    bmi cf1f7                                                         ; f1f0: 30 05       0.
+.loopback_b_to_a_prefill
+    jsr wait_adlc_b_irq                                               ; f1c6: 20 ea e3     ..            ; Wait for B's TDRA IRQ
+    bit adlc_b_cr1                                                    ; f1c9: 2c 00 d8    ,..            ; BIT SR1 (read CR1 addr) -- test V = TDRA (bit 6)
+    bvc loopback_b_to_a_fail                                          ; f1cc: 50 24       P$             ; Not TDRA -> B's TX stalled; fail
+    sty adlc_b_tx                                                     ; f1ce: 8c 02 d8    ...            ; Push Y into B's TX FIFO (even byte of pair)
+    iny                                                               ; f1d1: c8          .              ; Advance Y
+    sty adlc_b_tx                                                     ; f1d2: 8c 02 d8    ...            ; Push Y into B's TX FIFO (odd byte of pair)
+    iny                                                               ; f1d5: c8          .              ; Advance Y past the pair
+    cpy #8                                                            ; f1d6: c0 08       ..             ; Pre-filled 8 bytes yet?
+    bne loopback_b_to_a_prefill                                       ; f1d8: d0 ec       ..             ; Keep prefilling
+    jsr wait_adlc_a_irq                                               ; f1da: 20 e4 e3     ..            ; Wait for A's first RX IRQ
+    lda #1                                                            ; f1dd: a9 01       ..             ; A = &01: SR2 mask for AP (Address Present)
+    bit adlc_a_cr2                                                    ; f1df: 2c 01 c8    ,..            ; BIT SR2 -- first byte should assert AP
+    beq loopback_b_to_a_fail                                          ; f1e2: f0 0e       ..             ; No AP on first byte -> fail
+    cpx adlc_a_tx                                                     ; f1e4: ec 02 c8    ...            ; Compare A's FIFO byte against X (expect 0)
+    bne loopback_b_to_a_fail                                          ; f1e7: d0 09       ..             ; Mismatch -> fail
+    inx                                                               ; f1e9: e8          .              ; Advance X past the first byte
+    jsr wait_adlc_a_irq                                               ; f1ea: 20 e4 e3     ..            ; Wait for A's next RX IRQ
+    bit adlc_a_cr2                                                    ; f1ed: 2c 01 c8    ,..            ; BIT SR2 -- RDA (bit 7) asserted?
+    bmi loopback_b_to_a_head_ok                                       ; f1f0: 30 05       0.             ; RDA set -> good, compare second byte
 ; &f1f2 referenced 12 times by &f1cc, &f1e2, &f1e7, &f1fa, &f203, &f213, &f218, &f21e, &f230, &f235, &f23b, &f24a
-.cf1f2
-    lda #6                                                            ; f1f2: a9 06       ..
-    jmp self_test_fail                                                ; f1f4: 4c c7 f2    L..
+.loopback_b_to_a_fail
+    lda #6                                                            ; f1f2: a9 06       ..             ; A = 6: error code for B-to-A loopback failure
+    jmp self_test_fail                                                ; f1f4: 4c c7 f2    L..            ; Hand off to countable-blink failure handler
 
 ; &f1f7 referenced 1 time by &f1f0
-.cf1f7
-    cpx adlc_a_tx                                                     ; f1f7: ec 02 c8    ...
-    bne cf1f2                                                         ; f1fa: d0 f6       ..
-    inx                                                               ; f1fc: e8          .
+.loopback_b_to_a_head_ok
+    cpx adlc_a_tx                                                     ; f1f7: ec 02 c8    ...            ; Compare A's second FIFO byte against X (expect 1)
+    bne loopback_b_to_a_fail                                          ; f1fa: d0 f6       ..             ; Mismatch -> fail
+    inx                                                               ; f1fc: e8          .              ; Advance X past the second byte
 ; &f1fd referenced 1 time by &f223
-.cf1fd
-    jsr wait_adlc_b_irq                                               ; f1fd: 20 ea e3     ..
-    bit adlc_b_cr1                                                    ; f200: 2c 00 d8    ,..
-    bvc cf1f2                                                         ; f203: 50 ed       P.
-    sty adlc_b_tx                                                     ; f205: 8c 02 d8    ...
-    iny                                                               ; f208: c8          .
-    sty adlc_b_tx                                                     ; f209: 8c 02 d8    ...
-    iny                                                               ; f20c: c8          .
-    jsr wait_adlc_a_irq                                               ; f20d: 20 e4 e3     ..
-    bit adlc_a_cr2                                                    ; f210: 2c 01 c8    ,..
-    bpl cf1f2                                                         ; f213: 10 dd       ..
-    cpx adlc_a_tx                                                     ; f215: ec 02 c8    ...
-    bne cf1f2                                                         ; f218: d0 d8       ..
-    inx                                                               ; f21a: e8          .
-    cpx adlc_a_tx                                                     ; f21b: ec 02 c8    ...
-    bne cf1f2                                                         ; f21e: d0 d2       ..
-    inx                                                               ; f220: e8          .
-    cpy #0                                                            ; f221: c0 00       ..
-    bne cf1fd                                                         ; f223: d0 d8       ..
-    lda #&3f ; '?'                                                    ; f225: a9 3f       .?
-    sta adlc_b_cr2                                                    ; f227: 8d 01 d8    ...
+.loopback_b_to_a_stream_loop
+    jsr wait_adlc_b_irq                                               ; f1fd: 20 ea e3     ..            ; Wait for B's TDRA IRQ (TX slot ready)
+    bit adlc_b_cr1                                                    ; f200: 2c 00 d8    ,..            ; BIT SR1 -- test V = TDRA
+    bvc loopback_b_to_a_fail                                          ; f203: 50 ed       P.             ; TX stalled mid-stream -> fail
+    sty adlc_b_tx                                                     ; f205: 8c 02 d8    ...            ; Push even byte (Y) into B's TX FIFO
+    iny                                                               ; f208: c8          .              ; Advance Y
+    sty adlc_b_tx                                                     ; f209: 8c 02 d8    ...            ; Push odd byte (Y) into B's TX FIFO
+    iny                                                               ; f20c: c8          .              ; Advance Y past the pair
+    jsr wait_adlc_a_irq                                               ; f20d: 20 e4 e3     ..            ; Wait for A's RX IRQ (pair received)
+    bit adlc_a_cr2                                                    ; f210: 2c 01 c8    ,..            ; BIT SR2 -- RDA still asserted?
+    bpl loopback_b_to_a_fail                                          ; f213: 10 dd       ..             ; RDA cleared early -> fail
+    cpx adlc_a_tx                                                     ; f215: ec 02 c8    ...            ; Compare A's even byte against X
+    bne loopback_b_to_a_fail                                          ; f218: d0 d8       ..             ; Mismatch -> fail
+    inx                                                               ; f21a: e8          .              ; Advance X
+    cpx adlc_a_tx                                                     ; f21b: ec 02 c8    ...            ; Compare A's odd byte against X
+    bne loopback_b_to_a_fail                                          ; f21e: d0 d2       ..             ; Mismatch -> fail
+    inx                                                               ; f220: e8          .              ; Advance X past the pair
+    cpy #0                                                            ; f221: c0 00       ..             ; Y wrapped back to 0 -> all 256 bytes sent
+    bne loopback_b_to_a_stream_loop                                   ; f223: d0 d8       ..             ; Not done -> keep streaming
+    lda #&3f ; '?'                                                    ; f225: a9 3f       .?             ; A = &3F: CR2 end-of-frame-with-flush
+    sta adlc_b_cr2                                                    ; f227: 8d 01 d8    ...            ; Commit: B pushes the final byte and closes the frame
 ; &f22a referenced 1 time by &f240
-.loop_cf22a
-    jsr wait_adlc_a_irq                                               ; f22a: 20 e4 e3     ..
-    bit adlc_a_cr2                                                    ; f22d: 2c 01 c8    ,..
-    bpl cf1f2                                                         ; f230: 10 c0       ..
-    cpx adlc_a_tx                                                     ; f232: ec 02 c8    ...
-    bne cf1f2                                                         ; f235: d0 bb       ..
-    inx                                                               ; f237: e8          .
-    cpx adlc_a_tx                                                     ; f238: ec 02 c8    ...
-    bne cf1f2                                                         ; f23b: d0 b5       ..
-    inx                                                               ; f23d: e8          .
-    cpx #0                                                            ; f23e: e0 00       ..
-    bne loop_cf22a                                                    ; f240: d0 e8       ..
-    jsr wait_adlc_a_irq                                               ; f242: 20 e4 e3     ..
-    lda #2                                                            ; f245: a9 02       ..
-    bit adlc_a_cr2                                                    ; f247: 2c 01 c8    ,..
-    beq cf1f2                                                         ; f24a: f0 a6       ..
+.loopback_b_to_a_flush_loop
+    jsr wait_adlc_a_irq                                               ; f22a: 20 e4 e3     ..            ; Wait for A's remaining RX IRQ
+    bit adlc_a_cr2                                                    ; f22d: 2c 01 c8    ,..            ; BIT SR2 -- RDA still asserted?
+    bpl loopback_b_to_a_fail                                          ; f230: 10 c0       ..             ; Drain interrupted -> fail
+    cpx adlc_a_tx                                                     ; f232: ec 02 c8    ...            ; Compare A's residual byte against X
+    bne loopback_b_to_a_fail                                          ; f235: d0 bb       ..             ; Mismatch -> fail
+    inx                                                               ; f237: e8          .              ; Advance X
+    cpx adlc_a_tx                                                     ; f238: ec 02 c8    ...            ; Compare A's next residual byte against X
+    bne loopback_b_to_a_fail                                          ; f23b: d0 b5       ..             ; Mismatch -> fail
+    inx                                                               ; f23d: e8          .              ; Advance X past the pair
+    cpx #0                                                            ; f23e: e0 00       ..             ; X wrapped to 0 -> A has drained all 256 bytes
+    bne loopback_b_to_a_flush_loop                                    ; f240: d0 e8       ..             ; Not done -> keep draining
+    jsr wait_adlc_a_irq                                               ; f242: 20 e4 e3     ..            ; Wait for the trailing end-of-frame IRQ on A
+    lda #2                                                            ; f245: a9 02       ..             ; A = &02: SR2 mask for FV (Frame Valid)
+    bit adlc_a_cr2                                                    ; f247: 2c 01 c8    ,..            ; BIT SR2 -- confirm FV is set
+    beq loopback_b_to_a_fail                                          ; f24a: f0 a6       ..             ; FV missing -> malformed frame, fail
 ; ***************************************************************************************
 ; Verify jumper-set network numbers match self-test expectations
 ; 
@@ -2842,8 +2858,8 @@ save pydis_start, pydis_end
 ;     l0001:                        15
 ;     main_loop:                    14
 ;     net_num_a:                    13
-;     cf151:                        12
-;     cf1f2:                        12
+;     loopback_a_to_b_fail:         12
+;     loopback_b_to_a_fail:         12
 ;     net_num_b:                    12
 ;     rx_len:                       12
 ;     l0002:                        10
@@ -2926,10 +2942,6 @@ save pydis_start, pydis_end
 ;     adlc_b_full_reset:             1
 ;     ce1d3:                         1
 ;     ce354:                         1
-;     cf156:                         1
-;     cf15c:                         1
-;     cf1f7:                         1
-;     cf1fd:                         1
 ;     handshake_rx_a_drained:        1
 ;     handshake_rx_a_end:            1
 ;     handshake_rx_a_finalise_len:   1
@@ -2939,10 +2951,14 @@ save pydis_start, pydis_end
 ;     handshake_rx_b_finalise_len:   1
 ;     handshake_rx_b_route_check:    1
 ;     init_reachable_nets_clear:     1
-;     loop_cf125:                    1
-;     loop_cf189:                    1
-;     loop_cf1c6:                    1
-;     loop_cf22a:                    1
+;     loopback_a_to_b_flush_loop:    1
+;     loopback_a_to_b_head_ok:       1
+;     loopback_a_to_b_prefill:       1
+;     loopback_a_to_b_stream_loop:   1
+;     loopback_b_to_a_flush_loop:    1
+;     loopback_b_to_a_head_ok:       1
+;     loopback_b_to_a_prefill:       1
+;     loopback_b_to_a_stream_loop:   1
 ;     main_loop_arm_a:               1
 ;     main_loop_arm_b:               1
 ;     main_loop_idle:                1
@@ -3008,20 +3024,10 @@ save pydis_start, pydis_end
 ; Automatically generated labels:
 ;     ce1d3
 ;     ce354
-;     cf151
-;     cf156
-;     cf15c
-;     cf1f2
-;     cf1f7
-;     cf1fd
 ;     l0000
 ;     l0001
 ;     l0002
 ;     l0003
-;     loop_cf125
-;     loop_cf189
-;     loop_cf1c6
-;     loop_cf22a
 
 ; Stats:
 ;     Total size (Code + Data) = 8192 bytes
