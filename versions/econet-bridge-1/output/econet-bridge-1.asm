@@ -1019,11 +1019,21 @@ adlc_b_tx2      = &d803
 ; 
 ;   tx_dst_stn = &FF                    broadcast station
 ;   tx_dst_net = &FF                    broadcast network
-;   tx_src_stn = &18                    provisional bridge id (TBD)
-;   tx_src_net = &18                    provisional bridge id (TBD)
+;   tx_src_stn = &18                    firmware marker (see below)
+;   tx_src_net = &18                    firmware marker (see below)
 ;   tx_ctrl    = &80                    initial-announcement ctrl
 ;   tx_port    = &9C                    bridge-protocol port
 ;   tx_data0   = net_num_b              network number on side B
+; 
+; The src_stn/src_net fields are both set to the constant &18. The
+; Bridge has no station number of its own (only network numbers,
+; per the Installation Guide) so these fields are not real addresses.
+; Receivers do not use them for routing -- rx_a_handle_81 reads the
+; payload starting at offset 6 and ignores bytes 2-3 entirely. The
+; most plausible role for &18 is defensive redundancy: together with
+; dst=(&FF,&FF), ctrl=&80/&81 and port=&9C it gives a receiver
+; multiple ways to confirm that a received frame is a well-formed
+; bridge announcement.
 ; 
 ; Also writes &06 to tx_end_lo and &04 to tx_end_hi (so the transmit
 ; routine sends bytes &045A..&0460 inclusive = 7 bytes when X=1),
@@ -1042,7 +1052,7 @@ adlc_b_tx2      = &d803
     lda #&ff                                                          ; e458: a9 ff       ..
     sta tx_dst_stn                                                    ; e45a: 8d 5a 04    .Z.
     sta tx_dst_net                                                    ; e45d: 8d 5b 04    .[.
-; src = &1818: provisional bridge self-id
+; src = &1818: firmware marker (Bridge has no station)
     lda #&18                                                          ; e460: a9 18       ..
     sta tx_src_stn                                                    ; e462: 8d 5c 04    .\.
     sta tx_src_net                                                    ; e465: 8d 5d 04    .].

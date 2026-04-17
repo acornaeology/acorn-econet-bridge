@@ -122,6 +122,10 @@ label(0x0082, "top_ram_page")
 
 label(0xC000, "net_num_a")      # Read: Econet side A network number
 label(0xD000, "net_num_b")      # Read: Econet side B network number
+# Network numbers are 7-bit (range 1-127 per the Installation Guide);
+# the top link on each jumper row is always made, so bit 7 is always
+# zero. The Bridge has no station number of its own -- it sits on
+# each Econet segment as a promiscuous receiver and broadcaster.
 
 label(0xC800, "adlc_a_cr1")     # W: CR1 (or CR3 if AC=1). R: SR1
 label(0xC801, "adlc_a_cr2")     # W: CR2 (or CR4 if AC=1). R: SR2
@@ -425,11 +429,21 @@ is re-transmitted via ADLC B.
 
   tx_dst_stn = &FF                    broadcast station
   tx_dst_net = &FF                    broadcast network
-  tx_src_stn = &18                    provisional bridge id (TBD)
-  tx_src_net = &18                    provisional bridge id (TBD)
+  tx_src_stn = &18                    firmware marker (see below)
+  tx_src_net = &18                    firmware marker (see below)
   tx_ctrl    = &80                    initial-announcement ctrl
   tx_port    = &9C                    bridge-protocol port
   tx_data0   = net_num_b              network number on side B
+
+The src_stn/src_net fields are both set to the constant &18. The
+Bridge has no station number of its own (only network numbers,
+per the Installation Guide) so these fields are not real addresses.
+Receivers do not use them for routing -- rx_a_handle_81 reads the
+payload starting at offset 6 and ignores bytes 2-3 entirely. The
+most plausible role for &18 is defensive redundancy: together with
+dst=(&FF,&FF), ctrl=&80/&81 and port=&9C it gives a receiver
+multiple ways to confirm that a received frame is a well-formed
+bridge announcement.
 
 Also writes &06 to tx_end_lo and &04 to tx_end_hi (so the transmit
 routine sends bytes &045A..&0460 inclusive = 7 bytes when X=1),
@@ -444,7 +458,7 @@ variables at rx_src_stn and rx_query_stn rather than baked-in
 constants.""")
 
 comment(0xE458, "dst = &FFFF: broadcast station + network")
-comment(0xE460, "src = &1818: provisional bridge self-id")
+comment(0xE460, "src = &1818: firmware marker (Bridge has no station)")
 comment(0xE468, "port = &9C (bridge-protocol port)")
 comment(0xE46D, "ctrl = &80 (scout)")
 comment(0xE472, "Payload byte 0: bridge's network number on side B")
