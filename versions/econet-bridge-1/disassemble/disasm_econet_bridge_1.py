@@ -98,8 +98,9 @@ comment(0xFFFE, "IRQ/BRK vector", inline=True)
 # the first-pass disassembly:
 #
 # - &C000 / &D000 are only ever read, consistent with the two
-#   74LS244 buffers that expose the station-number selection links
-#   (one per Econet port).
+#   74LS244 buffers that expose the network-number selection links
+#   (one per Econet port — each side of the Bridge has its own
+#   network number, configured by jumpers/links on the board).
 # - &C800-&C803 and &D800-&D803 are accessed with the exact pattern
 #   of an MC6854 ADLC — CR1/SR1 at offset 0, CR2/SR2 at 1, TX/RX
 #   FIFO at 2 and 3, with BIT reads of SR1 used to poll IRQ status
@@ -119,8 +120,8 @@ label(0x0080, "mem_ptr_lo")
 label(0x0081, "mem_ptr_hi")
 label(0x0082, "top_ram_page")
 
-label(0xC000, "station_id_a")   # Read: Econet port A station number
-label(0xD000, "station_id_b")   # Read: Econet port B station number
+label(0xC000, "net_num_a")      # Read: Econet side A network number
+label(0xD000, "net_num_b")      # Read: Econet side B network number
 
 label(0xC800, "adlc_a_cr1")     # W: CR1 (or CR3 if AC=1). R: SR1
 label(0xC801, "adlc_a_cr2")     # W: CR2 (or CR4 if AC=1). R: SR2
@@ -215,18 +216,28 @@ comment(0xE41E, "CR2=&67: clear status, FC_TDRA, 2/1-byte, PSE")
 
 
 # =====================================================================
-# Per-station tables for the two Econet ports
+# Inter-network routing tables
 # =====================================================================
-# Two 256-byte arrays indexed by station number (0-255). Their
-# exact semantics (reachability / last-seen / TTL) will firm up as
-# the code that reads them is analysed, but the init routine at
-# &E424 shows the structure clearly: start cleared, then for each
-# table mark the bridge's own station on the _other_ port plus the
-# broadcast slot (&FF) with &FF. Named `_map` for now — refine as
-# we learn more.
-
-label(0x025A, "net_a_map")   # 256-entry table indexed by station id
-label(0x035A, "net_b_map")
+# Two 256-byte arrays indexed by destination
+# NETWORK NUMBER (not station number). A non-zero entry means
+# "this destination network is reachable from here".
+#
+#   reachable_via_b  at &025A  consulted by rx_frame_a.
+#       Networks known to be accessible by forwarding an incoming
+#       side-A frame out of side B. Initialised with net_num_b
+#       (our own B-side network, directly reachable) and 255
+#       (broadcast). Extended by bridge-announcement messages
+#       received on side A.
+#
+#   reachable_via_a  at &035A  consulted by rx_frame_b.
+#       Mirror.
+#
+# Naming note: the earlier provisional names `reachable_via_b` and
+# `reachable_via_a` reflected which *handler* used them, not what they
+# represented. Semantics resolved once the payload processing in
+# rx_a_handle_80 revealed the map as a routing table.
+label(0x025A, "reachable_via_b")
+label(0x035A, "reachable_via_a")
 
 # Multi-byte counter reused for different purposes by several
 # routines. wait_adlc_a_idle (&E6DC) uses all three bytes as a
@@ -294,17 +305,17 @@ label(0x0201, "tx_end_hi")
 # Initialise per-station tables
 # =====================================================================
 
-label(0xE424, "init_station_maps")
-subroutine(0xE424, "init_station_maps", hook=None,
+label(0xE424, "init_reachable_nets")
+subroutine(0xE424, "init_reachable_nets", hook=None,
     title="Clear the per-port station maps and mark bridge/broadcast",
     description="""\
-Zeroes net_a_map and net_b_map (256 bytes each), then writes &FF
+Zeroes reachable_via_b and reachable_via_a (256 bytes each), then writes &FF
 to three slots:
 
-  net_b_map[station_id_a]    — the bridge's port-A station
-  net_a_map[station_id_b]    — the bridge's port-B station
-  net_a_map[255]             — broadcast slot
-  net_b_map[255]             — broadcast slot
+  reachable_via_a[net_num_a]    — the bridge's port-A station
+  reachable_via_b[net_num_b]    — the bridge's port-B station
+  reachable_via_b[255]             — broadcast slot
+  reachable_via_a[255]             — broadcast slot
 
 Called from the reset handler and also re-invoked at &E1D6 and
 &E357 — probably after network topology changes or administrative
@@ -313,12 +324,12 @@ confused by traffic to/from its own station IDs or broadcasts
 during routing decisions.""")
 
 comment(0xE424, "Y = 0, A = 0: set up to clear both tables")
-comment(0xE428, "Zero net_a_map[Y]")
-comment(0xE42B, "Zero net_b_map[Y]")
+comment(0xE428, "Zero reachable_via_b[Y]")
+comment(0xE42B, "Zero reachable_via_a[Y]")
 comment(0xE42F, "Loop over all 256 slots (Y wraps back to 0)")
 comment(0xE431, "Marker value &FF for the special slots below")
-comment(0xE433, "Port A bridge-station slot -> mark in net_b_map")
-comment(0xE439, "Port B bridge-station slot -> mark in net_a_map")
+comment(0xE433, "Port A bridge-station slot -> mark in reachable_via_a")
+comment(0xE439, "Port B bridge-station slot -> mark in reachable_via_b")
 comment(0xE43F, "Broadcast slot (255) in both maps")
 
 
@@ -406,32 +417,37 @@ subroutine(0xE458, "build_announce_b", hook=None,
     title="Populate outbound frame with a side-B bridge announcement",
     description="""\
 Populates the outbound frame control block at &045A-&0460 with
-an all-broadcast bridge announcement aimed at Econet side B:
+an all-broadcast bridge announcement carrying the B-side network
+number as its payload. At reset time this is transmitted via
+ADLC A first (announcing "network N is reachable through me" to
+side A's stations), then tx_data0 is patched to net_num_a and it
+is re-transmitted via ADLC B.
 
   tx_dst_stn = &FF                    broadcast station
   tx_dst_net = &FF                    broadcast network
   tx_src_stn = &18                    provisional bridge id (TBD)
   tx_src_net = &18                    provisional bridge id (TBD)
-  tx_ctrl    = &80                    scout control byte
+  tx_ctrl    = &80                    initial-announcement ctrl
   tx_port    = &9C                    bridge-protocol port
-  tx_data0   = station_id_b           bridge's station on side B
+  tx_data0   = net_num_b              network number on side B
 
-Also writes &06 to &0200 and &04 to &0201 (purpose provisional:
-probable length/selector fields in a separate transmit-command
-block), loads X=1 (likely side selector: 0 = side A, 1 = side B),
-and points mem_ptr at the frame block (&045A).
+Also writes &06 to tx_end_lo and &04 to tx_end_hi (so the transmit
+routine sends bytes &045A..&0460 inclusive = 7 bytes when X=1),
+loads X=1 (trailing-byte flag for transmit_frame_a), and points
+mem_ptr at the frame block (&045A).
 
-Called from the reset handler at &E038 and again from &E098. A
-structurally identical cousin builder lives at sub_ce48d (&E48D)
-and is called from four sites; it populates the same fields with
-values drawn from RAM variables at &023E and &0248 rather than
-baked-in constants.""")
+Called from the reset handler at &E038 and again from &E098 (the
+main-loop periodic re-announce path). A structurally identical
+cousin builder lives at sub_ce48d (&E48D) and is called from four
+sites; it populates the same fields with values drawn from RAM
+variables at rx_src_stn and rx_query_stn rather than baked-in
+constants.""")
 
 comment(0xE458, "dst = &FFFF: broadcast station + network")
 comment(0xE460, "src = &1818: provisional bridge self-id")
 comment(0xE468, "port = &9C (bridge-protocol port)")
 comment(0xE46D, "ctrl = &80 (scout)")
-comment(0xE472, "Payload byte 0: bridge's station id on side B")
+comment(0xE472, "Payload byte 0: bridge's network number on side B")
 comment(0xE478, "X = 1: probable side selector (B)")
 comment(0xE47A, "tx command block: len=&06, ?=&04 (provisional)")
 comment(0xE484, "mem_ptr = &045A (start of frame block)")
@@ -504,7 +520,7 @@ Filtering stage 1 — addressing:
   main_loop (spurious IRQ).
 
   Read byte 0 (rx_dst_stn) and byte 1 (rx_dst_net). If rx_dst_net
-  is zero (local net) or net_a_map[rx_dst_net] is zero (unknown
+  is zero (local net) or reachable_via_b[rx_dst_net] is zero (unknown
   network), jump to rx_a_not_for_us (&E13F): ignore the frame,
   re-listen, drop back to main_loop_poll without a full main_loop
   re-init.
@@ -543,7 +559,7 @@ comment(0xE0EF, "Wait for second IRQ: next byte ready")
 comment(0xE0F5, "No second IRQ -> frame is truncated, bail")
 comment(0xE0F7, "Read byte 1: destination network")
 comment(0xE0FA, "dst_net == 0 (local net) -> not for us")
-comment(0xE0FC, "dst_net not known in net_a_map -> not for us")
+comment(0xE0FC, "dst_net not known in reachable_via_b -> not for us")
 comment(0xE104, "Y = 2: start of pair-drain loop")
 
 label(0xE106, "rx_frame_a_drain")
@@ -574,7 +590,7 @@ label(0xE14A, "rx_frame_a_dispatch")
 comment(0xE14A, "Save final byte count as rx_len")
 comment(0xE14D, "Need >= 6 bytes for a valid scout header")
 comment(0xE151, "Lazy-init rx_src_net if zero")
-comment(0xE156, "Default src_net to station_id_a")
+comment(0xE156, "Default src_net to net_num_a")
 comment(0xE15C, "Is rx_dst_net addressing side B (= our B station)?")
 comment(0xE164, "Yes: normalise rx_dst_net to 0 (local on B)")
 comment(0xE169, "Broadcast test: both dst bytes == &FF?")
@@ -587,7 +603,7 @@ comment(0xE185, "&81 -> re-announcement handler")
 comment(0xE189, "&80 -> initial announcement handler")
 comment(0xE18D, "&82 -> bridge query (shares &83 path)")
 comment(0xE191, "&83 -> bridge query, known-station path")
-comment(0xE195, "Station Y known in net_a_map?")
+comment(0xE195, "Station Y known in reachable_via_b?")
 comment(0xE19B, "Unknown -> skip, back to main loop")
 
 
@@ -598,8 +614,8 @@ subroutine(0xE263, "rx_frame_b", hook=None, is_entry_point=False,
 Byte-for-byte mirror of rx_frame_a (&E0E2): same three-stage
 structure (addressing filter, drain, broadcast + bridge-protocol
 check), same control-byte dispatch, with `adlc_a_*` replaced by
-`adlc_b_*`, `net_a_map` by `net_b_map`, and the side-selector
-value swaps (`station_id_a` ↔ `station_id_b`) where appropriate.
+`adlc_b_*`, `reachable_via_b` by `reachable_via_a`, and the side-selector
+value swaps (`net_num_a` ↔ `net_num_b`) where appropriate.
 
 Bridge-protocol dispatch for this side:
 
@@ -653,7 +669,7 @@ Which side to transmit on is selected by announce_flag bit 7:
   bit 7 clear (flag = 1..&7F)  ->  transmit via ADLC A (side A)
   bit 7 set   (flag = &80..FF) ->  transmit via ADLC B (side B,
                                    after patching tx_data0 with
-                                   station_id_a, mirroring the
+                                   net_num_a, mirroring the
                                    reset-time dual-broadcast)
 
 Each visit decrements announce_count. If it hits zero, announce_
@@ -703,7 +719,7 @@ nation is controlled by the 16-bit pointer tx_end_lo/tx_end_hi
 (&0200/&0201): the loop sends byte pairs until mem_ptr + Y reaches
 or passes (tx_end_hi:tx_end_lo). X is a flag — non-zero means send
 one extra trailing byte after the terminator (used by builders that
-append a payload like build_announce_b's station_id_b at &0460).
+append a payload like build_announce_b's net_num_b at &0460).
 
 On entry:
   mem_ptr_lo/hi                      start address of frame

@@ -24,8 +24,8 @@ rx_ctrl         = &0240
 rx_port         = &0241
 l0248           = &0248
 rx_query_stn    = &0249
-net_a_map       = &025a
-net_b_map       = &035a
+reachable_via_b = &025a
+reachable_via_a = &035a
 tx_dst_stn      = &045a
 tx_dst_net      = &045b
 tx_src_stn      = &045c
@@ -33,12 +33,12 @@ tx_src_net      = &045d
 tx_ctrl         = &045e
 tx_port         = &045f
 tx_data0        = &0460
-station_id_a    = &c000
+net_num_a       = &c000
 adlc_a_cr1      = &c800
 adlc_a_cr2      = &c801
 adlc_a_tx       = &c802
 adlc_a_tx2      = &c803
-station_id_b    = &d000
+net_num_b       = &d000
 adlc_b_cr1      = &d800
 adlc_b_cr2      = &d801
 adlc_b_tx       = &d802
@@ -51,7 +51,7 @@ adlc_b_tx2      = &d803
 .reset
     cli                                                               ; e000: 58          X
     cld                                                               ; e001: d8          .
-    jsr init_station_maps                                             ; e002: 20 24 e4     $.
+    jsr init_reachable_nets                                           ; e002: 20 24 e4     $.
     jsr adlc_a_full_reset                                             ; e005: 20 f0 e3     ..
     jsr adlc_b_full_reset                                             ; e008: 20 0a e4     ..
 ; ***************************************************************************************
@@ -137,7 +137,7 @@ adlc_b_tx2      = &d803
     jsr build_announce_b                                              ; e038: 20 58 e4     X.
     jsr wait_adlc_a_idle                                              ; e03b: 20 dc e6     ..
     jsr transmit_frame_a                                              ; e03e: 20 17 e5     ..
-    lda station_id_a                                                  ; e041: ad 00 c0    ...
+    lda net_num_a                                                     ; e041: ad 00 c0    ...
     sta tx_data0                                                      ; e044: 8d 60 04    .`.
     lda #4                                                            ; e047: a9 04       ..
     sta mem_ptr_hi                                                    ; e049: 85 81       ..
@@ -258,7 +258,7 @@ adlc_b_tx2      = &d803
 ;   bit 7 clear (flag = 1..&7F)  ->  transmit via ADLC A (side A)
 ;   bit 7 set   (flag = &80..FF) ->  transmit via ADLC B (side B,
 ;                                    after patching tx_data0 with
-;                                    station_id_a, mirroring the
+;                                    net_num_a, mirroring the
 ;                                    reset-time dual-broadcast)
 ; 
 ; Each visit decrements announce_count. If it hits zero, announce_
@@ -309,7 +309,7 @@ adlc_b_tx2      = &d803
 ; Side B path: patch tx_data0 for side-B broadcast
 ; &e0ca referenced 1 time by &e0a3
 .re_announce_side_b
-    lda station_id_a                                                  ; e0ca: ad 00 c0    ...
+    lda net_num_a                                                     ; e0ca: ad 00 c0    ...
     sta tx_data0                                                      ; e0cd: 8d 60 04    .`.
 ; Reset A's TX first (mirror of side-A path)
     lda #&c2                                                          ; e0d0: a9 c2       ..
@@ -337,7 +337,7 @@ adlc_b_tx2      = &d803
 ;   main_loop (spurious IRQ).
 ; 
 ;   Read byte 0 (rx_dst_stn) and byte 1 (rx_dst_net). If rx_dst_net
-;   is zero (local net) or net_a_map[rx_dst_net] is zero (unknown
+;   is zero (local net) or reachable_via_b[rx_dst_net] is zero (unknown
 ;   network), jump to rx_a_not_for_us (&E13F): ignore the frame,
 ;   re-listen, drop back to main_loop_poll without a full main_loop
 ;   re-init.
@@ -387,8 +387,8 @@ adlc_b_tx2      = &d803
     ldy adlc_a_tx                                                     ; e0f7: ac 02 c8    ...
 ; dst_net == 0 (local net) -> not for us
     beq rx_a_not_for_us                                               ; e0fa: f0 43       .C
-; dst_net not known in net_a_map -> not for us
-    lda net_a_map,y                                                   ; e0fc: b9 5a 02    .Z.
+; dst_net not known in reachable_via_b -> not for us
+    lda reachable_via_b,y                                             ; e0fc: b9 5a 02    .Z.
     beq rx_a_not_for_us                                               ; e0ff: f0 3e       .>
     sty rx_dst_net                                                    ; e101: 8c 3d 02    .=.
 ; Y = 2: start of pair-drain loop
@@ -458,13 +458,13 @@ adlc_b_tx2      = &d803
 ; Lazy-init rx_src_net if zero
     lda rx_src_net                                                    ; e151: ad 3f 02    .?.
     bne ce15c                                                         ; e154: d0 06       ..
-; Default src_net to station_id_a
-    lda station_id_a                                                  ; e156: ad 00 c0    ...
+; Default src_net to net_num_a
+    lda net_num_a                                                     ; e156: ad 00 c0    ...
     sta rx_src_net                                                    ; e159: 8d 3f 02    .?.
 ; Is rx_dst_net addressing side B (= our B station)?
 ; &e15c referenced 1 time by &e154
 .ce15c
-    lda station_id_b                                                  ; e15c: ad 00 d0    ...
+    lda net_num_b                                                     ; e15c: ad 00 d0    ...
     cmp rx_dst_net                                                    ; e15f: cd 3d 02    .=.
     bne ce169                                                         ; e162: d0 05       ..
 ; Yes: normalise rx_dst_net to 0 (local on B)
@@ -501,16 +501,16 @@ adlc_b_tx2      = &d803
 ; &83 -> bridge query, known-station path
     cmp #&83                                                          ; e191: c9 83       ..
     bne ce208                                                         ; e193: d0 73       .s
-; Station Y known in net_a_map?
+; Station Y known in reachable_via_b?
     ldy rx_query_stn                                                  ; e195: ac 49 02    .I.
-    lda net_a_map,y                                                   ; e198: b9 5a 02    .Z.
+    lda reachable_via_b,y                                             ; e198: b9 5a 02    .Z.
 ; Unknown -> skip, back to main loop
     beq ce1d3                                                         ; e19b: f0 36       .6
 ; &e19d referenced 1 time by &e18f
 .ce19d
     jsr adlc_a_listen                                                 ; e19d: 20 ff e3     ..
     jsr sub_ce48d                                                     ; e1a0: 20 8d e4     ..
-    lda station_id_b                                                  ; e1a3: ad 00 d0    ...
+    lda net_num_b                                                     ; e1a3: ad 00 d0    ...
     sta tx_src_net                                                    ; e1a6: 8d 5d 04    .].
     sta ctr24_lo                                                      ; e1a9: 8d 14 02    ...
     jsr sub_ce448                                                     ; e1ac: 20 48 e4     H.
@@ -518,9 +518,9 @@ adlc_b_tx2      = &d803
     jsr transmit_frame_a                                              ; e1b2: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e1b5: 20 6e e5     n.
     jsr sub_ce48d                                                     ; e1b8: 20 8d e4     ..
-    lda station_id_b                                                  ; e1bb: ad 00 d0    ...
+    lda net_num_b                                                     ; e1bb: ad 00 d0    ...
     sta tx_src_net                                                    ; e1be: 8d 5d 04    .].
-    lda station_id_a                                                  ; e1c1: ad 00 c0    ...
+    lda net_num_a                                                     ; e1c1: ad 00 c0    ...
     sta tx_ctrl                                                       ; e1c4: 8d 5e 04    .^.
     lda rx_query_stn                                                  ; e1c7: ad 49 02    .I.
     sta tx_port                                                       ; e1ca: 8d 5f 04    ._.
@@ -532,8 +532,8 @@ adlc_b_tx2      = &d803
 
 ; &e1d6 referenced 1 time by &e18b
 .ce1d6
-    jsr init_station_maps                                             ; e1d6: 20 24 e4     $.
-    lda station_id_b                                                  ; e1d9: ad 00 d0    ...
+    jsr init_reachable_nets                                           ; e1d6: 20 24 e4     $.
+    lda net_num_b                                                     ; e1d9: ad 00 d0    ...
     sta announce_tmr_hi                                               ; e1dc: 8d 2b 02    .+.
     lda #0                                                            ; e1df: a9 00       ..
     sta announce_tmr_lo                                               ; e1e1: 8d 2a 02    .*.
@@ -549,11 +549,11 @@ adlc_b_tx2      = &d803
     lda rx_dst_stn,y                                                  ; e1f0: b9 3c 02    .<.
     tax                                                               ; e1f3: aa          .
     lda #&ff                                                          ; e1f4: a9 ff       ..
-    sta net_b_map,x                                                   ; e1f6: 9d 5a 03    .Z.
+    sta reachable_via_a,x                                             ; e1f6: 9d 5a 03    .Z.
     iny                                                               ; e1f9: c8          .
     cpy rx_len                                                        ; e1fa: cc 28 02    .(.
     bne loop_ce1f0                                                    ; e1fd: d0 f1       ..
-    lda station_id_a                                                  ; e1ff: ad 00 c0    ...
+    lda net_num_a                                                     ; e1ff: ad 00 c0    ...
     sta rx_dst_stn,y                                                  ; e202: 99 3c 02    .<.
     inc rx_len                                                        ; e205: ee 28 02    .(.
 ; &e208 referenced 2 times by &e147, &e193
@@ -608,8 +608,8 @@ adlc_b_tx2      = &d803
 ; Byte-for-byte mirror of rx_frame_a (&E0E2): same three-stage
 ; structure (addressing filter, drain, broadcast + bridge-protocol
 ; check), same control-byte dispatch, with `adlc_a_*` replaced by
-; `adlc_b_*`, `net_a_map` by `net_b_map`, and the side-selector
-; value swaps (`station_id_a` ↔ `station_id_b`) where appropriate.
+; `adlc_b_*`, `reachable_via_b` by `reachable_via_a`, and the side-selector
+; value swaps (`net_num_a` ↔ `net_num_b`) where appropriate.
 ; 
 ; Bridge-protocol dispatch for this side:
 ; 
@@ -632,7 +632,7 @@ adlc_b_tx2      = &d803
     bpl rx_frame_b_bail                                               ; e276: 10 45       .E
     ldy adlc_b_tx                                                     ; e278: ac 02 d8    ...
     beq rx_b_not_for_us                                               ; e27b: f0 43       .C
-    lda net_b_map,y                                                   ; e27d: b9 5a 03    .Z.
+    lda reachable_via_a,y                                             ; e27d: b9 5a 03    .Z.
     beq rx_b_not_for_us                                               ; e280: f0 3e       .>
     sty rx_dst_net                                                    ; e282: 8c 3d 02    .=.
     ldy #2                                                            ; e285: a0 02       ..
@@ -684,11 +684,11 @@ adlc_b_tx2      = &d803
     bcc rx_frame_b_bail                                               ; e2d0: 90 eb       ..
     lda rx_src_net                                                    ; e2d2: ad 3f 02    .?.
     bne ce2dd                                                         ; e2d5: d0 06       ..
-    lda station_id_b                                                  ; e2d7: ad 00 d0    ...
+    lda net_num_b                                                     ; e2d7: ad 00 d0    ...
     sta rx_src_net                                                    ; e2da: 8d 3f 02    .?.
 ; &e2dd referenced 1 time by &e2d5
 .ce2dd
-    lda station_id_a                                                  ; e2dd: ad 00 c0    ...
+    lda net_num_a                                                     ; e2dd: ad 00 c0    ...
     cmp rx_dst_net                                                    ; e2e0: cd 3d 02    .=.
     bne ce2ea                                                         ; e2e3: d0 05       ..
     lda #0                                                            ; e2e5: a9 00       ..
@@ -715,13 +715,13 @@ adlc_b_tx2      = &d803
     cmp #&83                                                          ; e312: c9 83       ..
     bne ce389                                                         ; e314: d0 73       .s
     ldy rx_query_stn                                                  ; e316: ac 49 02    .I.
-    lda net_b_map,y                                                   ; e319: b9 5a 03    .Z.
+    lda reachable_via_a,y                                             ; e319: b9 5a 03    .Z.
     beq ce354                                                         ; e31c: f0 36       .6
 ; &e31e referenced 1 time by &e310
 .ce31e
     jsr adlc_b_listen                                                 ; e31e: 20 19 e4     ..
     jsr sub_ce48d                                                     ; e321: 20 8d e4     ..
-    lda station_id_a                                                  ; e324: ad 00 c0    ...
+    lda net_num_a                                                     ; e324: ad 00 c0    ...
     sta tx_src_net                                                    ; e327: 8d 5d 04    .].
     sta ctr24_lo                                                      ; e32a: 8d 14 02    ...
     jsr sub_ce448                                                     ; e32d: 20 48 e4     H.
@@ -729,9 +729,9 @@ adlc_b_tx2      = &d803
     jsr transmit_frame_b                                              ; e333: 20 c0 e4     ..
     jsr sub_ce5ff                                                     ; e336: 20 ff e5     ..
     jsr sub_ce48d                                                     ; e339: 20 8d e4     ..
-    lda station_id_a                                                  ; e33c: ad 00 c0    ...
+    lda net_num_a                                                     ; e33c: ad 00 c0    ...
     sta tx_src_net                                                    ; e33f: 8d 5d 04    .].
-    lda station_id_b                                                  ; e342: ad 00 d0    ...
+    lda net_num_b                                                     ; e342: ad 00 d0    ...
     sta tx_ctrl                                                       ; e345: 8d 5e 04    .^.
     lda rx_query_stn                                                  ; e348: ad 49 02    .I.
     sta tx_port                                                       ; e34b: 8d 5f 04    ._.
@@ -743,8 +743,8 @@ adlc_b_tx2      = &d803
 
 ; &e357 referenced 1 time by &e30c
 .ce357
-    jsr init_station_maps                                             ; e357: 20 24 e4     $.
-    lda station_id_a                                                  ; e35a: ad 00 c0    ...
+    jsr init_reachable_nets                                           ; e357: 20 24 e4     $.
+    lda net_num_a                                                     ; e35a: ad 00 c0    ...
     sta announce_tmr_hi                                               ; e35d: 8d 2b 02    .+.
     lda #0                                                            ; e360: a9 00       ..
     sta announce_tmr_lo                                               ; e362: 8d 2a 02    .*.
@@ -760,11 +760,11 @@ adlc_b_tx2      = &d803
     lda rx_dst_stn,y                                                  ; e371: b9 3c 02    .<.
     tax                                                               ; e374: aa          .
     lda #&ff                                                          ; e375: a9 ff       ..
-    sta net_a_map,x                                                   ; e377: 9d 5a 02    .Z.
+    sta reachable_via_b,x                                             ; e377: 9d 5a 02    .Z.
     iny                                                               ; e37a: c8          .
     cpy rx_len                                                        ; e37b: cc 28 02    .(.
     bne loop_ce371                                                    ; e37e: d0 f1       ..
-    lda station_id_b                                                  ; e380: ad 00 d0    ...
+    lda net_num_b                                                     ; e380: ad 00 d0    ...
     sta rx_dst_stn,y                                                  ; e383: 99 3c 02    .<.
     inc rx_len                                                        ; e386: ee 28 02    .(.
 ; &e389 referenced 2 times by &e2c8, &e314
@@ -903,13 +903,13 @@ adlc_b_tx2      = &d803
 ; ***************************************************************************************
 ; Clear the per-port station maps and mark bridge/broadcast
 ; 
-; Zeroes net_a_map and net_b_map (256 bytes each), then writes &FF
+; Zeroes reachable_via_b and reachable_via_a (256 bytes each), then writes &FF
 ; to three slots:
 ; 
-;   net_b_map[station_id_a]    — the bridge's port-A station
-;   net_a_map[station_id_b]    — the bridge's port-B station
-;   net_a_map[255]             — broadcast slot
-;   net_b_map[255]             — broadcast slot
+;   reachable_via_a[net_num_a]    — the bridge's port-A station
+;   reachable_via_b[net_num_b]    — the bridge's port-B station
+;   reachable_via_b[255]             — broadcast slot
+;   reachable_via_a[255]             — broadcast slot
 ; 
 ; Called from the reset handler and also re-invoked at &E1D6 and
 ; &E357 — probably after network topology changes or administrative
@@ -918,30 +918,30 @@ adlc_b_tx2      = &d803
 ; during routing decisions.
 ; Y = 0, A = 0: set up to clear both tables
 ; &e424 referenced 3 times by &e002, &e1d6, &e357
-.init_station_maps
+.init_reachable_nets
     ldy #0                                                            ; e424: a0 00       ..
     lda #0                                                            ; e426: a9 00       ..
-; Zero net_a_map[Y]
+; Zero reachable_via_b[Y]
 ; &e428 referenced 1 time by &e42f
 .loop_ce428
-    sta net_a_map,y                                                   ; e428: 99 5a 02    .Z.
-; Zero net_b_map[Y]
-    sta net_b_map,y                                                   ; e42b: 99 5a 03    .Z.
+    sta reachable_via_b,y                                             ; e428: 99 5a 02    .Z.
+; Zero reachable_via_a[Y]
+    sta reachable_via_a,y                                             ; e42b: 99 5a 03    .Z.
     iny                                                               ; e42e: c8          .
 ; Loop over all 256 slots (Y wraps back to 0)
     bne loop_ce428                                                    ; e42f: d0 f7       ..
 ; Marker value &FF for the special slots below
     lda #&ff                                                          ; e431: a9 ff       ..
-; Port A bridge-station slot -> mark in net_b_map
-    ldy station_id_a                                                  ; e433: ac 00 c0    ...
-    sta net_b_map,y                                                   ; e436: 99 5a 03    .Z.
-; Port B bridge-station slot -> mark in net_a_map
-    ldy station_id_b                                                  ; e439: ac 00 d0    ...
-    sta net_a_map,y                                                   ; e43c: 99 5a 02    .Z.
+; Port A bridge-station slot -> mark in reachable_via_a
+    ldy net_num_a                                                     ; e433: ac 00 c0    ...
+    sta reachable_via_a,y                                             ; e436: 99 5a 03    .Z.
+; Port B bridge-station slot -> mark in reachable_via_b
+    ldy net_num_b                                                     ; e439: ac 00 d0    ...
+    sta reachable_via_b,y                                             ; e43c: 99 5a 02    .Z.
 ; Broadcast slot (255) in both maps
     ldy #&ff                                                          ; e43f: a0 ff       ..
-    sta net_a_map,y                                                   ; e441: 99 5a 02    .Z.
-    sta net_b_map,y                                                   ; e444: 99 5a 03    .Z.
+    sta reachable_via_b,y                                             ; e441: 99 5a 02    .Z.
+    sta reachable_via_a,y                                             ; e444: 99 5a 03    .Z.
     rts                                                               ; e447: 60          `
 
 ; &e448 referenced 2 times by &e1ac, &e32d
@@ -966,26 +966,31 @@ adlc_b_tx2      = &d803
 ; Populate outbound frame with a side-B bridge announcement
 ; 
 ; Populates the outbound frame control block at &045A-&0460 with
-; an all-broadcast bridge announcement aimed at Econet side B:
+; an all-broadcast bridge announcement carrying the B-side network
+; number as its payload. At reset time this is transmitted via
+; ADLC A first (announcing "network N is reachable through me" to
+; side A's stations), then tx_data0 is patched to net_num_a and it
+; is re-transmitted via ADLC B.
 ; 
 ;   tx_dst_stn = &FF                    broadcast station
 ;   tx_dst_net = &FF                    broadcast network
 ;   tx_src_stn = &18                    provisional bridge id (TBD)
 ;   tx_src_net = &18                    provisional bridge id (TBD)
-;   tx_ctrl    = &80                    scout control byte
+;   tx_ctrl    = &80                    initial-announcement ctrl
 ;   tx_port    = &9C                    bridge-protocol port
-;   tx_data0   = station_id_b           bridge's station on side B
+;   tx_data0   = net_num_b              network number on side B
 ; 
-; Also writes &06 to &0200 and &04 to &0201 (purpose provisional:
-; probable length/selector fields in a separate transmit-command
-; block), loads X=1 (likely side selector: 0 = side A, 1 = side B),
-; and points mem_ptr at the frame block (&045A).
+; Also writes &06 to tx_end_lo and &04 to tx_end_hi (so the transmit
+; routine sends bytes &045A..&0460 inclusive = 7 bytes when X=1),
+; loads X=1 (trailing-byte flag for transmit_frame_a), and points
+; mem_ptr at the frame block (&045A).
 ; 
-; Called from the reset handler at &E038 and again from &E098. A
-; structurally identical cousin builder lives at sub_ce48d (&E48D)
-; and is called from four sites; it populates the same fields with
-; values drawn from RAM variables at &023E and &0248 rather than
-; baked-in constants.
+; Called from the reset handler at &E038 and again from &E098 (the
+; main-loop periodic re-announce path). A structurally identical
+; cousin builder lives at sub_ce48d (&E48D) and is called from four
+; sites; it populates the same fields with values drawn from RAM
+; variables at rx_src_stn and rx_query_stn rather than baked-in
+; constants.
 ; dst = &FFFF: broadcast station + network
 ; &e458 referenced 2 times by &e038, &e098
 .build_announce_b
@@ -1002,8 +1007,8 @@ adlc_b_tx2      = &d803
 ; ctrl = &80 (scout)
     lda #&80                                                          ; e46d: a9 80       ..
     sta tx_ctrl                                                       ; e46f: 8d 5e 04    .^.
-; Payload byte 0: bridge's station id on side B
-    lda station_id_b                                                  ; e472: ad 00 d0    ...
+; Payload byte 0: bridge's network number on side B
+    lda net_num_b                                                     ; e472: ad 00 d0    ...
     sta tx_data0                                                      ; e475: 8d 60 04    .`.
 ; X = 1: probable side selector (B)
     ldx #1                                                            ; e478: a2 01       ..
@@ -1117,7 +1122,7 @@ adlc_b_tx2      = &d803
 ; (&0200/&0201): the loop sends byte pairs until mem_ptr + Y reaches
 ; or passes (tx_end_hi:tx_end_lo). X is a flag — non-zero means send
 ; one extra trailing byte after the terminator (used by builders that
-; append a payload like build_announce_b's station_id_b at &0460).
+; append a payload like build_announce_b's net_num_b at &0460).
 ; 
 ; On entry:
 ;   mem_ptr_lo/hi                      start address of frame
@@ -1268,15 +1273,15 @@ adlc_b_tx2      = &d803
     sta tx_end_lo                                                     ; e5d3: 8d 00 02    ...
     lda tx_src_net                                                    ; e5d6: ad 5d 04    .].
     bne ce5e1                                                         ; e5d9: d0 06       ..
-    lda station_id_a                                                  ; e5db: ad 00 c0    ...
+    lda net_num_a                                                     ; e5db: ad 00 c0    ...
     sta tx_src_net                                                    ; e5de: 8d 5d 04    .].
 ; &e5e1 referenced 1 time by &e5d9
 .ce5e1
     ldy tx_dst_net                                                    ; e5e1: ac 5b 04    .[.
     beq ce5b1                                                         ; e5e4: f0 cb       ..
-    lda net_a_map,y                                                   ; e5e6: b9 5a 02    .Z.
+    lda reachable_via_b,y                                             ; e5e6: b9 5a 02    .Z.
     beq ce5b1                                                         ; e5e9: f0 c6       ..
-    cpy station_id_b                                                  ; e5eb: cc 00 d0    ...
+    cpy net_num_b                                                     ; e5eb: cc 00 d0    ...
     bne ce5f5                                                         ; e5ee: d0 05       ..
     lda #0                                                            ; e5f0: a9 00       ..
     sta tx_dst_net                                                    ; e5f2: 8d 5b 04    .[.
@@ -1347,15 +1352,15 @@ adlc_b_tx2      = &d803
     sta tx_end_lo                                                     ; e664: 8d 00 02    ...
     lda tx_src_net                                                    ; e667: ad 5d 04    .].
     bne ce672                                                         ; e66a: d0 06       ..
-    lda station_id_b                                                  ; e66c: ad 00 d0    ...
+    lda net_num_b                                                     ; e66c: ad 00 d0    ...
     sta tx_src_net                                                    ; e66f: 8d 5d 04    .].
 ; &e672 referenced 1 time by &e66a
 .ce672
     ldy tx_dst_net                                                    ; e672: ac 5b 04    .[.
     beq ce642                                                         ; e675: f0 cb       ..
-    lda net_b_map,y                                                   ; e677: b9 5a 03    .Z.
+    lda reachable_via_a,y                                             ; e677: b9 5a 03    .Z.
     beq ce642                                                         ; e67a: f0 c6       ..
-    cpy station_id_a                                                  ; e67c: cc 00 c0    ...
+    cpy net_num_a                                                     ; e67c: cc 00 c0    ...
     bne ce686                                                         ; e67f: d0 05       ..
     lda #0                                                            ; e681: a9 00       ..
     sta tx_dst_net                                                    ; e683: 8d 5b 04    .[.
@@ -2085,7 +2090,7 @@ adlc_b_tx2      = &d803
     lda #2                                                            ; f245: a9 02       ..
     bit adlc_a_cr2                                                    ; f247: 2c 01 c8    ,..
     beq cf1f2                                                         ; f24a: f0 a6       ..
-    lda station_id_a                                                  ; f24c: ad 00 c0    ...
+    lda net_num_a                                                     ; f24c: ad 00 c0    ...
     cmp #1                                                            ; f24f: c9 01       ..
     beq cf258                                                         ; f251: f0 05       ..
     lda #7                                                            ; f253: a9 07       ..
@@ -2093,7 +2098,7 @@ adlc_b_tx2      = &d803
 
 ; &f258 referenced 1 time by &f251
 .cf258
-    lda station_id_b                                                  ; f258: ad 00 d0    ...
+    lda net_num_b                                                     ; f258: ad 00 d0    ...
     cmp #2                                                            ; f25b: c9 02       ..
     beq cf264                                                         ; f25d: f0 05       ..
     lda #8                                                            ; f25f: a9 08       ..
@@ -2515,19 +2520,19 @@ save pydis_start, pydis_end
 ;     l0000:                   15
 ;     l0001:                   15
 ;     main_loop:               14
-;     station_id_a:            13
+;     net_num_a:               13
 ;     cf151:                   12
 ;     cf1f2:                   12
+;     net_num_b:               12
 ;     rx_len:                  12
-;     station_id_b:            12
 ;     l0002:                   10
 ;     tx_src_net:              10
 ;     rx_dst_net:               8
 ;     tx_dst_net:               8
 ;     ctr24_lo:                 7
-;     net_a_map:                7
-;     net_b_map:                7
 ;     pydis_start:              7
+;     reachable_via_a:          7
+;     reachable_via_b:          7
 ;     reset:                    7
 ;     self_test_fail:           7
 ;     transmit_frame_a:         7
@@ -2560,7 +2565,7 @@ save pydis_start, pydis_end
 ;     ce6ee:                    3
 ;     cf105:                    3
 ;     cf2fa:                    3
-;     init_station_maps:        3
+;     init_reachable_nets:      3
 ;     l0003:                    3
 ;     top_ram_page:             3
 ;     tx_data0:                 3
