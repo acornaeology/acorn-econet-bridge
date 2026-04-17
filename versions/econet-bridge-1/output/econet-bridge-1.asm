@@ -519,14 +519,11 @@ adlc_b_tx2      = &d803
 ; (JMP main_loop via &E1D3). If non-zero, falls through to the
 ; shared response body at rx_a_handle_82 to transmit the reply --
 ; so IsNet is effectively WhatNet with an up-front routing filter.
-; Y = rx_query_net: network being queried
 .rx_a_handle_83
-    ldy rx_query_net                                                  ; e195: ac 49 02    .I.
-; Look up in reachable_via_b
-    lda reachable_via_b,y                                             ; e198: b9 5a 02    .Z.
+    ldy rx_query_net                                                  ; e195: ac 49 02    .I.            ; Y = the queried network number
+    lda reachable_via_b,y                                             ; e198: b9 5a 02    .Z.            ; Check if we have a route via the other side
 ; Unknown -> skip, back to main loop
-; Unknown network -> silently drop the query
-    beq ce1d3                                                         ; e19b: f0 36       .6
+    beq ce1d3                                                         ; e19b: f0 36       .6             ; Unknown -> silently drop this IsNet query
 ; ***************************************************************************************
 ; Side-A WhatNet query (ctrl=&82); also the IsNet response path
 ; 
@@ -687,28 +684,21 @@ adlc_b_tx2      = &d803
 ; reachable network numbers. No evidence that any in-the-wild
 ; variant does this for ctrl=&80/&81; our own ROM doesn't emit the
 ; string in any outbound frame.
-; Y = 6: start of announcement payload
 ; &e1ee referenced 1 time by &e187
 .rx_a_handle_81
-    ldy #6                                                            ; e1ee: a0 06       ..
-; Read next network number from payload
+    ldy #6                                                            ; e1ee: a0 06       ..             ; Y = 6: skip past the 6-byte scout header
 ; &e1f0 referenced 1 time by &e1fd
 .rx_a_learn_loop
-    lda rx_dst_stn,y                                                  ; e1f0: b9 3c 02    .<.
-; X = network number
-    tax                                                               ; e1f3: aa          .
-    lda #&ff                                                          ; e1f4: a9 ff       ..
-; Mark network X as reachable via side A
-    sta reachable_via_a,x                                             ; e1f6: 9d 5a 03    .Z.
-    iny                                                               ; e1f9: c8          .
-; End of payload?
-    cpy rx_len                                                        ; e1fa: cc 28 02    .(.
-    bne rx_a_learn_loop                                               ; e1fd: d0 f1       ..
-; Append our net_num_a to the payload
-    lda net_num_a                                                     ; e1ff: ad 00 c0    ...
-    sta rx_dst_stn,y                                                  ; e202: 99 3c 02    .<.
-; Bump the frame length by one byte
-    inc rx_len                                                        ; e205: ee 28 02    .(.
+    lda rx_dst_stn,y                                                  ; e1f0: b9 3c 02    .<.            ; Fetch next announced network number from payload
+    tax                                                               ; e1f3: aa          .              ; X = the network to record
+    lda #&ff                                                          ; e1f4: a9 ff       ..             ; A = &FF: 'route known' marker
+    sta reachable_via_a,x                                             ; e1f6: 9d 5a 03    .Z.            ; Remember that network X is reachable via side A
+    iny                                                               ; e1f9: c8          .              ; Advance to next payload byte
+    cpy rx_len                                                        ; e1fa: cc 28 02    .(.            ; Have we reached the end of the payload?
+    bne rx_a_learn_loop                                               ; e1fd: d0 f1       ..             ; No -- keep learning
+    lda net_num_a                                                     ; e1ff: ad 00 c0    ...            ; Load our own side-A network number
+    sta rx_dst_stn,y                                                  ; e202: 99 3c 02    .<.            ; Append it to the payload for the onward broadcast
+    inc rx_len                                                        ; e205: ee 28 02    .(.            ; Payload grew by one byte; record the new length
 ; ***************************************************************************************
 ; Forward an A-side frame to B, completing the 4-way handshake
 ; 
@@ -942,9 +932,9 @@ adlc_b_tx2      = &d803
 ; Falls through to rx_b_handle_82 when the queried network is
 ; known.
 .rx_b_handle_83
-    ldy rx_query_net                                                  ; e316: ac 49 02    .I.
-    lda reachable_via_a,y                                             ; e319: b9 5a 03    .Z.
-    beq ce354                                                         ; e31c: f0 36       .6
+    ldy rx_query_net                                                  ; e316: ac 49 02    .I.            ; Y = the queried network number
+    lda reachable_via_a,y                                             ; e319: b9 5a 03    .Z.            ; Check if we have a route via the other side
+    beq ce354                                                         ; e31c: f0 36       .6             ; Unknown -> silently drop this IsNet query
 ; ***************************************************************************************
 ; Side-B WhatNet query (ctrl=&82); also IsNet response path
 ; 
@@ -1009,19 +999,19 @@ adlc_b_tx2      = &d803
 ; through to rx_b_forward for re-broadcast onto side A.
 ; &e36f referenced 1 time by &e308
 .rx_b_handle_81
-    ldy #6                                                            ; e36f: a0 06       ..
+    ldy #6                                                            ; e36f: a0 06       ..             ; Y = 6: skip past the 6-byte scout header
 ; &e371 referenced 1 time by &e37e
 .rx_b_learn_loop
-    lda rx_dst_stn,y                                                  ; e371: b9 3c 02    .<.
-    tax                                                               ; e374: aa          .
-    lda #&ff                                                          ; e375: a9 ff       ..
-    sta reachable_via_b,x                                             ; e377: 9d 5a 02    .Z.
-    iny                                                               ; e37a: c8          .
-    cpy rx_len                                                        ; e37b: cc 28 02    .(.
-    bne rx_b_learn_loop                                               ; e37e: d0 f1       ..
-    lda net_num_b                                                     ; e380: ad 00 d0    ...
-    sta rx_dst_stn,y                                                  ; e383: 99 3c 02    .<.
-    inc rx_len                                                        ; e386: ee 28 02    .(.
+    lda rx_dst_stn,y                                                  ; e371: b9 3c 02    .<.            ; Fetch next announced network number from payload
+    tax                                                               ; e374: aa          .              ; X = the network to record
+    lda #&ff                                                          ; e375: a9 ff       ..             ; A = &FF: 'route known' marker
+    sta reachable_via_b,x                                             ; e377: 9d 5a 02    .Z.            ; Remember that network X is reachable via side B
+    iny                                                               ; e37a: c8          .              ; Advance to next payload byte
+    cpy rx_len                                                        ; e37b: cc 28 02    .(.            ; Have we reached the end of the payload?
+    bne rx_b_learn_loop                                               ; e37e: d0 f1       ..             ; No -- keep learning
+    lda net_num_b                                                     ; e380: ad 00 d0    ...            ; Load our own side-B network number
+    sta rx_dst_stn,y                                                  ; e383: 99 3c 02    .<.            ; Append it to the payload for the onward broadcast
+    inc rx_len                                                        ; e386: ee 28 02    .(.            ; Payload grew by one byte; record the new length
 ; ***************************************************************************************
 ; Forward a B-side frame to A, completing the 4-way handshake
 ; 
@@ -1227,29 +1217,23 @@ adlc_b_tx2      = &d803
 ; times, reducing the chance of collisions on the shared medium.
 ; Bridges with higher network numbers back off longer -- a cheap
 ; deterministic priority scheme that requires no coordination.
-; Y = &40: fixed prelude count
 ; &e448 referenced 2 times by &e1ac, &e32d
 .stagger_delay
-    ldy #&40 ; '@'                                                    ; e448: a0 40       .@
-; Tight dey/bne prelude (~160 us)
+    ldy #&40 ; '@'                                                    ; e448: a0 40       .@             ; Y = &40: seed for the fixed-length settling delay
 ; &e44a referenced 1 time by &e44b
-.loop_ce44a
-    dey                                                               ; e44a: 88          .
-    bne loop_ce44a                                                    ; e44b: d0 fd       ..
-; Y = &14: per-iteration inner count
+.stagger_delay_prelude
+    dey                                                               ; e44a: 88          .              ; Tight DEY/BNE loop -- burns ~160 us regardless of caller
+    bne stagger_delay_prelude                                         ; e44b: d0 fd       ..             ; Spin until the prelude counter hits zero
 ; &e44d referenced 1 time by &e455
-.loop_ce44d
-    ldy #&14                                                          ; e44d: a0 14       ..
-; Tight dey/bne inner loop (~50 us)
+.stagger_delay_outer
+    ldy #&14                                                          ; e44d: a0 14       ..             ; Y = &14: seed for one inner-loop iteration
 ; &e44f referenced 1 time by &e450
-.loop_ce44f
-    dey                                                               ; e44f: 88          .
-    bne loop_ce44f                                                    ; e450: d0 fd       ..
-; Decrement outer counter
-    dec ctr24_lo                                                      ; e452: ce 14 02    ...
-; Loop for ctr24_lo iterations total
-    bne loop_ce44d                                                    ; e455: d0 f6       ..
-    rts                                                               ; e457: 60          `
+.stagger_delay_inner
+    dey                                                               ; e44f: 88          .              ; Tight DEY/BNE -- ~50 us per outer iteration
+    bne stagger_delay_inner                                           ; e450: d0 fd       ..             ; Spin until the inner counter hits zero
+    dec ctr24_lo                                                      ; e452: ce 14 02    ...            ; One tick of the caller's network-number count
+    bne stagger_delay_outer                                           ; e455: d0 f6       ..             ; Loop until ctr24_lo reaches zero (net_num_? ticks)
+    rts                                                               ; e457: 60          `              ; Delay complete; return so caller can transmit
 
 ; ***************************************************************************************
 ; Build a BridgeReset scout carrying net_num_b as payload
@@ -1290,38 +1274,30 @@ adlc_b_tx2      = &d803
 ; sites; it populates the same fields with values drawn from RAM
 ; variables at rx_src_stn and rx_query_net rather than baked-in
 ; constants.
-; dst = &FFFF: broadcast station + network
 ; &e458 referenced 2 times by &e038, &e098
 .build_announce_b
-    lda #&ff                                                          ; e458: a9 ff       ..
-    sta tx_dst_stn                                                    ; e45a: 8d 5a 04    .Z.
-    sta tx_dst_net                                                    ; e45d: 8d 5b 04    .[.
-; src = &1818: firmware marker (Bridge has no station)
-    lda #&18                                                          ; e460: a9 18       ..
-    sta tx_src_stn                                                    ; e462: 8d 5c 04    .\.
-    sta tx_src_net                                                    ; e465: 8d 5d 04    .].
-; port = &9C (bridge-protocol port)
-    lda #&9c                                                          ; e468: a9 9c       ..
-    sta tx_port                                                       ; e46a: 8d 5f 04    ._.
-; ctrl = &80 (scout)
-    lda #&80                                                          ; e46d: a9 80       ..
-    sta tx_ctrl                                                       ; e46f: 8d 5e 04    .^.
-; Payload byte 0: bridge's network number on side B
-    lda net_num_b                                                     ; e472: ad 00 d0    ...
-    sta tx_data0                                                      ; e475: 8d 60 04    .`.
-; X = 1: probable side selector (B)
-    ldx #1                                                            ; e478: a2 01       ..
-; tx command block: len=&06, ?=&04 (provisional)
-    lda #6                                                            ; e47a: a9 06       ..
-    sta tx_end_lo                                                     ; e47c: 8d 00 02    ...
-    lda #4                                                            ; e47f: a9 04       ..
-    sta tx_end_hi                                                     ; e481: 8d 01 02    ...
-; mem_ptr = &045A (start of frame block)
-    lda #&5a ; 'Z'                                                    ; e484: a9 5a       .Z
-    sta mem_ptr_lo                                                    ; e486: 85 80       ..
-    lda #4                                                            ; e488: a9 04       ..
-    sta mem_ptr_hi                                                    ; e48a: 85 81       ..
-    rts                                                               ; e48c: 60          `
+    lda #&ff                                                          ; e458: a9 ff       ..             ; Broadcast marker &FF for dst station AND network
+    sta tx_dst_stn                                                    ; e45a: 8d 5a 04    .Z.            ; Write dst_stn = 255 into the frame header
+    sta tx_dst_net                                                    ; e45d: 8d 5b 04    .[.            ; Write dst_net = 255 into the frame header
+    lda #&18                                                          ; e460: a9 18       ..             ; Firmware marker &18 for src fields (no station id)
+    sta tx_src_stn                                                    ; e462: 8d 5c 04    .\.            ; Write src_stn = &18
+    sta tx_src_net                                                    ; e465: 8d 5d 04    .].            ; Write src_net = &18
+    lda #&9c                                                          ; e468: a9 9c       ..             ; Bridge-protocol port number
+    sta tx_port                                                       ; e46a: 8d 5f 04    ._.            ; Write port = &9C into the frame header
+    lda #&80                                                          ; e46d: a9 80       ..             ; Control byte: &80 = BridgeReset (initial announcement)
+    sta tx_ctrl                                                       ; e46f: 8d 5e 04    .^.            ; Write ctrl = &80 into the frame header
+    lda net_num_b                                                     ; e472: ad 00 d0    ...            ; Payload: our side-B network number to announce
+    sta tx_data0                                                      ; e475: 8d 60 04    .`.            ; Write as data byte 0 (trailing byte after header)
+    ldx #1                                                            ; e478: a2 01       ..             ; X = 1: ask transmit_frame_? to send the trailing byte too
+    lda #6                                                            ; e47a: a9 06       ..             ; Low byte of tx-end: &06 == 6 header bytes
+    sta tx_end_lo                                                     ; e47c: 8d 00 02    ...            ; Store low byte of tx_end
+    lda #4                                                            ; e47f: a9 04       ..             ; High byte of tx-end: &04 matches mem_ptr_hi below
+    sta tx_end_hi                                                     ; e481: 8d 01 02    ...            ; Store high byte of tx_end (end pair = &0406)
+    lda #&5a ; 'Z'                                                    ; e484: a9 5a       .Z             ; Low byte of mem_ptr: frame starts at &045A
+    sta mem_ptr_lo                                                    ; e486: 85 80       ..             ; Store mem_ptr_lo
+    lda #4                                                            ; e488: a9 04       ..             ; High byte of mem_ptr: page &04
+    sta mem_ptr_hi                                                    ; e48a: 85 81       ..             ; Store mem_ptr_hi (pointer = &045A)
+    rts                                                               ; e48c: 60          `              ; Return; caller may now transmit the BridgeReset scout
 
 ; ***************************************************************************************
 ; Build a reply template for WhatNet/IsNet query responses
@@ -1352,37 +1328,29 @@ adlc_b_tx2      = &d803
 ; subset of the fields before calling transmit_frame_? -- the
 ; idiomatic second call in particular overwrites tx_ctrl and
 ; tx_port to carry the bridge's routing answer.
-; dst_stn = rx_src_stn: reply to the querier
 ; &e48d referenced 4 times by &e1a0, &e1b8, &e321, &e339
 .build_query_response
-    lda rx_src_stn                                                    ; e48d: ad 3e 02    .>.
-    sta tx_dst_stn                                                    ; e490: 8d 5a 04    .Z.
-; dst_net = 0: reply on local network
-    lda #0                                                            ; e493: a9 00       ..
-    sta tx_dst_net                                                    ; e495: 8d 5b 04    .[.
-; src = (0, 0): Bridge has no station
-    lda #0                                                            ; e498: a9 00       ..
-    sta tx_src_stn                                                    ; e49a: 8d 5c 04    .\.
-    sta tx_src_net                                                    ; e49d: 8d 5d 04    .].
-; ctrl = &80: scout
-    lda #&80                                                          ; e4a0: a9 80       ..
-    sta tx_ctrl                                                       ; e4a2: 8d 5e 04    .^.
-; port = rx_query_port: from byte 12 of query
-    lda rx_query_port                                                 ; e4a5: ad 48 02    .H.
-    sta tx_port                                                       ; e4a8: 8d 5f 04    ._.
-; X = 0: no trailing payload byte
-    ldx #0                                                            ; e4ab: a2 00       ..
-; tx_end = &0406: 6-byte scout
-    lda #6                                                            ; e4ad: a9 06       ..
-    sta tx_end_lo                                                     ; e4af: 8d 00 02    ...
-    lda #4                                                            ; e4b2: a9 04       ..
-    sta tx_end_hi                                                     ; e4b4: 8d 01 02    ...
-; mem_ptr = &045A: frame-block base
-    lda #&5a ; 'Z'                                                    ; e4b7: a9 5a       .Z
-    sta mem_ptr_lo                                                    ; e4b9: 85 80       ..
-    lda #4                                                            ; e4bb: a9 04       ..
-    sta mem_ptr_hi                                                    ; e4bd: 85 81       ..
-    rts                                                               ; e4bf: 60          `
+    lda rx_src_stn                                                    ; e48d: ad 3e 02    .>.            ; Load querier's station from the received scout
+    sta tx_dst_stn                                                    ; e490: 8d 5a 04    .Z.            ; Target the reply back at them as dst_stn
+    lda #0                                                            ; e493: a9 00       ..             ; A = 0: local network marker
+    sta tx_dst_net                                                    ; e495: 8d 5b 04    .[.            ; dst_net = 0: answer on the querier's local net
+    lda #0                                                            ; e498: a9 00       ..             ; A = 0: Bridge has no station identity
+    sta tx_src_stn                                                    ; e49a: 8d 5c 04    .\.            ; src_stn = 0 in the reply (unused by Econet routing)
+    sta tx_src_net                                                    ; e49d: 8d 5d 04    .].            ; src_net = 0 for now (caller patches to net_num_?)
+    lda #&80                                                          ; e4a0: a9 80       ..             ; ctrl = &80: this is a scout, not a data frame
+    sta tx_ctrl                                                       ; e4a2: 8d 5e 04    .^.            ; Write ctrl into the frame header
+    lda rx_query_port                                                 ; e4a5: ad 48 02    .H.            ; Fetch the reply_port the querier asked for
+    sta tx_port                                                       ; e4a8: 8d 5f 04    ._.            ; Write it as the outbound scout's port
+    ldx #0                                                            ; e4ab: a2 00       ..             ; X = 0: transmit_frame_? should send 6 bytes exactly
+    lda #6                                                            ; e4ad: a9 06       ..             ; Low byte of tx_end: 6-byte frame
+    sta tx_end_lo                                                     ; e4af: 8d 00 02    ...            ; Store tx_end_lo
+    lda #4                                                            ; e4b2: a9 04       ..             ; High byte of tx_end: page &04
+    sta tx_end_hi                                                     ; e4b4: 8d 01 02    ...            ; Store tx_end_hi (end pair = &0406)
+    lda #&5a ; 'Z'                                                    ; e4b7: a9 5a       .Z             ; Low byte of mem_ptr: &045A
+    sta mem_ptr_lo                                                    ; e4b9: 85 80       ..             ; Store mem_ptr_lo
+    lda #4                                                            ; e4bb: a9 04       ..             ; High byte of mem_ptr: page &04
+    sta mem_ptr_hi                                                    ; e4bd: 85 81       ..             ; Store mem_ptr_hi; pointer = &045A
+    rts                                                               ; e4bf: 60          `              ; Return; caller patches src_net and ctrl/port as needed
 
 ; ***************************************************************************************
 ; Send the frame at mem_ptr out through ADLC B's TX FIFO
@@ -3182,9 +3150,6 @@ save pydis_start, pydis_end
 ;     cf26f:                       1
 ;     cf291:                       1
 ;     init_reachable_nets_clear:   1
-;     loop_ce44a:                  1
-;     loop_ce44d:                  1
-;     loop_ce44f:                  1
 ;     loop_cf031:                  1
 ;     loop_cf125:                  1
 ;     loop_cf189:                  1
@@ -3225,6 +3190,9 @@ save pydis_start, pydis_end
 ;     self_test_reset_adlcs:       1
 ;     self_test_rom_checksum:      1
 ;     self_test_zp:                1
+;     stagger_delay_inner:         1
+;     stagger_delay_outer:         1
+;     stagger_delay_prelude:       1
 
 ; Automatically generated labels:
 ;     ce05d
@@ -3290,9 +3258,6 @@ save pydis_start, pydis_end
 ;     l0001
 ;     l0002
 ;     l0003
-;     loop_ce44a
-;     loop_ce44d
-;     loop_ce44f
 ;     loop_cf031
 ;     loop_cf125
 ;     loop_cf189

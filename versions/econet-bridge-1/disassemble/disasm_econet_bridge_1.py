@@ -538,14 +538,28 @@ sites; it populates the same fields with values drawn from RAM
 variables at rx_src_stn and rx_query_net rather than baked-in
 constants.""")
 
-comment(0xE458, "dst = &FFFF: broadcast station + network")
-comment(0xE460, "src = &1818: firmware marker (Bridge has no station)")
-comment(0xE468, "port = &9C (bridge-protocol port)")
-comment(0xE46D, "ctrl = &80 (scout)")
-comment(0xE472, "Payload byte 0: bridge's network number on side B")
-comment(0xE478, "X = 1: probable side selector (B)")
-comment(0xE47A, "tx command block: len=&06, ?=&04 (provisional)")
-comment(0xE484, "mem_ptr = &045A (start of frame block)")
+comment(0xE458, "Broadcast marker &FF for dst station AND network", inline=True)
+comment(0xE45A, "Write dst_stn = 255 into the frame header", inline=True)
+comment(0xE45D, "Write dst_net = 255 into the frame header", inline=True)
+comment(0xE460, "Firmware marker &18 for src fields (no station id)", inline=True)
+comment(0xE462, "Write src_stn = &18", inline=True)
+comment(0xE465, "Write src_net = &18", inline=True)
+comment(0xE468, "Bridge-protocol port number", inline=True)
+comment(0xE46A, "Write port = &9C into the frame header", inline=True)
+comment(0xE46D, "Control byte: &80 = BridgeReset (initial announcement)", inline=True)
+comment(0xE46F, "Write ctrl = &80 into the frame header", inline=True)
+comment(0xE472, "Payload: our side-B network number to announce", inline=True)
+comment(0xE475, "Write as data byte 0 (trailing byte after header)", inline=True)
+comment(0xE478, "X = 1: ask transmit_frame_? to send the trailing byte too", inline=True)
+comment(0xE47A, "Low byte of tx-end: &06 == 6 header bytes", inline=True)
+comment(0xE47C, "Store low byte of tx_end", inline=True)
+comment(0xE47F, "High byte of tx-end: &04 matches mem_ptr_hi below", inline=True)
+comment(0xE481, "Store high byte of tx_end (end pair = &0406)", inline=True)
+comment(0xE484, "Low byte of mem_ptr: frame starts at &045A", inline=True)
+comment(0xE486, "Store mem_ptr_lo", inline=True)
+comment(0xE488, "High byte of mem_ptr: page &04", inline=True)
+comment(0xE48A, "Store mem_ptr_hi (pointer = &045A)", inline=True)
+comment(0xE48C, "Return; caller may now transmit the BridgeReset scout", inline=True)
 
 
 # =====================================================================
@@ -711,6 +725,10 @@ reachable_via_a (not _b) because the frame arrived on side B.
 Falls through to rx_b_handle_82 when the queried network is
 known.""")
 
+comment(0xE316, "Y = the queried network number", inline=True)
+comment(0xE319, "Check if we have a route via the other side", inline=True)
+comment(0xE31C, "Unknown -> silently drop this IsNet query", inline=True)
+
 label(0xE31E, "rx_b_handle_82")
 subroutine(0xE31E, "rx_b_handle_82", hook=None, is_entry_point=False,
     title="Side-B WhatNet query (ctrl=&82); also IsNet response path",
@@ -744,7 +762,18 @@ reachable_via_b[x] = &FF for each (mirror of the A-side writing
 reachable_via_a). Appends net_num_b to the payload and falls
 through to rx_b_forward for re-broadcast onto side A.""")
 
+comment(0xE36F, "Y = 6: skip past the 6-byte scout header", inline=True)
 label(0xE371, "rx_b_learn_loop")
+comment(0xE371, "Fetch next announced network number from payload", inline=True)
+comment(0xE374, "X = the network to record", inline=True)
+comment(0xE375, "A = &FF: 'route known' marker", inline=True)
+comment(0xE377, "Remember that network X is reachable via side B", inline=True)
+comment(0xE37A, "Advance to next payload byte", inline=True)
+comment(0xE37B, "Have we reached the end of the payload?", inline=True)
+comment(0xE37E, "No -- keep learning", inline=True)
+comment(0xE380, "Load our own side-B network number", inline=True)
+comment(0xE383, "Append it to the payload for the onward broadcast", inline=True)
+comment(0xE386, "Payload grew by one byte; record the new length", inline=True)
 
 
 label(0xE263, "rx_frame_b")
@@ -886,12 +915,18 @@ times, reducing the chance of collisions on the shared medium.
 Bridges with higher network numbers back off longer -- a cheap
 deterministic priority scheme that requires no coordination.""")
 
-comment(0xE448, "Y = &40: fixed prelude count")
-comment(0xE44A, "Tight dey/bne prelude (~160 us)")
-comment(0xE44D, "Y = &14: per-iteration inner count")
-comment(0xE44F, "Tight dey/bne inner loop (~50 us)")
-comment(0xE452, "Decrement outer counter")
-comment(0xE455, "Loop for ctr24_lo iterations total")
+comment(0xE448, "Y = &40: seed for the fixed-length settling delay", inline=True)
+label(0xE44A, "stagger_delay_prelude")
+comment(0xE44A, "Tight DEY/BNE loop -- burns ~160 us regardless of caller", inline=True)
+comment(0xE44B, "Spin until the prelude counter hits zero", inline=True)
+label(0xE44D, "stagger_delay_outer")
+comment(0xE44D, "Y = &14: seed for one inner-loop iteration", inline=True)
+label(0xE44F, "stagger_delay_inner")
+comment(0xE44F, "Tight DEY/BNE -- ~50 us per outer iteration", inline=True)
+comment(0xE450, "Spin until the inner counter hits zero", inline=True)
+comment(0xE452, "One tick of the caller's network-number count", inline=True)
+comment(0xE455, "Loop until ctr24_lo reaches zero (net_num_? ticks)", inline=True)
+comment(0xE457, "Delay complete; return so caller can transmit", inline=True)
 
 
 label(0xE48D, "build_query_response")
@@ -925,14 +960,27 @@ subset of the fields before calling transmit_frame_? -- the
 idiomatic second call in particular overwrites tx_ctrl and
 tx_port to carry the bridge's routing answer.""")
 
-comment(0xE48D, "dst_stn = rx_src_stn: reply to the querier")
-comment(0xE493, "dst_net = 0: reply on local network")
-comment(0xE498, "src = (0, 0): Bridge has no station")
-comment(0xE4A0, "ctrl = &80: scout")
-comment(0xE4A5, "port = rx_query_port: from byte 12 of query")
-comment(0xE4AB, "X = 0: no trailing payload byte")
-comment(0xE4AD, "tx_end = &0406: 6-byte scout")
-comment(0xE4B7, "mem_ptr = &045A: frame-block base")
+comment(0xE48D, "Load querier's station from the received scout", inline=True)
+comment(0xE490, "Target the reply back at them as dst_stn", inline=True)
+comment(0xE493, "A = 0: local network marker", inline=True)
+comment(0xE495, "dst_net = 0: answer on the querier's local net", inline=True)
+comment(0xE498, "A = 0: Bridge has no station identity", inline=True)
+comment(0xE49A, "src_stn = 0 in the reply (unused by Econet routing)", inline=True)
+comment(0xE49D, "src_net = 0 for now (caller patches to net_num_?)", inline=True)
+comment(0xE4A0, "ctrl = &80: this is a scout, not a data frame", inline=True)
+comment(0xE4A2, "Write ctrl into the frame header", inline=True)
+comment(0xE4A5, "Fetch the reply_port the querier asked for", inline=True)
+comment(0xE4A8, "Write it as the outbound scout's port", inline=True)
+comment(0xE4AB, "X = 0: transmit_frame_? should send 6 bytes exactly", inline=True)
+comment(0xE4AD, "Low byte of tx_end: 6-byte frame", inline=True)
+comment(0xE4AF, "Store tx_end_lo", inline=True)
+comment(0xE4B2, "High byte of tx_end: page &04", inline=True)
+comment(0xE4B4, "Store tx_end_hi (end pair = &0406)", inline=True)
+comment(0xE4B7, "Low byte of mem_ptr: &045A", inline=True)
+comment(0xE4B9, "Store mem_ptr_lo", inline=True)
+comment(0xE4BB, "High byte of mem_ptr: page &04", inline=True)
+comment(0xE4BD, "Store mem_ptr_hi; pointer = &045A", inline=True)
+comment(0xE4BF, "Return; caller patches src_net and ctrl/port as needed", inline=True)
 
 
 label(0xE195, "rx_a_handle_83")
@@ -950,9 +998,9 @@ have no route to that network so the query is silently dropped
 shared response body at rx_a_handle_82 to transmit the reply --
 so IsNet is effectively WhatNet with an up-front routing filter.""")
 
-comment(0xE195, "Y = rx_query_net: network being queried")
-comment(0xE198, "Look up in reachable_via_b")
-comment(0xE19B, "Unknown network -> silently drop the query")
+comment(0xE195, "Y = the queried network number", inline=True)
+comment(0xE198, "Check if we have a route via the other side", inline=True)
+comment(0xE19B, "Unknown -> silently drop this IsNet query", inline=True)
 
 
 label(0xE19D, "rx_a_handle_82")
@@ -1182,14 +1230,18 @@ reachable network numbers. No evidence that any in-the-wild
 variant does this for ctrl=&80/&81; our own ROM doesn't emit the
 string in any outbound frame.""")
 
-comment(0xE1EE, "Y = 6: start of announcement payload")
+comment(0xE1EE, "Y = 6: skip past the 6-byte scout header", inline=True)
 label(0xE1F0, "rx_a_learn_loop")
-comment(0xE1F0, "Read next network number from payload")
-comment(0xE1F3, "X = network number")
-comment(0xE1F6, "Mark network X as reachable via side A")
-comment(0xE1FA, "End of payload?")
-comment(0xE1FF, "Append our net_num_a to the payload")
-comment(0xE205, "Bump the frame length by one byte")
+comment(0xE1F0, "Fetch next announced network number from payload", inline=True)
+comment(0xE1F3, "X = the network to record", inline=True)
+comment(0xE1F4, "A = &FF: 'route known' marker", inline=True)
+comment(0xE1F6, "Remember that network X is reachable via side A", inline=True)
+comment(0xE1F9, "Advance to next payload byte", inline=True)
+comment(0xE1FA, "Have we reached the end of the payload?", inline=True)
+comment(0xE1FD, "No -- keep learning", inline=True)
+comment(0xE1FF, "Load our own side-A network number", inline=True)
+comment(0xE202, "Append it to the payload for the onward broadcast", inline=True)
+comment(0xE205, "Payload grew by one byte; record the new length", inline=True)
 
 
 label(0xE079, "main_loop_poll")
