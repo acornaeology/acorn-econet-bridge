@@ -1710,45 +1710,45 @@ adlc_b_tx2      = &d803
 ; Called from four sites: reset (&E04B), &E0D5, &E211, &E330.
 ; &e690 referenced 4 times by &e04b, &e0d5, &e211, &e330
 .wait_adlc_b_idle
-    lda #0                                                            ; e690: a9 00       ..
-    sta ctr24_lo                                                      ; e692: 8d 14 02    ...
-    sta ctr24_mid                                                     ; e695: 8d 15 02    ...
-    lda #&fe                                                          ; e698: a9 fe       ..
-    sta ctr24_hi                                                      ; e69a: 8d 16 02    ...
-    lda adlc_b_cr2                                                    ; e69d: ad 01 d8    ...
-    ldy #&e7                                                          ; e6a0: a0 e7       ..
+    lda #0                                                            ; e690: a9 00       ..             ; A = 0: seed the 24-bit timeout counter
+    sta ctr24_lo                                                      ; e692: 8d 14 02    ...            ; Clear timeout counter low byte
+    sta ctr24_mid                                                     ; e695: 8d 15 02    ...            ; Clear timeout counter mid byte
+    lda #&fe                                                          ; e698: a9 fe       ..             ; A = &FE: seed for the high byte (~131K iterations)
+    sta ctr24_hi                                                      ; e69a: 8d 16 02    ...            ; Store timeout high; counter = &00_00_FE counting up
+    lda adlc_b_cr2                                                    ; e69d: ad 01 d8    ...            ; Read SR2 (result discarded; flags irrelevant here)
+    ldy #&e7                                                          ; e6a0: a0 e7       ..             ; Y = &E7: CR2 value to arm the chip on Rx-Idle exit
 ; &e6a2 referenced 3 times by &e6c2, &e6c7, &e6cc
-.ce6a2
-    lda #&67 ; 'g'                                                    ; e6a2: a9 67       .g
-    sta adlc_b_cr2                                                    ; e6a4: 8d 01 d8    ...
-    lda #4                                                            ; e6a7: a9 04       ..
-    bit adlc_b_cr2                                                    ; e6a9: 2c 01 d8    ,..
-    bne ce6d3                                                         ; e6ac: d0 25       .%
-    lda adlc_b_cr2                                                    ; e6ae: ad 01 d8    ...
-    and #&81                                                          ; e6b1: 29 81       ).
-    beq ce6bf                                                         ; e6b3: f0 0a       ..
-    lda #&c2                                                          ; e6b5: a9 c2       ..
-    sta adlc_b_cr1                                                    ; e6b7: 8d 00 d8    ...
-    lda #&82                                                          ; e6ba: a9 82       ..
-    sta adlc_b_cr1                                                    ; e6bc: 8d 00 d8    ...
+.wait_adlc_b_idle_loop
+    lda #&67 ; 'g'                                                    ; e6a2: a9 67       .g             ; A = &67: standard listen-mode CR2 value
+    sta adlc_b_cr2                                                    ; e6a4: 8d 01 d8    ...            ; Re-prime CR2 -- clears any stale status bits
+    lda #4                                                            ; e6a7: a9 04       ..             ; A = &04: mask for SR2 bit 2 (Rx Idle / line quiet)
+    bit adlc_b_cr2                                                    ; e6a9: 2c 01 d8    ,..            ; Test SR2 bit 2 via BIT
+    bne wait_adlc_b_idle_ready                                        ; e6ac: d0 25       .%             ; Bit set -> line idle; we can transmit (exit)
+    lda adlc_b_cr2                                                    ; e6ae: ad 01 d8    ...            ; Read SR2 into A for the mask test below
+    and #&81                                                          ; e6b1: 29 81       ).             ; Mask AP (bit 0) + RDA (bit 7) -- someone else talking?
+    beq wait_adlc_b_idle_tick                                         ; e6b3: f0 0a       ..             ; Neither set -> still quiet-ish, just increment counter
+    lda #&c2                                                          ; e6b5: a9 c2       ..             ; Mask: reset TX, RX active
+    sta adlc_b_cr1                                                    ; e6b7: 8d 00 d8    ...            ; Abort our pending TX on ADLC B (yield to other station)
+    lda #&82                                                          ; e6ba: a9 82       ..             ; Mask: TX still reset, RX IRQ enabled
+    sta adlc_b_cr1                                                    ; e6bc: 8d 00 d8    ...            ; Keep CR1 in TX-reset state for another pass
 ; &e6bf referenced 1 time by &e6b3
-.ce6bf
-    inc ctr24_lo                                                      ; e6bf: ee 14 02    ...
-    bne ce6a2                                                         ; e6c2: d0 de       ..
-    inc ctr24_mid                                                     ; e6c4: ee 15 02    ...
-    bne ce6a2                                                         ; e6c7: d0 d9       ..
-    inc ctr24_hi                                                      ; e6c9: ee 16 02    ...
-    bne ce6a2                                                         ; e6cc: d0 d4       ..
-    pla                                                               ; e6ce: 68          h
-    pla                                                               ; e6cf: 68          h
-    jmp main_loop                                                     ; e6d0: 4c 51 e0    LQ.
+.wait_adlc_b_idle_tick
+    inc ctr24_lo                                                      ; e6bf: ee 14 02    ...            ; Bump timeout counter (LSB first)
+    bne wait_adlc_b_idle_loop                                         ; e6c2: d0 de       ..             ; Low byte didn't wrap -> keep polling
+    inc ctr24_mid                                                     ; e6c4: ee 15 02    ...            ; Bump mid byte
+    bne wait_adlc_b_idle_loop                                         ; e6c7: d0 d9       ..             ; Mid byte didn't wrap -> keep polling
+    inc ctr24_hi                                                      ; e6c9: ee 16 02    ...            ; Bump high byte
+    bne wait_adlc_b_idle_loop                                         ; e6cc: d0 d4       ..             ; High byte didn't wrap -> keep polling
+    pla                                                               ; e6ce: 68          h              ; Counter overflowed -- drop caller's return address...
+    pla                                                               ; e6cf: 68          h              ; ...(second PLA completes the return-address drop)
+    jmp main_loop                                                     ; e6d0: 4c 51 e0    LQ.            ; ...and escape to main_loop without returning
 
 ; &e6d3 referenced 1 time by &e6ac
-.ce6d3
-    sty adlc_b_cr2                                                    ; e6d3: 8c 01 d8    ...
-    lda #&44 ; 'D'                                                    ; e6d6: a9 44       .D
-    sta adlc_b_cr1                                                    ; e6d8: 8d 00 d8    ...
-    rts                                                               ; e6db: 60          `
+.wait_adlc_b_idle_ready
+    sty adlc_b_cr2                                                    ; e6d3: 8c 01 d8    ...            ; STY: arm CR2 with &E7 (from Y) -- TX-ready listen state
+    lda #&44 ; 'D'                                                    ; e6d6: a9 44       .D             ; Mask: arm CR1 for transmit (TX on, IRQ off)
+    sta adlc_b_cr1                                                    ; e6d8: 8d 00 d8    ...            ; Commit CR1; ADLC B ready to send
+    rts                                                               ; e6db: 60          `              ; Normal return: caller transmits the frame
 
 ; ***************************************************************************************
 ; Wait for ADLC A's line to go idle (CSMA) or escape
@@ -1779,61 +1779,47 @@ adlc_b_tx2      = &d803
 ; 
 ; Called from four sites, always immediately before a transmit:
 ; reset (&E03B, before transmit_frame_a), &E0AA, &E1AF, &E392.
-; Timeout counter = &00_00_FE (~131K iterations)
 ; &e6dc referenced 4 times by &e03b, &e0aa, &e1af, &e392
 .wait_adlc_a_idle
-    lda #0                                                            ; e6dc: a9 00       ..
-    sta ctr24_lo                                                      ; e6de: 8d 14 02    ...
-    sta ctr24_mid                                                     ; e6e1: 8d 15 02    ...
-    lda #&fe                                                          ; e6e4: a9 fe       ..
-    sta ctr24_hi                                                      ; e6e6: 8d 16 02    ...
-; (spurious SR2 read; Z/N set but A overwritten below)
-    lda adlc_a_cr2                                                    ; e6e9: ad 01 c8    ...
-; Y = &E7: CR2 value written on Rx-Idle exit
-    ldy #&e7                                                          ; e6ec: a0 e7       ..
-; Re-prime CR2 = &67: clear status, FC_TDRA etc.
+    lda #0                                                            ; e6dc: a9 00       ..             ; A = 0: seed the 24-bit timeout counter
+    sta ctr24_lo                                                      ; e6de: 8d 14 02    ...            ; Clear timeout counter low byte
+    sta ctr24_mid                                                     ; e6e1: 8d 15 02    ...            ; Clear timeout counter mid byte
+    lda #&fe                                                          ; e6e4: a9 fe       ..             ; A = &FE: seed for the high byte (gives ~131K iterations)
+    sta ctr24_hi                                                      ; e6e6: 8d 16 02    ...            ; Store timeout high; counter = &00_00_FE counting up
+    lda adlc_a_cr2                                                    ; e6e9: ad 01 c8    ...            ; Read SR2 (result discarded; flags irrelevant here)
+    ldy #&e7                                                          ; e6ec: a0 e7       ..             ; Y = &E7: CR2 value arm the chip with on Rx-Idle exit
 ; &e6ee referenced 3 times by &e70e, &e713, &e718
-.ce6ee
-    lda #&67 ; 'g'                                                    ; e6ee: a9 67       .g
-    sta adlc_a_cr2                                                    ; e6f0: 8d 01 c8    ...
-; A = &04 for the BIT: test SR2 bit 2 (Rx Idle)
-    lda #4                                                            ; e6f3: a9 04       ..
-    bit adlc_a_cr2                                                    ; e6f5: 2c 01 c8    ,..
-; Rx Idle -> line quiet, exit to transmit via &E71F
-    bne ce71f                                                         ; e6f8: d0 25       .%
-    lda adlc_a_cr2                                                    ; e6fa: ad 01 c8    ...
-; Mask AP (bit 0) and RDA (bit 7) -- incoming data?
-    and #&81                                                          ; e6fd: 29 81       ).
-; Neither -> line busy but nothing for us, keep polling
-    beq ce70b                                                         ; e6ff: f0 0a       ..
-; CR1 tickle: reset TX while another station sends
-    lda #&c2                                                          ; e701: a9 c2       ..
-    sta adlc_a_cr1                                                    ; e703: 8d 00 c8    ...
-    lda #&82                                                          ; e706: a9 82       ..
-    sta adlc_a_cr1                                                    ; e708: 8d 00 c8    ...
-; Bump 24-bit timeout counter (LSB first)
+.wait_adlc_a_idle_loop
+    lda #&67 ; 'g'                                                    ; e6ee: a9 67       .g             ; A = &67: standard listen-mode CR2 value
+    sta adlc_a_cr2                                                    ; e6f0: 8d 01 c8    ...            ; Re-prime CR2 -- clears any stale status bits
+    lda #4                                                            ; e6f3: a9 04       ..             ; A = &04: mask for SR2 bit 2 (Rx Idle / line quiet)
+    bit adlc_a_cr2                                                    ; e6f5: 2c 01 c8    ,..            ; Test SR2 bit 2 via BIT
+    bne wait_adlc_a_idle_ready                                        ; e6f8: d0 25       .%             ; Bit set -> line idle; we can transmit (exit)
+    lda adlc_a_cr2                                                    ; e6fa: ad 01 c8    ...            ; Read SR2 into A for the mask test below
+    and #&81                                                          ; e6fd: 29 81       ).             ; Mask AP (bit 0) + RDA (bit 7) -- someone else talking?
+    beq wait_adlc_a_idle_tick                                         ; e6ff: f0 0a       ..             ; Neither set -> still quiet-ish, just increment counter
+    lda #&c2                                                          ; e701: a9 c2       ..             ; Mask: reset TX, RX active
+    sta adlc_a_cr1                                                    ; e703: 8d 00 c8    ...            ; Abort our pending TX on ADLC A (yield to the other station)
+    lda #&82                                                          ; e706: a9 82       ..             ; Mask: TX still reset, RX IRQ enabled
+    sta adlc_a_cr1                                                    ; e708: 8d 00 c8    ...            ; Keep CR1 in TX-reset state for another pass
 ; &e70b referenced 1 time by &e6ff
-.ce70b
-    inc ctr24_lo                                                      ; e70b: ee 14 02    ...
-    bne ce6ee                                                         ; e70e: d0 de       ..
-    inc ctr24_mid                                                     ; e710: ee 15 02    ...
-    bne ce6ee                                                         ; e713: d0 d9       ..
-    inc ctr24_hi                                                      ; e715: ee 16 02    ...
-    bne ce6ee                                                         ; e718: d0 d4       ..
-; Timeout: drop caller's return address from stack...
-    pla                                                               ; e71a: 68          h
-    pla                                                               ; e71b: 68          h
-; ...and jump straight to the main Bridge loop
-    jmp main_loop                                                     ; e71c: 4c 51 e0    LQ.
+.wait_adlc_a_idle_tick
+    inc ctr24_lo                                                      ; e70b: ee 14 02    ...            ; Bump timeout counter (LSB first)
+    bne wait_adlc_a_idle_loop                                         ; e70e: d0 de       ..             ; Low byte didn't wrap -> keep polling
+    inc ctr24_mid                                                     ; e710: ee 15 02    ...            ; Bump mid byte
+    bne wait_adlc_a_idle_loop                                         ; e713: d0 d9       ..             ; Mid byte didn't wrap -> keep polling
+    inc ctr24_hi                                                      ; e715: ee 16 02    ...            ; Bump high byte
+    bne wait_adlc_a_idle_loop                                         ; e718: d0 d4       ..             ; High byte didn't wrap -> keep polling
+    pla                                                               ; e71a: 68          h              ; Counter overflowed -- drop caller's return address...
+    pla                                                               ; e71b: 68          h              ; ...(second PLA completes the return-address drop)
+    jmp main_loop                                                     ; e71c: 4c 51 e0    LQ.            ; ...and escape to main_loop without returning
 
-; Rx Idle seen: arm CR2 and CR1 ready for transmit
 ; &e71f referenced 1 time by &e6f8
-.ce71f
-    sty adlc_a_cr2                                                    ; e71f: 8c 01 c8    ...
-    lda #&44 ; 'D'                                                    ; e722: a9 44       .D
-    sta adlc_a_cr1                                                    ; e724: 8d 00 c8    ...
-; Normal return: caller may now transmit
-    rts                                                               ; e727: 60          `
+.wait_adlc_a_idle_ready
+    sty adlc_a_cr2                                                    ; e71f: 8c 01 c8    ...            ; STY: arm CR2 with &E7 (from Y) -- TX-ready listen state
+    lda #&44 ; 'D'                                                    ; e722: a9 44       .D             ; Mask: arm CR1 for transmit (TX on, IRQ off)
+    sta adlc_a_cr1                                                    ; e724: 8d 00 c8    ...            ; Commit CR1; ADLC A ready to send
+    rts                                                               ; e727: 60          `              ; Normal return: caller transmits the frame
 
     equb &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff   ; e728: ff ff ff... ...
     equb &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff   ; e734: ff ff ff... ...
@@ -3002,14 +2988,14 @@ save pydis_start, pydis_end
 ;     tx_port:                       4
 ;     wait_adlc_a_idle:              4
 ;     wait_adlc_b_idle:              4
-;     ce6a2:                         3
-;     ce6ee:                         3
 ;     init_reachable_nets:           3
 ;     l0003:                         3
 ;     self_test_fail_adlc_a:         3
 ;     self_test_fail_spacer_delay:   3
 ;     top_ram_page:                  3
 ;     tx_data0:                      3
+;     wait_adlc_a_idle_loop:         3
+;     wait_adlc_b_idle_loop:         3
 ;     adlc_a_listen:                 2
 ;     adlc_a_tx2:                    2
 ;     adlc_b_listen:                 2
@@ -3066,10 +3052,6 @@ save pydis_start, pydis_end
 ;     ce660:                         1
 ;     ce672:                         1
 ;     ce686:                         1
-;     ce6bf:                         1
-;     ce6d3:                         1
-;     ce70b:                         1
-;     ce71f:                         1
 ;     cf156:                         1
 ;     cf15c:                         1
 ;     cf1f7:                         1
@@ -3124,6 +3106,10 @@ save pydis_start, pydis_end
 ;     stagger_delay_inner:           1
 ;     stagger_delay_outer:           1
 ;     stagger_delay_prelude:         1
+;     wait_adlc_a_idle_ready:        1
+;     wait_adlc_a_idle_tick:         1
+;     wait_adlc_b_idle_ready:        1
+;     wait_adlc_b_idle_tick:         1
 
 ; Automatically generated labels:
 ;     ce15c
@@ -3154,12 +3140,6 @@ save pydis_start, pydis_end
 ;     ce660
 ;     ce672
 ;     ce686
-;     ce6a2
-;     ce6bf
-;     ce6d3
-;     ce6ee
-;     ce70b
-;     ce71f
 ;     cf151
 ;     cf156
 ;     cf15c
