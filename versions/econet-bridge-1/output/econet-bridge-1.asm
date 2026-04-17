@@ -23,7 +23,7 @@ rx_src_net      = &023f
 rx_ctrl         = &0240
 rx_port         = &0241
 l0248           = &0248
-l0249           = &0249
+rx_query_stn    = &0249
 net_a_map       = &025a
 net_b_map       = &035a
 tx_dst_stn      = &045a
@@ -216,7 +216,7 @@ adlc_b_tx2      = &d803
 ; No IRQ on B, check A
     bpl ce081                                                         ; e07c: 10 03       ..
 ; B IRQ: hand off to side-B frame handler
-    jmp ce263                                                         ; e07e: 4c 63 e2    Lc.
+    jmp rx_frame_b                                                    ; e07e: 4c 63 e2    Lc.
 
 ; Test SR1 bit 7 on A (IRQ summary)
 ; &e081 referenced 1 time by &e07c
@@ -502,7 +502,7 @@ adlc_b_tx2      = &d803
     cmp #&83                                                          ; e191: c9 83       ..
     bne ce208                                                         ; e193: d0 73       .s
 ; Station Y known in net_a_map?
-    ldy l0249                                                         ; e195: ac 49 02    .I.
+    ldy rx_query_stn                                                  ; e195: ac 49 02    .I.
     lda net_a_map,y                                                   ; e198: b9 5a 02    .Z.
 ; Unknown -> skip, back to main loop
     beq ce1d3                                                         ; e19b: f0 36       .6
@@ -522,7 +522,7 @@ adlc_b_tx2      = &d803
     sta tx_src_net                                                    ; e1be: 8d 5d 04    .].
     lda station_id_a                                                  ; e1c1: ad 00 c0    ...
     sta tx_ctrl                                                       ; e1c4: 8d 5e 04    .^.
-    lda l0249                                                         ; e1c7: ad 49 02    .I.
+    lda rx_query_stn                                                  ; e1c7: ad 49 02    .I.
     sta tx_port                                                       ; e1ca: 8d 5f 04    ._.
     jsr transmit_frame_a                                              ; e1cd: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e1d0: 20 6e e5     n.
@@ -602,27 +602,45 @@ adlc_b_tx2      = &d803
 .ce260
     jmp main_loop                                                     ; e260: 4c 51 e0    LQ.
 
+; ***************************************************************************************
+; Drain and dispatch an inbound frame on ADLC B
+; 
+; Byte-for-byte mirror of rx_frame_a (&E0E2): same three-stage
+; structure (addressing filter, drain, broadcast + bridge-protocol
+; check), same control-byte dispatch, with `adlc_a_*` replaced by
+; `adlc_b_*`, `net_a_map` by `net_b_map`, and the side-selector
+; value swaps (`station_id_a` ↔ `station_id_b`) where appropriate.
+; 
+; Bridge-protocol dispatch for this side:
+; 
+;   &80  ->  rx_b_handle_80  (&E357) - initial bridge announcement
+;   &81  ->  rx_b_handle_81  (&E36F) - re-announcement
+;   &82  ->  rx_b_handle_82  (&E31E) - bridge query (shared &83 path)
+;   &83  ->  rx_b_handle_83  (&E316) - bridge query, known-station
+;   other ->  rx_b_forward   (&E389) - forward or discard
+; 
+; See rx_frame_a for the full per-instruction explanation.
 ; &e263 referenced 1 time by &e07e
-.ce263
+.rx_frame_b
     lda #1                                                            ; e263: a9 01       ..
     bit adlc_b_cr2                                                    ; e265: 2c 01 d8    ,..
-    beq ce2bd                                                         ; e268: f0 53       .S
+    beq rx_frame_b_bail                                               ; e268: f0 53       .S
     lda adlc_b_tx                                                     ; e26a: ad 02 d8    ...
     sta rx_dst_stn                                                    ; e26d: 8d 3c 02    .<.
     jsr wait_adlc_b_irq                                               ; e270: 20 ea e3     ..
     bit adlc_b_cr2                                                    ; e273: 2c 01 d8    ,..
-    bpl ce2bd                                                         ; e276: 10 45       .E
+    bpl rx_frame_b_bail                                               ; e276: 10 45       .E
     ldy adlc_b_tx                                                     ; e278: ac 02 d8    ...
-    beq ce2c0                                                         ; e27b: f0 43       .C
+    beq rx_b_not_for_us                                               ; e27b: f0 43       .C
     lda net_b_map,y                                                   ; e27d: b9 5a 03    .Z.
-    beq ce2c0                                                         ; e280: f0 3e       .>
+    beq rx_b_not_for_us                                               ; e280: f0 3e       .>
     sty rx_dst_net                                                    ; e282: 8c 3d 02    .=.
     ldy #2                                                            ; e285: a0 02       ..
 ; &e287 referenced 1 time by &e29f
-.loop_ce287
+.rx_frame_b_drain
     jsr wait_adlc_b_irq                                               ; e287: 20 ea e3     ..
     bit adlc_b_cr2                                                    ; e28a: 2c 01 d8    ,..
-    bpl ce2a1                                                         ; e28d: 10 12       ..
+    bpl rx_frame_b_end                                                ; e28d: 10 12       ..
     lda adlc_b_tx                                                     ; e28f: ad 02 d8    ...
     sta rx_dst_stn,y                                                  ; e292: 99 3c 02    .<.
     iny                                                               ; e295: c8          .
@@ -630,40 +648,40 @@ adlc_b_tx2      = &d803
     sta rx_dst_stn,y                                                  ; e299: 99 3c 02    .<.
     iny                                                               ; e29c: c8          .
     cpy #&14                                                          ; e29d: c0 14       ..
-    bcc loop_ce287                                                    ; e29f: 90 e6       ..
+    bcc rx_frame_b_drain                                              ; e29f: 90 e6       ..
 ; &e2a1 referenced 1 time by &e28d
-.ce2a1
+.rx_frame_b_end
     lda #0                                                            ; e2a1: a9 00       ..
     sta adlc_b_cr1                                                    ; e2a3: 8d 00 d8    ...
     lda #&84                                                          ; e2a6: a9 84       ..
     sta adlc_b_cr2                                                    ; e2a8: 8d 01 d8    ...
     lda #2                                                            ; e2ab: a9 02       ..
     bit adlc_b_cr2                                                    ; e2ad: 2c 01 d8    ,..
-    beq ce2bd                                                         ; e2b0: f0 0b       ..
-    bpl ce2cb                                                         ; e2b2: 10 17       ..
+    beq rx_frame_b_bail                                               ; e2b0: f0 0b       ..
+    bpl rx_frame_b_dispatch                                           ; e2b2: 10 17       ..
     lda adlc_b_tx                                                     ; e2b4: ad 02 d8    ...
     sta rx_dst_stn,y                                                  ; e2b7: 99 3c 02    .<.
     iny                                                               ; e2ba: c8          .
-    bne ce2cb                                                         ; e2bb: d0 0e       ..
+    bne rx_frame_b_dispatch                                           ; e2bb: d0 0e       ..
 ; &e2bd referenced 4 times by &e268, &e276, &e2b0, &e2d0
-.ce2bd
+.rx_frame_b_bail
     jmp main_loop                                                     ; e2bd: 4c 51 e0    LQ.
 
 ; &e2c0 referenced 2 times by &e27b, &e280
-.ce2c0
+.rx_b_not_for_us
     lda #&a2                                                          ; e2c0: a9 a2       ..
     sta adlc_b_cr1                                                    ; e2c2: 8d 00 d8    ...
     jmp main_loop_poll                                                ; e2c5: 4c 79 e0    Ly.
 
 ; &e2c8 referenced 2 times by &e2f2, &e301
-.ce2c8
+.rx_b_to_forward
     jmp ce389                                                         ; e2c8: 4c 89 e3    L..
 
 ; &e2cb referenced 2 times by &e2b2, &e2bb
-.ce2cb
+.rx_frame_b_dispatch
     sty rx_len                                                        ; e2cb: 8c 28 02    .(.
     cpy #6                                                            ; e2ce: c0 06       ..
-    bcc ce2bd                                                         ; e2d0: 90 eb       ..
+    bcc rx_frame_b_bail                                               ; e2d0: 90 eb       ..
     lda rx_src_net                                                    ; e2d2: ad 3f 02    .?.
     bne ce2dd                                                         ; e2d5: d0 06       ..
     lda station_id_b                                                  ; e2d7: ad 00 d0    ...
@@ -680,13 +698,13 @@ adlc_b_tx2      = &d803
     lda rx_dst_stn                                                    ; e2ea: ad 3c 02    .<.
     and rx_dst_net                                                    ; e2ed: 2d 3d 02    -=.
     cmp #&ff                                                          ; e2f0: c9 ff       ..
-    bne ce2c8                                                         ; e2f2: d0 d4       ..
+    bne rx_b_to_forward                                               ; e2f2: d0 d4       ..
     jsr adlc_b_listen                                                 ; e2f4: 20 19 e4     ..
     lda #&c2                                                          ; e2f7: a9 c2       ..
     sta adlc_b_cr1                                                    ; e2f9: 8d 00 d8    ...
     lda rx_port                                                       ; e2fc: ad 41 02    .A.
     cmp #&9c                                                          ; e2ff: c9 9c       ..
-    bne ce2c8                                                         ; e301: d0 c5       ..
+    bne rx_b_to_forward                                               ; e301: d0 c5       ..
     lda rx_ctrl                                                       ; e303: ad 40 02    .@.
     cmp #&81                                                          ; e306: c9 81       ..
     beq ce36f                                                         ; e308: f0 65       .e
@@ -696,7 +714,7 @@ adlc_b_tx2      = &d803
     beq ce31e                                                         ; e310: f0 0c       ..
     cmp #&83                                                          ; e312: c9 83       ..
     bne ce389                                                         ; e314: d0 73       .s
-    ldy l0249                                                         ; e316: ac 49 02    .I.
+    ldy rx_query_stn                                                  ; e316: ac 49 02    .I.
     lda net_b_map,y                                                   ; e319: b9 5a 03    .Z.
     beq ce354                                                         ; e31c: f0 36       .6
 ; &e31e referenced 1 time by &e310
@@ -715,7 +733,7 @@ adlc_b_tx2      = &d803
     sta tx_src_net                                                    ; e33f: 8d 5d 04    .].
     lda station_id_b                                                  ; e342: ad 00 d0    ...
     sta tx_ctrl                                                       ; e345: 8d 5e 04    .^.
-    lda l0249                                                         ; e348: ad 49 02    .I.
+    lda rx_query_stn                                                  ; e348: ad 49 02    .I.
     sta tx_port                                                       ; e34b: 8d 5f 04    ._.
     jsr transmit_frame_b                                              ; e34e: 20 c0 e4     ..
     jsr sub_ce5ff                                                     ; e351: 20 ff e5     ..
@@ -2527,11 +2545,11 @@ save pydis_start, pydis_end
 ;     announce_count:           4
 ;     announce_tmr_hi:          4
 ;     announce_tmr_lo:          4
-;     ce2bd:                    4
 ;     ctr24_hi:                 4
 ;     ctr24_mid:                4
-;     l0249:                    4
 ;     rx_frame_a_bail:          4
+;     rx_frame_b_bail:          4
+;     rx_query_stn:             4
 ;     rx_src_net:               4
 ;     sub_ce48d:                4
 ;     tx_dst_stn:               4
@@ -2552,9 +2570,6 @@ save pydis_start, pydis_end
 ;     adlc_b_tx2:               2
 ;     build_announce_b:         2
 ;     ce208:                    2
-;     ce2c0:                    2
-;     ce2c8:                    2
-;     ce2cb:                    2
 ;     ce389:                    2
 ;     ce4cc:                    2
 ;     ce523:                    2
@@ -2573,8 +2588,11 @@ save pydis_start, pydis_end
 ;     re_announce_done:         2
 ;     rx_a_not_for_us:          2
 ;     rx_a_to_forward:          2
+;     rx_b_not_for_us:          2
+;     rx_b_to_forward:          2
 ;     rx_ctrl:                  2
 ;     rx_frame_a_dispatch:      2
+;     rx_frame_b_dispatch:      2
 ;     rx_port:                  2
 ;     sub_ce448:                2
 ;     tx_src_stn:               2
@@ -2591,8 +2609,6 @@ save pydis_start, pydis_end
 ;     ce1ee:                    1
 ;     ce23e:                    1
 ;     ce260:                    1
-;     ce263:                    1
-;     ce2a1:                    1
 ;     ce2dd:                    1
 ;     ce2ea:                    1
 ;     ce31e:                    1
@@ -2636,7 +2652,6 @@ save pydis_start, pydis_end
 ;     l0248:                    1
 ;     loop_ce1f0:               1
 ;     loop_ce216:               1
-;     loop_ce287:               1
 ;     loop_ce371:               1
 ;     loop_ce397:               1
 ;     loop_ce428:               1
@@ -2656,6 +2671,9 @@ save pydis_start, pydis_end
 ;     rx_frame_a:               1
 ;     rx_frame_a_drain:         1
 ;     rx_frame_a_end:           1
+;     rx_frame_b:               1
+;     rx_frame_b_drain:         1
+;     rx_frame_b_end:           1
 ;     rx_src_stn:               1
 ;     self_test_reset_adlcs:    1
 ;     self_test_rom_checksum:   1
@@ -2674,12 +2692,6 @@ save pydis_start, pydis_end
 ;     ce208
 ;     ce23e
 ;     ce260
-;     ce263
-;     ce2a1
-;     ce2bd
-;     ce2c0
-;     ce2c8
-;     ce2cb
 ;     ce2dd
 ;     ce2ea
 ;     ce31e
@@ -2749,10 +2761,8 @@ save pydis_start, pydis_end
 ;     l0002
 ;     l0003
 ;     l0248
-;     l0249
 ;     loop_ce1f0
 ;     loop_ce216
-;     loop_ce287
 ;     loop_ce371
 ;     loop_ce397
 ;     loop_ce428

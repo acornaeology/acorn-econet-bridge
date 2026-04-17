@@ -248,7 +248,10 @@ label(0x023E, "rx_src_stn")   # byte 2: source station
 label(0x023F, "rx_src_net")   # byte 3: source network
 label(0x0240, "rx_ctrl")      # byte 4: control byte (bridge: &80-&83)
 label(0x0241, "rx_port")      # byte 5: port (bridge-protocol = &9C)
-# Payload bytes at &0242-&024F; named as they become understood
+# Payload bytes at &0242-&024F; named as they become understood.
+# Byte 13 (&0249) is consulted as a station number in the ctrl=&83
+# bridge-protocol branch, so tentatively name it.
+label(0x0249, "rx_query_stn") # byte 13: station number (ctrl=&83)
 label(0x0228, "rx_len")       # bytes received (written at end of drain)
 
 # Periodic re-announcement state, used by the main Bridge loop. The
@@ -586,6 +589,34 @@ comment(0xE18D, "&82 -> bridge query (shares &83 path)")
 comment(0xE191, "&83 -> bridge query, known-station path")
 comment(0xE195, "Station Y known in net_a_map?")
 comment(0xE19B, "Unknown -> skip, back to main loop")
+
+
+label(0xE263, "rx_frame_b")
+subroutine(0xE263, "rx_frame_b", hook=None, is_entry_point=False,
+    title="Drain and dispatch an inbound frame on ADLC B",
+    description="""\
+Byte-for-byte mirror of rx_frame_a (&E0E2): same three-stage
+structure (addressing filter, drain, broadcast + bridge-protocol
+check), same control-byte dispatch, with `adlc_a_*` replaced by
+`adlc_b_*`, `net_a_map` by `net_b_map`, and the side-selector
+value swaps (`station_id_a` ↔ `station_id_b`) where appropriate.
+
+Bridge-protocol dispatch for this side:
+
+  &80  ->  rx_b_handle_80  (&E357) - initial bridge announcement
+  &81  ->  rx_b_handle_81  (&E36F) - re-announcement
+  &82  ->  rx_b_handle_82  (&E31E) - bridge query (shared &83 path)
+  &83  ->  rx_b_handle_83  (&E316) - bridge query, known-station
+  other ->  rx_b_forward   (&E389) - forward or discard
+
+See rx_frame_a for the full per-instruction explanation.""")
+
+label(0xE287, "rx_frame_b_drain")
+label(0xE2A1, "rx_frame_b_end")
+label(0xE2BD, "rx_frame_b_bail")
+label(0xE2C0, "rx_b_not_for_us")
+label(0xE2C8, "rx_b_to_forward")
+label(0xE2CB, "rx_frame_b_dispatch")
 
 
 label(0xE079, "main_loop_poll")
