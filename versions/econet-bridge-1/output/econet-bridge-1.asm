@@ -1092,9 +1092,9 @@ adlc_b_tx2      = &d803
 ; is obtained by polling.
 ; &e3e4 referenced 19 times by &e0ef, &e106, &e397, &e3b6, &e3c4, &e3e7, &e523, &e550, &e562, &e575, &e583, &e593, &f125, &f15c, &f1da, &f1ea, &f20d, &f22a, &f242
 .wait_adlc_a_irq
-    bit adlc_a_cr1                                                    ; e3e4: 2c 00 c8    ,..
-    bpl wait_adlc_a_irq                                               ; e3e7: 10 fb       ..
-    rts                                                               ; e3e9: 60          `
+    bit adlc_a_cr1                                                    ; e3e4: 2c 00 c8    ,..            ; Peek ADLC A status, testing the IRQ-summary bit
+    bpl wait_adlc_a_irq                                               ; e3e7: 10 fb       ..             ; Spin while the chip has nothing to report
+    rts                                                               ; e3e9: 60          `              ; Event pending; return to caller to handle it
 
 ; ***************************************************************************************
 ; Wait for ADLC B IRQ (polled)
@@ -1102,114 +1102,104 @@ adlc_b_tx2      = &d803
 ; As wait_adlc_a_irq but for ADLC B.
 ; &e3ea referenced 19 times by &e216, &e235, &e243, &e270, &e287, &e3ed, &e4cc, &e4f9, &e50b, &e606, &e614, &e624, &f139, &f149, &f16c, &f189, &f1a1, &f1c6, &f1fd
 .wait_adlc_b_irq
-    bit adlc_b_cr1                                                    ; e3ea: 2c 00 d8    ,..
-    bpl wait_adlc_b_irq                                               ; e3ed: 10 fb       ..
-    rts                                                               ; e3ef: 60          `
+    bit adlc_b_cr1                                                    ; e3ea: 2c 00 d8    ,..            ; Peek ADLC B status, testing the IRQ-summary bit
+    bpl wait_adlc_b_irq                                               ; e3ed: 10 fb       ..             ; Spin while the chip has nothing to report
+    rts                                                               ; e3ef: 60          `              ; Event pending; return to caller to handle it
 
 ; ***************************************************************************************
 ; ADLC A full reset, then enter RX listen
 ; 
 ; Aborts all ADLC A activity and returns it to idle RX listen mode.
 ; Falls through to adlc_a_listen. Called from the reset handler.
-; CR1=&C1: reset TX+RX, AC=1 (enable CR3/CR4 access)
 ; &e3f0 referenced 1 time by &e005
 .adlc_a_full_reset
-    lda #&c1                                                          ; e3f0: a9 c1       ..
-    sta adlc_a_cr1                                                    ; e3f2: 8d 00 c8    ...
-; CR4=&1E: 8-bit RX, abort extend, NRZ
-    lda #&1e                                                          ; e3f5: a9 1e       ..
-    sta adlc_a_tx2                                                    ; e3f7: 8d 03 c8    ...
-; CR3=&00: normal, NRZ, no loop-back, no DTR
-    lda #0                                                            ; e3fa: a9 00       ..
-    sta adlc_a_cr2                                                    ; e3fc: 8d 01 c8    ...
+    lda #&c1                                                          ; e3f0: a9 c1       ..             ; Mask: reset TX and RX, unlock CR3/CR4 via AC=1
+    sta adlc_a_cr1                                                    ; e3f2: 8d 00 c8    ...            ; Drop ADLC A into full reset
+    lda #&1e                                                          ; e3f5: a9 1e       ..             ; Mask: 8-bit RX word length, abort-extend, NRZ
+    sta adlc_a_tx2                                                    ; e3f7: 8d 03 c8    ...            ; Program CR4 (reached via tx2 slot while AC=1)
+    lda #0                                                            ; e3fa: a9 00       ..             ; Mask: no loopback, DTR released, NRZ encoding
+    sta adlc_a_cr2                                                    ; e3fc: 8d 01 c8    ...            ; Program CR3 (reached via cr2 slot while AC=1); fall through
 ; ***************************************************************************************
 ; Enter ADLC A RX listen mode
 ; 
 ; TX held in reset, RX active. IRQs are generated internally by the
 ; chip but the ~IRQ output is not wired; see wait_adlc_a_irq.
-; CR1=&82: TX in reset, RX interrupts enabled
 ; &e3ff referenced 2 times by &e173, &e19d
 .adlc_a_listen
-    lda #&82                                                          ; e3ff: a9 82       ..
-    sta adlc_a_cr1                                                    ; e401: 8d 00 c8    ...
-; CR2=&67: clear status, FC_TDRA, 2/1-byte, PSE
-    lda #&67 ; 'g'                                                    ; e404: a9 67       .g
-    sta adlc_a_cr2                                                    ; e406: 8d 01 c8    ...
-    rts                                                               ; e409: 60          `
+    lda #&82                                                          ; e3ff: a9 82       ..             ; Mask: keep TX in reset, enable RX IRQs, AC=0
+    sta adlc_a_cr1                                                    ; e401: 8d 00 c8    ...            ; Commit CR1; subsequent cr2/tx writes hit CR2/TX again
+    lda #&67 ; 'g'                                                    ; e404: a9 67       .g             ; Mask: clear status flags, FC_TDRA, 2/1-byte, PSE
+    sta adlc_a_cr2                                                    ; e406: 8d 01 c8    ...            ; Commit CR2; ADLC A now listening for incoming frames
+    rts                                                               ; e409: 60          `              ; Return; Econet side A is idle-listen
 
 ; ***************************************************************************************
 ; ADLC B full reset, then enter RX listen
 ; 
 ; Byte-for-byte mirror of adlc_a_full_reset, targeting ADLC B's
-; register set at &D800-&D803. Falls through to adlc_b_listen.
-; CR1=&C1: reset TX+RX, AC=1 (enable CR3/CR4 access)
+; register set at &D800-&D803. Falls through to adlc_b_listen. CR3=&00
+; also puts the LOC/DTR pin high, so the front-panel LED is dark after
+; this runs -- the distinguishing feature from self_test_reset_adlcs.
 ; &e40a referenced 1 time by &e008
 .adlc_b_full_reset
-    lda #&c1                                                          ; e40a: a9 c1       ..
-    sta adlc_b_cr1                                                    ; e40c: 8d 00 d8    ...
-; CR4=&1E: 8-bit RX, abort extend, NRZ
-    lda #&1e                                                          ; e40f: a9 1e       ..
-    sta adlc_b_tx2                                                    ; e411: 8d 03 d8    ...
-; CR3=&00: bit 7=0 -> LOC/DTR pin HIGH -> status LED OFF
-    lda #0                                                            ; e414: a9 00       ..
-    sta adlc_b_cr2                                                    ; e416: 8d 01 d8    ...
+    lda #&c1                                                          ; e40a: a9 c1       ..             ; Mask: reset TX and RX, unlock CR3/CR4 via AC=1
+    sta adlc_b_cr1                                                    ; e40c: 8d 00 d8    ...            ; Drop ADLC B into full reset
+    lda #&1e                                                          ; e40f: a9 1e       ..             ; Mask: 8-bit RX word length, abort-extend, NRZ
+    sta adlc_b_tx2                                                    ; e411: 8d 03 d8    ...            ; Program CR4 (reached via tx2 slot while AC=1)
+    lda #0                                                            ; e414: a9 00       ..             ; Mask: CR3 bit 7 clear -> LOC/DTR high -> status LED OFF
+    sta adlc_b_cr2                                                    ; e416: 8d 01 d8    ...            ; Program CR3; fall through into listen mode
 ; ***************************************************************************************
 ; Enter ADLC B RX listen mode
 ; 
 ; Mirror of adlc_a_listen for ADLC B.
-; CR1=&82: TX in reset, RX interrupts enabled
 ; &e419 referenced 2 times by &e2f4, &e31e
 .adlc_b_listen
-    lda #&82                                                          ; e419: a9 82       ..
-    sta adlc_b_cr1                                                    ; e41b: 8d 00 d8    ...
-; CR2=&67: clear status, FC_TDRA, 2/1-byte, PSE
-    lda #&67 ; 'g'                                                    ; e41e: a9 67       .g
-    sta adlc_b_cr2                                                    ; e420: 8d 01 d8    ...
-    rts                                                               ; e423: 60          `
+    lda #&82                                                          ; e419: a9 82       ..             ; Mask: keep TX in reset, enable RX IRQs, AC=0
+    sta adlc_b_cr1                                                    ; e41b: 8d 00 d8    ...            ; Commit CR1; subsequent cr2/tx writes hit CR2/TX again
+    lda #&67 ; 'g'                                                    ; e41e: a9 67       .g             ; Mask: clear status flags, FC_TDRA, 2/1-byte, PSE
+    sta adlc_b_cr2                                                    ; e420: 8d 01 d8    ...            ; Commit CR2; ADLC B now listening for incoming frames
+    rts                                                               ; e423: 60          `              ; Return; Econet side B is idle-listen
 
 ; ***************************************************************************************
-; Clear the per-port station maps and mark bridge/broadcast
+; Reset both routing tables to the directly-attached networks
 ; 
-; Zeroes reachable_via_b and reachable_via_a (256 bytes each), then writes &FF
-; to three slots:
+; Zeroes the two 256-entry routing tables (reachable_via_a at &035A
+; and reachable_via_b at &025A), then writes &FF to four slots
+; that are true by virtue of the Bridge's immediate topology:
 ; 
-;   reachable_via_a[net_num_a]    — the bridge's port-A station
-;   reachable_via_b[net_num_b]    — the bridge's port-B station
-;   reachable_via_b[255]             — broadcast slot
-;   reachable_via_a[255]             — broadcast slot
+;   reachable_via_a[net_num_a]  -- side A's own network is reachable
+;                                  via side A (trivially)
+;   reachable_via_b[net_num_b]  -- side B's own network is reachable
+;                                  via side B (trivially)
+;   reachable_via_a[255]        -- broadcast network reachable both
+;   reachable_via_b[255]           ways
 ; 
-; Called from the reset handler and also re-invoked at &E1D6 and
-; &E357 — probably after network topology changes or administrative
-; re-init. The &FF-marked slots prevent the bridge from being
-; confused by traffic to/from its own station IDs or broadcasts
-; during routing decisions.
-; Y = 0, A = 0: set up to clear both tables
+; Everything else starts at zero and is populated later by bridge-
+; protocol announcements learned in the rx handlers (see
+; rx_a_handle_80 / rx_b_handle_80).
+; 
+; Called from the reset handler and also re-invoked from the two
+; rx_?_handle_80 paths -- receiving an initial bridge announcement
+; indicates a topology change that invalidates the learned state,
+; so the Bridge forgets everything and starts accumulating again.
 ; &e424 referenced 3 times by &e002, &e1d6, &e357
 .init_reachable_nets
-    ldy #0                                                            ; e424: a0 00       ..
-    lda #0                                                            ; e426: a9 00       ..
-; Zero reachable_via_b[Y]
+    ldy #0                                                            ; e424: a0 00       ..             ; Y: walks every network number 0..255
+    lda #0                                                            ; e426: a9 00       ..             ; A = 0: 'route not known' marker
 ; &e428 referenced 1 time by &e42f
-.loop_ce428
-    sta reachable_via_b,y                                             ; e428: 99 5a 02    .Z.
-; Zero reachable_via_a[Y]
-    sta reachable_via_a,y                                             ; e42b: 99 5a 03    .Z.
-    iny                                                               ; e42e: c8          .
-; Loop over all 256 slots (Y wraps back to 0)
-    bne loop_ce428                                                    ; e42f: d0 f7       ..
-; Marker value &FF for the special slots below
-    lda #&ff                                                          ; e431: a9 ff       ..
-; Port A bridge-station slot -> mark in reachable_via_a
-    ldy net_num_a                                                     ; e433: ac 00 c0    ...
-    sta reachable_via_a,y                                             ; e436: 99 5a 03    .Z.
-; Port B bridge-station slot -> mark in reachable_via_b
-    ldy net_num_b                                                     ; e439: ac 00 d0    ...
-    sta reachable_via_b,y                                             ; e43c: 99 5a 02    .Z.
-; Broadcast slot (255) in both maps
-    ldy #&ff                                                          ; e43f: a0 ff       ..
-    sta reachable_via_b,y                                             ; e441: 99 5a 02    .Z.
-    sta reachable_via_a,y                                             ; e444: 99 5a 03    .Z.
-    rts                                                               ; e447: 60          `
+.init_reachable_nets_clear
+    sta reachable_via_b,y                                             ; e428: 99 5a 02    .Z.            ; Clear side-A handler's entry for network Y
+    sta reachable_via_a,y                                             ; e42b: 99 5a 03    .Z.            ; Clear side-B handler's entry for network Y
+    iny                                                               ; e42e: c8          .              ; Step to next network number
+    bne init_reachable_nets_clear                                     ; e42f: d0 f7       ..             ; Loop back until Y wraps through all 256 slots
+    lda #&ff                                                          ; e431: a9 ff       ..             ; A = &FF: 'route known' marker for the writes below
+    ldy net_num_a                                                     ; e433: ac 00 c0    ...            ; Y = net_num_a: our own side-A network number
+    sta reachable_via_a,y                                             ; e436: 99 5a 03    .Z.            ; side-B handler can reach net_num_a via side A
+    ldy net_num_b                                                     ; e439: ac 00 d0    ...            ; Y = net_num_b: our own side-B network number
+    sta reachable_via_b,y                                             ; e43c: 99 5a 02    .Z.            ; side-A handler can reach net_num_b via side B
+    ldy #&ff                                                          ; e43f: a0 ff       ..             ; Y = 255: the Econet broadcast network
+    sta reachable_via_b,y                                             ; e441: 99 5a 02    .Z.            ; Broadcasts reachable for side-A handler's traffic
+    sta reachable_via_a,y                                             ; e444: 99 5a 03    .Z.            ; Broadcasts reachable for side-B handler's traffic
+    rts                                                               ; e447: 60          `              ; Tables primed; return to caller
 
 ; ***************************************************************************************
 ; Fixed prelude + per-count delay scaled by ctr24_lo
@@ -3191,7 +3181,7 @@ save pydis_start, pydis_end
 ;     cf258:                       1
 ;     cf26f:                       1
 ;     cf291:                       1
-;     loop_ce428:                  1
+;     init_reachable_nets_clear:   1
 ;     loop_ce44a:                  1
 ;     loop_ce44d:                  1
 ;     loop_ce44f:                  1
@@ -3300,7 +3290,6 @@ save pydis_start, pydis_end
 ;     l0001
 ;     l0002
 ;     l0003
-;     loop_ce428
 ;     loop_ce44a
 ;     loop_ce44d
 ;     loop_ce44f

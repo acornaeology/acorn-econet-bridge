@@ -171,11 +171,19 @@ The Bridge does not route the ADLC ~IRQ output to the 6502 ~IRQ line
 (that pin is used for the self-test push-button), so ADLC attention
 is obtained by polling.""")
 
+comment(0xE3E4, "Peek ADLC A status, testing the IRQ-summary bit", inline=True)
+comment(0xE3E7, "Spin while the chip has nothing to report", inline=True)
+comment(0xE3E9, "Event pending; return to caller to handle it", inline=True)
+
 label(0xE3EA, "wait_adlc_b_irq")
 subroutine(0xE3EA, "wait_adlc_b_irq", hook=None,
     title="Wait for ADLC B IRQ (polled)",
     description="""\
 As wait_adlc_a_irq but for ADLC B.""")
+
+comment(0xE3EA, "Peek ADLC B status, testing the IRQ-summary bit", inline=True)
+comment(0xE3ED, "Spin while the chip has nothing to report", inline=True)
+comment(0xE3EF, "Event pending; return to caller to handle it", inline=True)
 
 
 # =====================================================================
@@ -183,7 +191,7 @@ As wait_adlc_a_irq but for ADLC B.""")
 # =====================================================================
 # Each pair (full_reset -> listen) is called in sequence by the main
 # reset handler at &E000 and from a few other paths that need to re-
-# synchronise the chip. The two pairs are byte-for-byte mirrors —
+# synchronise the chip. The two pairs are byte-for-byte mirrors --
 # only the register addresses differ.
 #
 # Same ADLC initialisation sequence as Acorn NFS's adlc_full_reset +
@@ -198,9 +206,12 @@ subroutine(0xE3F0, "adlc_a_full_reset", hook=None,
 Aborts all ADLC A activity and returns it to idle RX listen mode.
 Falls through to adlc_a_listen. Called from the reset handler.""")
 
-comment(0xE3F0, "CR1=&C1: reset TX+RX, AC=1 (enable CR3/CR4 access)")
-comment(0xE3F5, "CR4=&1E: 8-bit RX, abort extend, NRZ")
-comment(0xE3FA, "CR3=&00: normal, NRZ, no loop-back, no DTR")
+comment(0xE3F0, "Mask: reset TX and RX, unlock CR3/CR4 via AC=1", inline=True)
+comment(0xE3F2, "Drop ADLC A into full reset", inline=True)
+comment(0xE3F5, "Mask: 8-bit RX word length, abort-extend, NRZ", inline=True)
+comment(0xE3F7, "Program CR4 (reached via tx2 slot while AC=1)", inline=True)
+comment(0xE3FA, "Mask: no loopback, DTR released, NRZ encoding", inline=True)
+comment(0xE3FC, "Program CR3 (reached via cr2 slot while AC=1); fall through", inline=True)
 
 label(0xE3FF, "adlc_a_listen")
 subroutine(0xE3FF, "adlc_a_listen", hook=None,
@@ -209,19 +220,27 @@ subroutine(0xE3FF, "adlc_a_listen", hook=None,
 TX held in reset, RX active. IRQs are generated internally by the
 chip but the ~IRQ output is not wired; see wait_adlc_a_irq.""")
 
-comment(0xE3FF, "CR1=&82: TX in reset, RX interrupts enabled")
-comment(0xE404, "CR2=&67: clear status, FC_TDRA, 2/1-byte, PSE")
+comment(0xE3FF, "Mask: keep TX in reset, enable RX IRQs, AC=0", inline=True)
+comment(0xE401, "Commit CR1; subsequent cr2/tx writes hit CR2/TX again", inline=True)
+comment(0xE404, "Mask: clear status flags, FC_TDRA, 2/1-byte, PSE", inline=True)
+comment(0xE406, "Commit CR2; ADLC A now listening for incoming frames", inline=True)
+comment(0xE409, "Return; Econet side A is idle-listen", inline=True)
 
 label(0xE40A, "adlc_b_full_reset")
 subroutine(0xE40A, "adlc_b_full_reset", hook=None,
     title="ADLC B full reset, then enter RX listen",
     description="""\
 Byte-for-byte mirror of adlc_a_full_reset, targeting ADLC B's
-register set at &D800-&D803. Falls through to adlc_b_listen.""")
+register set at &D800-&D803. Falls through to adlc_b_listen. CR3=&00
+also puts the LOC/DTR pin high, so the front-panel LED is dark after
+this runs -- the distinguishing feature from self_test_reset_adlcs.""")
 
-comment(0xE40A, "CR1=&C1: reset TX+RX, AC=1 (enable CR3/CR4 access)")
-comment(0xE40F, "CR4=&1E: 8-bit RX, abort extend, NRZ")
-comment(0xE414, "CR3=&00: bit 7=0 -> LOC/DTR pin HIGH -> status LED OFF")
+comment(0xE40A, "Mask: reset TX and RX, unlock CR3/CR4 via AC=1", inline=True)
+comment(0xE40C, "Drop ADLC B into full reset", inline=True)
+comment(0xE40F, "Mask: 8-bit RX word length, abort-extend, NRZ", inline=True)
+comment(0xE411, "Program CR4 (reached via tx2 slot while AC=1)", inline=True)
+comment(0xE414, "Mask: CR3 bit 7 clear -> LOC/DTR high -> status LED OFF", inline=True)
+comment(0xE416, "Program CR3; fall through into listen mode", inline=True)
 
 label(0xE419, "adlc_b_listen")
 subroutine(0xE419, "adlc_b_listen", hook=None,
@@ -229,8 +248,11 @@ subroutine(0xE419, "adlc_b_listen", hook=None,
     description="""\
 Mirror of adlc_a_listen for ADLC B.""")
 
-comment(0xE419, "CR1=&82: TX in reset, RX interrupts enabled")
-comment(0xE41E, "CR2=&67: clear status, FC_TDRA, 2/1-byte, PSE")
+comment(0xE419, "Mask: keep TX in reset, enable RX IRQs, AC=0", inline=True)
+comment(0xE41B, "Commit CR1; subsequent cr2/tx writes hit CR2/TX again", inline=True)
+comment(0xE41E, "Mask: clear status flags, FC_TDRA, 2/1-byte, PSE", inline=True)
+comment(0xE420, "Commit CR2; ADLC B now listening for incoming frames", inline=True)
+comment(0xE423, "Return; Econet side B is idle-listen", inline=True)
 
 
 # =====================================================================
@@ -356,30 +378,44 @@ label(0x0201, "tx_end_hi")
 
 label(0xE424, "init_reachable_nets")
 subroutine(0xE424, "init_reachable_nets", hook=None,
-    title="Clear the per-port station maps and mark bridge/broadcast",
+    title="Reset both routing tables to the directly-attached networks",
     description="""\
-Zeroes reachable_via_b and reachable_via_a (256 bytes each), then writes &FF
-to three slots:
+Zeroes the two 256-entry routing tables (reachable_via_a at &035A
+and reachable_via_b at &025A), then writes &FF to four slots
+that are true by virtue of the Bridge's immediate topology:
 
-  reachable_via_a[net_num_a]    — the bridge's port-A station
-  reachable_via_b[net_num_b]    — the bridge's port-B station
-  reachable_via_b[255]             — broadcast slot
-  reachable_via_a[255]             — broadcast slot
+  reachable_via_a[net_num_a]  -- side A's own network is reachable
+                                 via side A (trivially)
+  reachable_via_b[net_num_b]  -- side B's own network is reachable
+                                 via side B (trivially)
+  reachable_via_a[255]        -- broadcast network reachable both
+  reachable_via_b[255]           ways
 
-Called from the reset handler and also re-invoked at &E1D6 and
-&E357 — probably after network topology changes or administrative
-re-init. The &FF-marked slots prevent the bridge from being
-confused by traffic to/from its own station IDs or broadcasts
-during routing decisions.""")
+Everything else starts at zero and is populated later by bridge-
+protocol announcements learned in the rx handlers (see
+rx_a_handle_80 / rx_b_handle_80).
 
-comment(0xE424, "Y = 0, A = 0: set up to clear both tables")
-comment(0xE428, "Zero reachable_via_b[Y]")
-comment(0xE42B, "Zero reachable_via_a[Y]")
-comment(0xE42F, "Loop over all 256 slots (Y wraps back to 0)")
-comment(0xE431, "Marker value &FF for the special slots below")
-comment(0xE433, "Port A bridge-station slot -> mark in reachable_via_a")
-comment(0xE439, "Port B bridge-station slot -> mark in reachable_via_b")
-comment(0xE43F, "Broadcast slot (255) in both maps")
+Called from the reset handler and also re-invoked from the two
+rx_?_handle_80 paths -- receiving an initial bridge announcement
+indicates a topology change that invalidates the learned state,
+so the Bridge forgets everything and starts accumulating again.""")
+
+comment(0xE424, "Y: walks every network number 0..255", inline=True)
+comment(0xE426, "A = 0: 'route not known' marker", inline=True)
+label(0xE428, "init_reachable_nets_clear")
+comment(0xE428, "Clear side-A handler's entry for network Y", inline=True)
+comment(0xE42B, "Clear side-B handler's entry for network Y", inline=True)
+comment(0xE42E, "Step to next network number", inline=True)
+comment(0xE42F, "Loop back until Y wraps through all 256 slots", inline=True)
+comment(0xE431, "A = &FF: 'route known' marker for the writes below", inline=True)
+comment(0xE433, "Y = net_num_a: our own side-A network number", inline=True)
+comment(0xE436, "side-B handler can reach net_num_a via side A", inline=True)
+comment(0xE439, "Y = net_num_b: our own side-B network number", inline=True)
+comment(0xE43C, "side-A handler can reach net_num_b via side B", inline=True)
+comment(0xE43F, "Y = 255: the Econet broadcast network", inline=True)
+comment(0xE441, "Broadcasts reachable for side-A handler's traffic", inline=True)
+comment(0xE444, "Broadcasts reachable for side-B handler's traffic", inline=True)
+comment(0xE447, "Tables primed; return to caller", inline=True)
 
 
 # =====================================================================
