@@ -6,6 +6,12 @@
     "versions": ["1"],
     "analyses": [
         {
+            "label": "Acorn Econet Bridge — architecture overview",
+            "url": "docs/analysis/bridge-architecture-overview.md",
+            "icon": "doc",
+            "note": "Top-down tour of the whole firmware assembled from the annotated disassembly. Covers the hardware, the boot sequence, steady-state operation, the bridge-announce/query protocol, forwarding via the four-way handshake, and self-test. Serves as the entry point that ties the other writeups together."
+        },
+        {
             "label": "Anti-aliasing in the Econet Bridge's RAM test",
             "url": "docs/analysis/ram-test-anti-aliasing.md",
             "icon": "doc",

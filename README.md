@@ -41,6 +41,8 @@ beebasm -i versions/econet-bridge-1/output/econet-bridge-1.asm -o econet-bridge-
 
 Writeups of interesting details uncovered during the disassembly work.
 
+- [Acorn Econet Bridge — architecture overview](docs/analysis/bridge-architecture-overview.md)
+  Top-down tour of the whole firmware assembled from the annotated disassembly. Covers the hardware, the boot sequence, steady-state operation, the bridge-announce/query protocol, forwarding via the four-way handshake, and self-test. Serves as the entry point that ties the other writeups together.
 - [Anti-aliasing in the Econet Bridge's RAM test](docs/analysis/ram-test-anti-aliasing.md)
   A close reading of the thirteen-instruction routine at &E00B that sizes the Bridge's RAM. The INC $00 instructions between each write and read are a layered defence against three distinct failure modes.
 - [The self-test LED, driven by a repurposed ADLC pin](docs/analysis/led-self-test-indicator.md)
