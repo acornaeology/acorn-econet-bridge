@@ -11,17 +11,17 @@ tx_end_hi       = &0201
 ctr24_lo        = &0214
 ctr24_mid       = &0215
 ctr24_hi        = &0216
-l0228           = &0228
+rx_len          = &0228
 announce_flag   = &0229
 announce_tmr_lo = &022a
 announce_tmr_hi = &022b
 announce_count  = &022c
-l023c           = &023c
-l023d           = &023d
-l023e           = &023e
-l023f           = &023f
-l0240           = &0240
-l0241           = &0241
+rx_dst_stn      = &023c
+rx_dst_net      = &023d
+rx_src_stn      = &023e
+rx_src_net      = &023f
+rx_ctrl         = &0240
+rx_port         = &0241
 l0248           = &0248
 l0249           = &0249
 net_a_map       = &025a
@@ -225,7 +225,7 @@ adlc_b_tx2      = &d803
 ; No IRQ on A, drop to idle path
     bpl main_loop_idle                                                ; e084: 10 03       ..
 ; A IRQ: hand off to side-A frame handler
-    jmp ce0e2                                                         ; e086: 4c e2 e0    L..
+    jmp rx_frame_a                                                    ; e086: 4c e2 e0    L..
 
 ; Re-announce enabled?
 ; &e089 referenced 1 time by &e084
@@ -323,102 +323,188 @@ adlc_b_tx2      = &d803
 ; Not exhausted -> re_announce_rearm (ALWAYS branch)
     bne re_announce_rearm                                             ; e0e0: d0 d3       ..             ; ALWAYS branch
 
+; ***************************************************************************************
+; Drain and dispatch an inbound frame on ADLC A
+; 
+; Reached from main_loop_poll when ADLC A raises SR1 bit 7. Drains
+; the incoming scout frame from the RX FIFO into the rx_* buffer at
+; &023C-&024F, runs two levels of filtering, and then dispatches on
+; the control byte to per-message handlers.
+; 
+; Filtering stage 1 — addressing:
+; 
+;   Expect SR2 bit 0 (AP: Address Present) -- if missing, bail to
+;   main_loop (spurious IRQ).
+; 
+;   Read byte 0 (rx_dst_stn) and byte 1 (rx_dst_net). If rx_dst_net
+;   is zero (local net) or net_a_map[rx_dst_net] is zero (unknown
+;   network), jump to rx_a_not_for_us (&E13F): ignore the frame,
+;   re-listen, drop back to main_loop_poll without a full main_loop
+;   re-init.
+; 
+; Draining:
+; 
+;   Read the rest of the frame in byte-pairs into &023C+Y up to Y=20
+;   (the Bridge only keeps the first 20 bytes). After the drain,
+;   force CR1=0 and CR2=&84 to halt the chip and test SR2 bit 1
+;   (FV, Frame Valid). If FV is clear, the frame was corrupt or
+;   short -- bail to main_loop. If SR2 bit 7 (RDA) is also set,
+;   read one trailing byte.
+; 
+; Filtering stage 2 — broadcast check:
+; 
+;   Only frames with dst_stn == dst_net == &FF (full broadcast)
+;   proceed to the bridge-protocol dispatcher. Everything else
+;   falls to rx_a_forward (&E208), the cross-network forwarding
+;   path (not yet analysed).
+; 
+; Dispatch on rx_ctrl (after verifying rx_port == &9C = bridge
+; protocol):
+; 
+;   &80  ->  rx_a_handle_80  (&E1D6) - initial bridge announcement
+;   &81  ->  rx_a_handle_81  (&E1EE) - re-announcement
+;   &82  ->  rx_a_handle_82  (&E19D) - bridge query (tentative)
+;   &83  ->  rx_a_handle_83  (&E195) - bridge query, known-station
+;   other ->  rx_a_forward   (&E208) - forward or discard
+; 
+; The side-B handler at &E263 is the mirror of this routine.
+; A = &01: mask SR2 bit 0 (AP: Address Present)
 ; &e0e2 referenced 1 time by &e086
-.ce0e2
+.rx_frame_a
     lda #1                                                            ; e0e2: a9 01       ..
     bit adlc_a_cr2                                                    ; e0e4: 2c 01 c8    ,..
-    beq ce13c                                                         ; e0e7: f0 53       .S
+; AP missing -> spurious IRQ, bail
+    beq rx_frame_a_bail                                               ; e0e7: f0 53       .S
+; Read byte 0: destination station
     lda adlc_a_tx                                                     ; e0e9: ad 02 c8    ...
-    sta l023c                                                         ; e0ec: 8d 3c 02    .<.
+    sta rx_dst_stn                                                    ; e0ec: 8d 3c 02    .<.
+; Wait for second IRQ: next byte ready
     jsr wait_adlc_a_irq                                               ; e0ef: 20 e4 e3     ..
     bit adlc_a_cr2                                                    ; e0f2: 2c 01 c8    ,..
-    bpl ce13c                                                         ; e0f5: 10 45       .E
+; No second IRQ -> frame is truncated, bail
+    bpl rx_frame_a_bail                                               ; e0f5: 10 45       .E
+; Read byte 1: destination network
     ldy adlc_a_tx                                                     ; e0f7: ac 02 c8    ...
-    beq ce13f                                                         ; e0fa: f0 43       .C
+; dst_net == 0 (local net) -> not for us
+    beq rx_a_not_for_us                                               ; e0fa: f0 43       .C
+; dst_net not known in net_a_map -> not for us
     lda net_a_map,y                                                   ; e0fc: b9 5a 02    .Z.
-    beq ce13f                                                         ; e0ff: f0 3e       .>
-    sty l023d                                                         ; e101: 8c 3d 02    .=.
+    beq rx_a_not_for_us                                               ; e0ff: f0 3e       .>
+    sty rx_dst_net                                                    ; e101: 8c 3d 02    .=.
+; Y = 2: start of pair-drain loop
     ldy #2                                                            ; e104: a0 02       ..
+; Wait for next FIFO IRQ
 ; &e106 referenced 1 time by &e11e
-.loop_ce106
+.rx_frame_a_drain
     jsr wait_adlc_a_irq                                               ; e106: 20 e4 e3     ..
     bit adlc_a_cr2                                                    ; e109: 2c 01 c8    ,..
-    bpl ce120                                                         ; e10c: 10 12       ..
+; IRQ cleared -> end of frame body
+    bpl rx_frame_a_end                                                ; e10c: 10 12       ..
+; Read byte Y
     lda adlc_a_tx                                                     ; e10e: ad 02 c8    ...
-    sta l023c,y                                                       ; e111: 99 3c 02    .<.
+    sta rx_dst_stn,y                                                  ; e111: 99 3c 02    .<.
     iny                                                               ; e114: c8          .
+; Read byte Y+1 (pair for throughput)
     lda adlc_a_tx                                                     ; e115: ad 02 c8    ...
-    sta l023c,y                                                       ; e118: 99 3c 02    .<.
+    sta rx_dst_stn,y                                                  ; e118: 99 3c 02    .<.
     iny                                                               ; e11b: c8          .
+; Stop at 20 bytes (header + 14 payload)
     cpy #&14                                                          ; e11c: c0 14       ..
-    bcc loop_ce106                                                    ; e11e: 90 e6       ..
+    bcc rx_frame_a_drain                                              ; e11e: 90 e6       ..
+; Halt the ADLC: CR1=0, CR2=&84
 ; &e120 referenced 1 time by &e10c
-.ce120
+.rx_frame_a_end
     lda #0                                                            ; e120: a9 00       ..
     sta adlc_a_cr1                                                    ; e122: 8d 00 c8    ...
     lda #&84                                                          ; e125: a9 84       ..
     sta adlc_a_cr2                                                    ; e127: 8d 01 c8    ...
+; A = &02: mask SR2 bit 1 (FV: Frame Valid)
     lda #2                                                            ; e12a: a9 02       ..
     bit adlc_a_cr2                                                    ; e12c: 2c 01 c8    ,..
-    beq ce13c                                                         ; e12f: f0 0b       ..
-    bpl ce14a                                                         ; e131: 10 17       ..
+; No FV -> frame corrupt/short, bail
+    beq rx_frame_a_bail                                               ; e12f: f0 0b       ..
+; FV set but no RDA -> frame done, process it
+    bpl rx_frame_a_dispatch                                           ; e131: 10 17       ..
+; FV + RDA: one trailing byte to drain
     lda adlc_a_tx                                                     ; e133: ad 02 c8    ...
-    sta l023c,y                                                       ; e136: 99 3c 02    .<.
+    sta rx_dst_stn,y                                                  ; e136: 99 3c 02    .<.
     iny                                                               ; e139: c8          .
-    bne ce14a                                                         ; e13a: d0 0e       ..
+    bne rx_frame_a_dispatch                                           ; e13a: d0 0e       ..
+; Bail: return to main_loop
 ; &e13c referenced 4 times by &e0e7, &e0f5, &e12f, &e14f
-.ce13c
+.rx_frame_a_bail
     jmp main_loop                                                     ; e13c: 4c 51 e0    LQ.
 
+; Re-listen with CR1=&A2 (RX on, IRQ enabled)
 ; &e13f referenced 2 times by &e0fa, &e0ff
-.ce13f
+.rx_a_not_for_us
     lda #&a2                                                          ; e13f: a9 a2       ..
     sta adlc_a_cr1                                                    ; e141: 8d 00 c8    ...
+; Back to poll (skip main_loop re-arm)
     jmp main_loop_poll                                                ; e144: 4c 79 e0    Ly.
 
+; Dispatched to rx_a_forward at &E208
 ; &e147 referenced 2 times by &e171, &e180
-.ce147
+.rx_a_to_forward
     jmp ce208                                                         ; e147: 4c 08 e2    L..
 
+; Save final byte count as rx_len
 ; &e14a referenced 2 times by &e131, &e13a
-.ce14a
-    sty l0228                                                         ; e14a: 8c 28 02    .(.
+.rx_frame_a_dispatch
+    sty rx_len                                                        ; e14a: 8c 28 02    .(.
+; Need >= 6 bytes for a valid scout header
     cpy #6                                                            ; e14d: c0 06       ..
-    bcc ce13c                                                         ; e14f: 90 eb       ..
-    lda l023f                                                         ; e151: ad 3f 02    .?.
+    bcc rx_frame_a_bail                                               ; e14f: 90 eb       ..
+; Lazy-init rx_src_net if zero
+    lda rx_src_net                                                    ; e151: ad 3f 02    .?.
     bne ce15c                                                         ; e154: d0 06       ..
+; Default src_net to station_id_a
     lda station_id_a                                                  ; e156: ad 00 c0    ...
-    sta l023f                                                         ; e159: 8d 3f 02    .?.
+    sta rx_src_net                                                    ; e159: 8d 3f 02    .?.
+; Is rx_dst_net addressing side B (= our B station)?
 ; &e15c referenced 1 time by &e154
 .ce15c
     lda station_id_b                                                  ; e15c: ad 00 d0    ...
-    cmp l023d                                                         ; e15f: cd 3d 02    .=.
+    cmp rx_dst_net                                                    ; e15f: cd 3d 02    .=.
     bne ce169                                                         ; e162: d0 05       ..
+; Yes: normalise rx_dst_net to 0 (local on B)
     lda #0                                                            ; e164: a9 00       ..
-    sta l023d                                                         ; e166: 8d 3d 02    .=.
+    sta rx_dst_net                                                    ; e166: 8d 3d 02    .=.
+; Broadcast test: both dst bytes == &FF?
 ; &e169 referenced 1 time by &e162
 .ce169
-    lda l023c                                                         ; e169: ad 3c 02    .<.
-    and l023d                                                         ; e16c: 2d 3d 02    -=.
+    lda rx_dst_stn                                                    ; e169: ad 3c 02    .<.
+    and rx_dst_net                                                    ; e16c: 2d 3d 02    -=.
     cmp #&ff                                                          ; e16f: c9 ff       ..
-    bne ce147                                                         ; e171: d0 d4       ..
+; Not broadcast -> forward path
+    bne rx_a_to_forward                                               ; e171: d0 d4       ..
+; Broadcast: re-arm A's listen mode
     jsr adlc_a_listen                                                 ; e173: 20 ff e3     ..
     lda #&c2                                                          ; e176: a9 c2       ..
     sta adlc_a_cr1                                                    ; e178: 8d 00 c8    ...
-    lda l0241                                                         ; e17b: ad 41 02    .A.
+    lda rx_port                                                       ; e17b: ad 41 02    .A.
+; Bridge-protocol port (&9C)?
     cmp #&9c                                                          ; e17e: c9 9c       ..
-    bne ce147                                                         ; e180: d0 c5       ..
-    lda l0240                                                         ; e182: ad 40 02    .@.
+; Not bridge protocol -> forward
+    bne rx_a_to_forward                                               ; e180: d0 c5       ..
+; Dispatch on rx_ctrl
+    lda rx_ctrl                                                       ; e182: ad 40 02    .@.
+; &81 -> re-announcement handler
     cmp #&81                                                          ; e185: c9 81       ..
     beq ce1ee                                                         ; e187: f0 65       .e
+; &80 -> initial announcement handler
     cmp #&80                                                          ; e189: c9 80       ..
     beq ce1d6                                                         ; e18b: f0 49       .I
+; &82 -> bridge query (shares &83 path)
     cmp #&82                                                          ; e18d: c9 82       ..
     beq ce19d                                                         ; e18f: f0 0c       ..
+; &83 -> bridge query, known-station path
     cmp #&83                                                          ; e191: c9 83       ..
     bne ce208                                                         ; e193: d0 73       .s
+; Station Y known in net_a_map?
     ldy l0249                                                         ; e195: ac 49 02    .I.
     lda net_a_map,y                                                   ; e198: b9 5a 02    .Z.
+; Unknown -> skip, back to main loop
     beq ce1d3                                                         ; e19b: f0 36       .6
 ; &e19d referenced 1 time by &e18f
 .ce19d
@@ -460,22 +546,22 @@ adlc_b_tx2      = &d803
     ldy #6                                                            ; e1ee: a0 06       ..
 ; &e1f0 referenced 1 time by &e1fd
 .loop_ce1f0
-    lda l023c,y                                                       ; e1f0: b9 3c 02    .<.
+    lda rx_dst_stn,y                                                  ; e1f0: b9 3c 02    .<.
     tax                                                               ; e1f3: aa          .
     lda #&ff                                                          ; e1f4: a9 ff       ..
     sta net_b_map,x                                                   ; e1f6: 9d 5a 03    .Z.
     iny                                                               ; e1f9: c8          .
-    cpy l0228                                                         ; e1fa: cc 28 02    .(.
+    cpy rx_len                                                        ; e1fa: cc 28 02    .(.
     bne loop_ce1f0                                                    ; e1fd: d0 f1       ..
     lda station_id_a                                                  ; e1ff: ad 00 c0    ...
-    sta l023c,y                                                       ; e202: 99 3c 02    .<.
-    inc l0228                                                         ; e205: ee 28 02    .(.
+    sta rx_dst_stn,y                                                  ; e202: 99 3c 02    .<.
+    inc rx_len                                                        ; e205: ee 28 02    .(.
 ; &e208 referenced 2 times by &e147, &e193
 .ce208
-    lda l0228                                                         ; e208: ad 28 02    .(.
+    lda rx_len                                                        ; e208: ad 28 02    .(.
     tax                                                               ; e20b: aa          .
     and #&fe                                                          ; e20c: 29 fe       ).
-    sta l0228                                                         ; e20e: 8d 28 02    .(.
+    sta rx_len                                                        ; e20e: 8d 28 02    .(.
     jsr wait_adlc_b_idle                                              ; e211: 20 90 e6     ..
     ldy #0                                                            ; e214: a0 00       ..
 ; &e216 referenced 1 time by &e22f
@@ -483,19 +569,19 @@ adlc_b_tx2      = &d803
     jsr wait_adlc_b_irq                                               ; e216: 20 ea e3     ..
     bit adlc_b_cr1                                                    ; e219: 2c 00 d8    ,..
     bvc ce260                                                         ; e21c: 50 42       PB
-    lda l023c,y                                                       ; e21e: b9 3c 02    .<.
+    lda rx_dst_stn,y                                                  ; e21e: b9 3c 02    .<.
     sta adlc_b_tx                                                     ; e221: 8d 02 d8    ...
     iny                                                               ; e224: c8          .
-    lda l023c,y                                                       ; e225: b9 3c 02    .<.
+    lda rx_dst_stn,y                                                  ; e225: b9 3c 02    .<.
     sta adlc_b_tx                                                     ; e228: 8d 02 d8    ...
     iny                                                               ; e22b: c8          .
-    cpy l0228                                                         ; e22c: cc 28 02    .(.
+    cpy rx_len                                                        ; e22c: cc 28 02    .(.
     bcc loop_ce216                                                    ; e22f: 90 e5       ..
     txa                                                               ; e231: 8a          .
     ror a                                                             ; e232: 6a          j
     bcc ce23e                                                         ; e233: 90 09       ..
     jsr wait_adlc_b_irq                                               ; e235: 20 ea e3     ..
-    lda l023c,y                                                       ; e238: b9 3c 02    .<.
+    lda rx_dst_stn,y                                                  ; e238: b9 3c 02    .<.
     sta adlc_b_tx                                                     ; e23b: 8d 02 d8    ...
 ; &e23e referenced 1 time by &e233
 .ce23e
@@ -522,7 +608,7 @@ adlc_b_tx2      = &d803
     bit adlc_b_cr2                                                    ; e265: 2c 01 d8    ,..
     beq ce2bd                                                         ; e268: f0 53       .S
     lda adlc_b_tx                                                     ; e26a: ad 02 d8    ...
-    sta l023c                                                         ; e26d: 8d 3c 02    .<.
+    sta rx_dst_stn                                                    ; e26d: 8d 3c 02    .<.
     jsr wait_adlc_b_irq                                               ; e270: 20 ea e3     ..
     bit adlc_b_cr2                                                    ; e273: 2c 01 d8    ,..
     bpl ce2bd                                                         ; e276: 10 45       .E
@@ -530,7 +616,7 @@ adlc_b_tx2      = &d803
     beq ce2c0                                                         ; e27b: f0 43       .C
     lda net_b_map,y                                                   ; e27d: b9 5a 03    .Z.
     beq ce2c0                                                         ; e280: f0 3e       .>
-    sty l023d                                                         ; e282: 8c 3d 02    .=.
+    sty rx_dst_net                                                    ; e282: 8c 3d 02    .=.
     ldy #2                                                            ; e285: a0 02       ..
 ; &e287 referenced 1 time by &e29f
 .loop_ce287
@@ -538,10 +624,10 @@ adlc_b_tx2      = &d803
     bit adlc_b_cr2                                                    ; e28a: 2c 01 d8    ,..
     bpl ce2a1                                                         ; e28d: 10 12       ..
     lda adlc_b_tx                                                     ; e28f: ad 02 d8    ...
-    sta l023c,y                                                       ; e292: 99 3c 02    .<.
+    sta rx_dst_stn,y                                                  ; e292: 99 3c 02    .<.
     iny                                                               ; e295: c8          .
     lda adlc_b_tx                                                     ; e296: ad 02 d8    ...
-    sta l023c,y                                                       ; e299: 99 3c 02    .<.
+    sta rx_dst_stn,y                                                  ; e299: 99 3c 02    .<.
     iny                                                               ; e29c: c8          .
     cpy #&14                                                          ; e29d: c0 14       ..
     bcc loop_ce287                                                    ; e29f: 90 e6       ..
@@ -556,7 +642,7 @@ adlc_b_tx2      = &d803
     beq ce2bd                                                         ; e2b0: f0 0b       ..
     bpl ce2cb                                                         ; e2b2: 10 17       ..
     lda adlc_b_tx                                                     ; e2b4: ad 02 d8    ...
-    sta l023c,y                                                       ; e2b7: 99 3c 02    .<.
+    sta rx_dst_stn,y                                                  ; e2b7: 99 3c 02    .<.
     iny                                                               ; e2ba: c8          .
     bne ce2cb                                                         ; e2bb: d0 0e       ..
 ; &e2bd referenced 4 times by &e268, &e276, &e2b0, &e2d0
@@ -575,33 +661,33 @@ adlc_b_tx2      = &d803
 
 ; &e2cb referenced 2 times by &e2b2, &e2bb
 .ce2cb
-    sty l0228                                                         ; e2cb: 8c 28 02    .(.
+    sty rx_len                                                        ; e2cb: 8c 28 02    .(.
     cpy #6                                                            ; e2ce: c0 06       ..
     bcc ce2bd                                                         ; e2d0: 90 eb       ..
-    lda l023f                                                         ; e2d2: ad 3f 02    .?.
+    lda rx_src_net                                                    ; e2d2: ad 3f 02    .?.
     bne ce2dd                                                         ; e2d5: d0 06       ..
     lda station_id_b                                                  ; e2d7: ad 00 d0    ...
-    sta l023f                                                         ; e2da: 8d 3f 02    .?.
+    sta rx_src_net                                                    ; e2da: 8d 3f 02    .?.
 ; &e2dd referenced 1 time by &e2d5
 .ce2dd
     lda station_id_a                                                  ; e2dd: ad 00 c0    ...
-    cmp l023d                                                         ; e2e0: cd 3d 02    .=.
+    cmp rx_dst_net                                                    ; e2e0: cd 3d 02    .=.
     bne ce2ea                                                         ; e2e3: d0 05       ..
     lda #0                                                            ; e2e5: a9 00       ..
-    sta l023d                                                         ; e2e7: 8d 3d 02    .=.
+    sta rx_dst_net                                                    ; e2e7: 8d 3d 02    .=.
 ; &e2ea referenced 1 time by &e2e3
 .ce2ea
-    lda l023c                                                         ; e2ea: ad 3c 02    .<.
-    and l023d                                                         ; e2ed: 2d 3d 02    -=.
+    lda rx_dst_stn                                                    ; e2ea: ad 3c 02    .<.
+    and rx_dst_net                                                    ; e2ed: 2d 3d 02    -=.
     cmp #&ff                                                          ; e2f0: c9 ff       ..
     bne ce2c8                                                         ; e2f2: d0 d4       ..
     jsr adlc_b_listen                                                 ; e2f4: 20 19 e4     ..
     lda #&c2                                                          ; e2f7: a9 c2       ..
     sta adlc_b_cr1                                                    ; e2f9: 8d 00 d8    ...
-    lda l0241                                                         ; e2fc: ad 41 02    .A.
+    lda rx_port                                                       ; e2fc: ad 41 02    .A.
     cmp #&9c                                                          ; e2ff: c9 9c       ..
     bne ce2c8                                                         ; e301: d0 c5       ..
-    lda l0240                                                         ; e303: ad 40 02    .@.
+    lda rx_ctrl                                                       ; e303: ad 40 02    .@.
     cmp #&81                                                          ; e306: c9 81       ..
     beq ce36f                                                         ; e308: f0 65       .e
     cmp #&80                                                          ; e30a: c9 80       ..
@@ -653,22 +739,22 @@ adlc_b_tx2      = &d803
     ldy #6                                                            ; e36f: a0 06       ..
 ; &e371 referenced 1 time by &e37e
 .loop_ce371
-    lda l023c,y                                                       ; e371: b9 3c 02    .<.
+    lda rx_dst_stn,y                                                  ; e371: b9 3c 02    .<.
     tax                                                               ; e374: aa          .
     lda #&ff                                                          ; e375: a9 ff       ..
     sta net_a_map,x                                                   ; e377: 9d 5a 02    .Z.
     iny                                                               ; e37a: c8          .
-    cpy l0228                                                         ; e37b: cc 28 02    .(.
+    cpy rx_len                                                        ; e37b: cc 28 02    .(.
     bne loop_ce371                                                    ; e37e: d0 f1       ..
     lda station_id_b                                                  ; e380: ad 00 d0    ...
-    sta l023c,y                                                       ; e383: 99 3c 02    .<.
-    inc l0228                                                         ; e386: ee 28 02    .(.
+    sta rx_dst_stn,y                                                  ; e383: 99 3c 02    .<.
+    inc rx_len                                                        ; e386: ee 28 02    .(.
 ; &e389 referenced 2 times by &e2c8, &e314
 .ce389
-    lda l0228                                                         ; e389: ad 28 02    .(.
+    lda rx_len                                                        ; e389: ad 28 02    .(.
     tax                                                               ; e38c: aa          .
     and #&fe                                                          ; e38d: 29 fe       ).
-    sta l0228                                                         ; e38f: 8d 28 02    .(.
+    sta rx_len                                                        ; e38f: 8d 28 02    .(.
     jsr wait_adlc_a_idle                                              ; e392: 20 dc e6     ..
     ldy #0                                                            ; e395: a0 00       ..
 ; &e397 referenced 1 time by &e3b0
@@ -676,19 +762,19 @@ adlc_b_tx2      = &d803
     jsr wait_adlc_a_irq                                               ; e397: 20 e4 e3     ..
     bit adlc_a_cr1                                                    ; e39a: 2c 00 c8    ,..
     bvc ce3e1                                                         ; e39d: 50 42       PB
-    lda l023c,y                                                       ; e39f: b9 3c 02    .<.
+    lda rx_dst_stn,y                                                  ; e39f: b9 3c 02    .<.
     sta adlc_a_tx                                                     ; e3a2: 8d 02 c8    ...
     iny                                                               ; e3a5: c8          .
-    lda l023c,y                                                       ; e3a6: b9 3c 02    .<.
+    lda rx_dst_stn,y                                                  ; e3a6: b9 3c 02    .<.
     sta adlc_a_tx                                                     ; e3a9: 8d 02 c8    ...
     iny                                                               ; e3ac: c8          .
-    cpy l0228                                                         ; e3ad: cc 28 02    .(.
+    cpy rx_len                                                        ; e3ad: cc 28 02    .(.
     bcc loop_ce397                                                    ; e3b0: 90 e5       ..
     txa                                                               ; e3b2: 8a          .
     ror a                                                             ; e3b3: 6a          j
     bcc ce3bf                                                         ; e3b4: 90 09       ..
     jsr wait_adlc_a_irq                                               ; e3b6: 20 e4 e3     ..
-    lda l023c,y                                                       ; e3b9: b9 3c 02    .<.
+    lda rx_dst_stn,y                                                  ; e3b9: b9 3c 02    .<.
     sta adlc_a_tx                                                     ; e3bc: 8d 02 c8    ...
 ; &e3bf referenced 1 time by &e3b4
 .ce3bf
@@ -917,7 +1003,7 @@ adlc_b_tx2      = &d803
 
 ; &e48d referenced 4 times by &e1a0, &e1b8, &e321, &e339
 .sub_ce48d
-    lda l023e                                                         ; e48d: ad 3e 02    .>.
+    lda rx_src_stn                                                    ; e48d: ad 3e 02    .>.
     sta tx_dst_stn                                                    ; e490: 8d 5a 04    .Z.
     lda #0                                                            ; e493: a9 00       ..
     sta tx_dst_net                                                    ; e495: 8d 5b 04    .[.
@@ -2405,7 +2491,7 @@ save pydis_start, pydis_end
 ;     adlc_b_tx:               26
 ;     mem_ptr_hi:              23
 ;     mem_ptr_lo:              23
-;     l023c:                   20
+;     rx_dst_stn:              20
 ;     wait_adlc_a_irq:         19
 ;     wait_adlc_b_irq:         19
 ;     l0000:                   15
@@ -2414,11 +2500,11 @@ save pydis_start, pydis_end
 ;     station_id_a:            13
 ;     cf151:                   12
 ;     cf1f2:                   12
-;     l0228:                   12
+;     rx_len:                  12
 ;     station_id_b:            12
 ;     l0002:                   10
 ;     tx_src_net:              10
-;     l023d:                    8
+;     rx_dst_net:               8
 ;     tx_dst_net:               8
 ;     ctr24_lo:                 7
 ;     net_a_map:                7
@@ -2441,12 +2527,12 @@ save pydis_start, pydis_end
 ;     announce_count:           4
 ;     announce_tmr_hi:          4
 ;     announce_tmr_lo:          4
-;     ce13c:                    4
 ;     ce2bd:                    4
 ;     ctr24_hi:                 4
 ;     ctr24_mid:                4
-;     l023f:                    4
 ;     l0249:                    4
+;     rx_frame_a_bail:          4
+;     rx_src_net:               4
 ;     sub_ce48d:                4
 ;     tx_dst_stn:               4
 ;     tx_port:                  4
@@ -2465,9 +2551,6 @@ save pydis_start, pydis_end
 ;     adlc_b_listen:            2
 ;     adlc_b_tx2:               2
 ;     build_announce_b:         2
-;     ce13f:                    2
-;     ce147:                    2
-;     ce14a:                    2
 ;     ce208:                    2
 ;     ce2c0:                    2
 ;     ce2c8:                    2
@@ -2487,9 +2570,12 @@ save pydis_start, pydis_end
 ;     cf2d0:                    2
 ;     cf2d9:                    2
 ;     cf2e8:                    2
-;     l0240:                    2
-;     l0241:                    2
 ;     re_announce_done:         2
+;     rx_a_not_for_us:          2
+;     rx_a_to_forward:          2
+;     rx_ctrl:                  2
+;     rx_frame_a_dispatch:      2
+;     rx_port:                  2
 ;     sub_ce448:                2
 ;     tx_src_stn:               2
 ;     adlc_a_full_reset:        1
@@ -2497,8 +2583,6 @@ save pydis_start, pydis_end
 ;     ce05d:                    1
 ;     ce073:                    1
 ;     ce081:                    1
-;     ce0e2:                    1
-;     ce120:                    1
 ;     ce15c:                    1
 ;     ce169:                    1
 ;     ce19d:                    1
@@ -2549,9 +2633,7 @@ save pydis_start, pydis_end
 ;     cf26f:                    1
 ;     cf28c:                    1
 ;     cf291:                    1
-;     l023e:                    1
 ;     l0248:                    1
-;     loop_ce106:               1
 ;     loop_ce1f0:               1
 ;     loop_ce216:               1
 ;     loop_ce287:               1
@@ -2571,6 +2653,10 @@ save pydis_start, pydis_end
 ;     ram_test_loop:            1
 ;     re_announce_rearm:        1
 ;     re_announce_side_b:       1
+;     rx_frame_a:               1
+;     rx_frame_a_drain:         1
+;     rx_frame_a_end:           1
+;     rx_src_stn:               1
 ;     self_test_reset_adlcs:    1
 ;     self_test_rom_checksum:   1
 ;     self_test_zp:             1
@@ -2579,12 +2665,6 @@ save pydis_start, pydis_end
 ;     ce05d
 ;     ce073
 ;     ce081
-;     ce0e2
-;     ce120
-;     ce13c
-;     ce13f
-;     ce147
-;     ce14a
 ;     ce15c
 ;     ce169
 ;     ce19d
@@ -2668,16 +2748,8 @@ save pydis_start, pydis_end
 ;     l0001
 ;     l0002
 ;     l0003
-;     l0228
-;     l023c
-;     l023d
-;     l023e
-;     l023f
-;     l0240
-;     l0241
 ;     l0248
 ;     l0249
-;     loop_ce106
 ;     loop_ce1f0
 ;     loop_ce216
 ;     loop_ce287

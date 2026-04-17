@@ -237,6 +237,20 @@ label(0x0214, "ctr24_lo")
 label(0x0215, "ctr24_mid")
 label(0x0216, "ctr24_hi")
 
+# RX frame buffer. Inbound frames are drained from the ADLC's RX
+# FIFO into this 20-byte region during the side-A and side-B
+# handlers. The first six bytes are the Econet scout-frame header;
+# bytes 6 onward are payload (max 14 bytes captured, enough for the
+# Bridge-protocol message formats).
+label(0x023C, "rx_dst_stn")   # byte 0: destination station
+label(0x023D, "rx_dst_net")   # byte 1: destination network
+label(0x023E, "rx_src_stn")   # byte 2: source station
+label(0x023F, "rx_src_net")   # byte 3: source network
+label(0x0240, "rx_ctrl")      # byte 4: control byte (bridge: &80-&83)
+label(0x0241, "rx_port")      # byte 5: port (bridge-protocol = &9C)
+# Payload bytes at &0242-&024F; named as they become understood
+label(0x0228, "rx_len")       # bytes received (written at end of drain)
+
 # Periodic re-announcement state, used by the main Bridge loop. The
 # main loop polls both ADLCs for IRQs; in the idle path it tests
 # announce_flag, and if set decrements announce_tmr_lo/hi. When the
@@ -470,6 +484,108 @@ comment(0xE05D, "Arm CR1 A = &82: TX reset, RX IRQ enabled")
 comment(0xE062, "Arm CR2 A = &67: standard listen-mode config")
 comment(0xE067, "Same stale-state check for ADLC B")
 comment(0xE073, "Arm CR1 B = &82 and CR2 B = &67")
+
+
+label(0xE0E2, "rx_frame_a")
+subroutine(0xE0E2, "rx_frame_a", hook=None, is_entry_point=False,
+    title="Drain and dispatch an inbound frame on ADLC A",
+    description="""\
+Reached from main_loop_poll when ADLC A raises SR1 bit 7. Drains
+the incoming scout frame from the RX FIFO into the rx_* buffer at
+&023C-&024F, runs two levels of filtering, and then dispatches on
+the control byte to per-message handlers.
+
+Filtering stage 1 — addressing:
+
+  Expect SR2 bit 0 (AP: Address Present) -- if missing, bail to
+  main_loop (spurious IRQ).
+
+  Read byte 0 (rx_dst_stn) and byte 1 (rx_dst_net). If rx_dst_net
+  is zero (local net) or net_a_map[rx_dst_net] is zero (unknown
+  network), jump to rx_a_not_for_us (&E13F): ignore the frame,
+  re-listen, drop back to main_loop_poll without a full main_loop
+  re-init.
+
+Draining:
+
+  Read the rest of the frame in byte-pairs into &023C+Y up to Y=20
+  (the Bridge only keeps the first 20 bytes). After the drain,
+  force CR1=0 and CR2=&84 to halt the chip and test SR2 bit 1
+  (FV, Frame Valid). If FV is clear, the frame was corrupt or
+  short -- bail to main_loop. If SR2 bit 7 (RDA) is also set,
+  read one trailing byte.
+
+Filtering stage 2 — broadcast check:
+
+  Only frames with dst_stn == dst_net == &FF (full broadcast)
+  proceed to the bridge-protocol dispatcher. Everything else
+  falls to rx_a_forward (&E208), the cross-network forwarding
+  path (not yet analysed).
+
+Dispatch on rx_ctrl (after verifying rx_port == &9C = bridge
+protocol):
+
+  &80  ->  rx_a_handle_80  (&E1D6) - initial bridge announcement
+  &81  ->  rx_a_handle_81  (&E1EE) - re-announcement
+  &82  ->  rx_a_handle_82  (&E19D) - bridge query (tentative)
+  &83  ->  rx_a_handle_83  (&E195) - bridge query, known-station
+  other ->  rx_a_forward   (&E208) - forward or discard
+
+The side-B handler at &E263 is the mirror of this routine.""")
+
+comment(0xE0E2, "A = &01: mask SR2 bit 0 (AP: Address Present)")
+comment(0xE0E7, "AP missing -> spurious IRQ, bail")
+comment(0xE0E9, "Read byte 0: destination station")
+comment(0xE0EF, "Wait for second IRQ: next byte ready")
+comment(0xE0F5, "No second IRQ -> frame is truncated, bail")
+comment(0xE0F7, "Read byte 1: destination network")
+comment(0xE0FA, "dst_net == 0 (local net) -> not for us")
+comment(0xE0FC, "dst_net not known in net_a_map -> not for us")
+comment(0xE104, "Y = 2: start of pair-drain loop")
+
+label(0xE106, "rx_frame_a_drain")
+comment(0xE106, "Wait for next FIFO IRQ")
+comment(0xE10C, "IRQ cleared -> end of frame body")
+comment(0xE10E, "Read byte Y")
+comment(0xE115, "Read byte Y+1 (pair for throughput)")
+comment(0xE11C, "Stop at 20 bytes (header + 14 payload)")
+
+label(0xE120, "rx_frame_a_end")
+comment(0xE120, "Halt the ADLC: CR1=0, CR2=&84")
+comment(0xE12A, "A = &02: mask SR2 bit 1 (FV: Frame Valid)")
+comment(0xE12F, "No FV -> frame corrupt/short, bail")
+comment(0xE131, "FV set but no RDA -> frame done, process it")
+comment(0xE133, "FV + RDA: one trailing byte to drain")
+
+label(0xE13C, "rx_frame_a_bail")
+comment(0xE13C, "Bail: return to main_loop")
+
+label(0xE13F, "rx_a_not_for_us")
+comment(0xE13F, "Re-listen with CR1=&A2 (RX on, IRQ enabled)")
+comment(0xE144, "Back to poll (skip main_loop re-arm)")
+
+label(0xE147, "rx_a_to_forward")
+comment(0xE147, "Dispatched to rx_a_forward at &E208")
+
+label(0xE14A, "rx_frame_a_dispatch")
+comment(0xE14A, "Save final byte count as rx_len")
+comment(0xE14D, "Need >= 6 bytes for a valid scout header")
+comment(0xE151, "Lazy-init rx_src_net if zero")
+comment(0xE156, "Default src_net to station_id_a")
+comment(0xE15C, "Is rx_dst_net addressing side B (= our B station)?")
+comment(0xE164, "Yes: normalise rx_dst_net to 0 (local on B)")
+comment(0xE169, "Broadcast test: both dst bytes == &FF?")
+comment(0xE171, "Not broadcast -> forward path")
+comment(0xE173, "Broadcast: re-arm A's listen mode")
+comment(0xE17E, "Bridge-protocol port (&9C)?")
+comment(0xE180, "Not bridge protocol -> forward")
+comment(0xE182, "Dispatch on rx_ctrl")
+comment(0xE185, "&81 -> re-announcement handler")
+comment(0xE189, "&80 -> initial announcement handler")
+comment(0xE18D, "&82 -> bridge query (shares &83 path)")
+comment(0xE191, "&83 -> bridge query, known-station path")
+comment(0xE195, "Station Y known in net_a_map?")
+comment(0xE19B, "Unknown -> skip, back to main loop")
 
 
 label(0xE079, "main_loop_poll")
