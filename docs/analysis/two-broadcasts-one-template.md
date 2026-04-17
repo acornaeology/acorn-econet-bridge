@@ -37,7 +37,7 @@ The relevant part of the reset handler is short enough to inline:
                                    ; port = &9C, data0 = station_id_b,
                                    ; X = 1 so data0 is sent)
 
-    jsr adlc_a_poll_or_escape      ; wait for ADLC A to be ready
+    jsr wait_adlc_a_idle      ; wait for ADLC A to be ready
     jsr transmit_frame_a           ; ...and send the frame via side A
 
     lda station_id_a               ; patch: overwrite the trailing byte
@@ -47,7 +47,7 @@ The relevant part of the reset handler is short enough to inline:
     sta mem_ptr_hi                 ; leaves it pointing at &045A, but
                                    ; belt-and-braces)
 
-    jsr adlc_b_poll_or_escape      ; wait for ADLC B to be ready
+    jsr wait_adlc_b_idle      ; wait for ADLC B to be ready
     jsr transmit_frame_b           ; ...and send the same frame via side B
 
     ; fall through to main_loop

@@ -135,13 +135,13 @@ adlc_b_tx2      = &d803
     lda #0                                                            ; e033: a9 00       ..
     sta announce_flag                                                 ; e035: 8d 29 02    .).
     jsr build_announce_b                                              ; e038: 20 58 e4     X.
-    jsr adlc_a_poll_or_escape                                         ; e03b: 20 dc e6     ..
+    jsr wait_adlc_a_idle                                              ; e03b: 20 dc e6     ..
     jsr transmit_frame_a                                              ; e03e: 20 17 e5     ..
     lda station_id_a                                                  ; e041: ad 00 c0    ...
     sta tx_data0                                                      ; e044: 8d 60 04    .`.
     lda #4                                                            ; e047: a9 04       ..
     sta mem_ptr_hi                                                    ; e049: 85 81       ..
-    jsr adlc_b_poll_or_escape                                         ; e04b: 20 90 e6     ..
+    jsr wait_adlc_b_idle                                              ; e04b: 20 90 e6     ..
     jsr transmit_frame_b                                              ; e04e: 20 c0 e4     ..
 ; ***************************************************************************************
 ; Main Bridge loop: poll both ADLCs for frames, re-announce
@@ -149,7 +149,7 @@ adlc_b_tx2      = &d803
 ; The Bridge's continuous-operation entry point. Reached by fall-
 ; through from the reset handler once startup completes, and by JMP
 ; from fourteen other sites — every routine that takes an "escape to
-; main" path (adlc_a_poll_or_escape, transmit_frame_a/b, etc.) lands
+; main" path (wait_adlc_a_idle, transmit_frame_a/b, etc.) lands
 ; here.
 ; 
 ; The loop clears stale status on both ADLCs, then enters an inner
@@ -214,7 +214,7 @@ adlc_b_tx2      = &d803
     bmi ce0ca                                                         ; e0a3: 30 25       0%
     lda #&c2                                                          ; e0a5: a9 c2       ..
     sta adlc_b_cr1                                                    ; e0a7: 8d 00 d8    ...
-    jsr adlc_a_poll_or_escape                                         ; e0aa: 20 dc e6     ..
+    jsr wait_adlc_a_idle                                              ; e0aa: 20 dc e6     ..
     jsr transmit_frame_a                                              ; e0ad: 20 17 e5     ..
     dec announce_count                                                ; e0b0: ce 2c 02    .,.
     beq ce0c2                                                         ; e0b3: f0 0d       ..
@@ -238,7 +238,7 @@ adlc_b_tx2      = &d803
     sta tx_data0                                                      ; e0cd: 8d 60 04    .`.
     lda #&c2                                                          ; e0d0: a9 c2       ..
     sta adlc_a_cr1                                                    ; e0d2: 8d 00 c8    ...
-    jsr adlc_b_poll_or_escape                                         ; e0d5: 20 90 e6     ..
+    jsr wait_adlc_b_idle                                              ; e0d5: 20 90 e6     ..
     jsr transmit_frame_b                                              ; e0d8: 20 c0 e4     ..
     dec announce_count                                                ; e0db: ce 2c 02    .,.
     beq ce0c2                                                         ; e0de: f0 e2       ..
@@ -349,7 +349,7 @@ adlc_b_tx2      = &d803
     sta tx_src_net                                                    ; e1a6: 8d 5d 04    .].
     sta ctr24_lo                                                      ; e1a9: 8d 14 02    ...
     jsr sub_ce448                                                     ; e1ac: 20 48 e4     H.
-    jsr adlc_a_poll_or_escape                                         ; e1af: 20 dc e6     ..
+    jsr wait_adlc_a_idle                                              ; e1af: 20 dc e6     ..
     jsr transmit_frame_a                                              ; e1b2: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e1b5: 20 6e e5     n.
     jsr sub_ce48d                                                     ; e1b8: 20 8d e4     ..
@@ -397,7 +397,7 @@ adlc_b_tx2      = &d803
     tax                                                               ; e20b: aa          .
     and #&fe                                                          ; e20c: 29 fe       ).
     sta l0228                                                         ; e20e: 8d 28 02    .(.
-    jsr adlc_b_poll_or_escape                                         ; e211: 20 90 e6     ..
+    jsr wait_adlc_b_idle                                              ; e211: 20 90 e6     ..
     ldy #0                                                            ; e214: a0 00       ..
 ; &e216 referenced 1 time by &e22f
 .loop_ce216
@@ -542,7 +542,7 @@ adlc_b_tx2      = &d803
     sta tx_src_net                                                    ; e327: 8d 5d 04    .].
     sta ctr24_lo                                                      ; e32a: 8d 14 02    ...
     jsr sub_ce448                                                     ; e32d: 20 48 e4     H.
-    jsr adlc_b_poll_or_escape                                         ; e330: 20 90 e6     ..
+    jsr wait_adlc_b_idle                                              ; e330: 20 90 e6     ..
     jsr transmit_frame_b                                              ; e333: 20 c0 e4     ..
     jsr sub_ce5ff                                                     ; e336: 20 ff e5     ..
     jsr sub_ce48d                                                     ; e339: 20 8d e4     ..
@@ -590,7 +590,7 @@ adlc_b_tx2      = &d803
     tax                                                               ; e38c: aa          .
     and #&fe                                                          ; e38d: 29 fe       ).
     sta l0228                                                         ; e38f: 8d 28 02    .(.
-    jsr adlc_a_poll_or_escape                                         ; e392: 20 dc e6     ..
+    jsr wait_adlc_a_idle                                              ; e392: 20 dc e6     ..
     ldy #0                                                            ; e395: a0 00       ..
 ; &e397 referenced 1 time by &e3b0
 .loop_ce397
@@ -700,7 +700,7 @@ adlc_b_tx2      = &d803
 ; CR4=&1E: 8-bit RX, abort extend, NRZ
     lda #&1e                                                          ; e40f: a9 1e       ..
     sta adlc_b_tx2                                                    ; e411: 8d 03 d8    ...
-; CR3=&00: normal; bit 7 = 0 -> LOC/DTR low -> status LED OFF
+; CR3=&00: bit 7=0 -> LOC/DTR pin HIGH -> status LED OFF
     lda #0                                                            ; e414: a9 00       ..
     sta adlc_b_cr2                                                    ; e416: 8d 01 d8    ...
 ; ***************************************************************************************
@@ -951,7 +951,7 @@ adlc_b_tx2      = &d803
 ; with SR1's V-bit clear instead of set (meaning the ADLC didn't reach
 ; the expected TDRA state), the routine drops the caller's return
 ; address from the stack and JMP's into the main loop at &E051 —
-; the same escape-to-main pattern used by adlc_a_poll_or_escape.
+; the same escape-to-main pattern used by wait_adlc_a_idle.
 ; 
 ; Called from seven sites: reset (&E03E), &E0AD, &E1B2, &E1CD, &E251,
 ; &E25D, &E3D8.
@@ -1185,15 +1185,16 @@ adlc_b_tx2      = &d803
     rts                                                               ; e68f: 60          `
 
 ; ***************************************************************************************
-; Poll ADLC B with ~2s timeout; on timeout bypass caller
+; Wait for ADLC B's line to go idle (CSMA) or escape
 ; 
-; Byte-for-byte mirror of adlc_a_poll_or_escape (&E6DC) with adlc_a_*
-; replaced by adlc_b_*. Same 24-bit timeout, same escape pattern, same
-; normal exit semantics.
+; Byte-for-byte mirror of wait_adlc_a_idle (&E6DC) with adlc_a_*
+; replaced by adlc_b_*. Same pre-transmit carrier-sense semantics:
+; wait for SR2 bit 2 (Rx Idle), back off on AP/RDA, escape to main
+; loop on ~131K-iteration timeout.
 ; 
 ; Called from four sites: reset (&E04B), &E0D5, &E211, &E330.
 ; &e690 referenced 4 times by &e04b, &e0d5, &e211, &e330
-.adlc_b_poll_or_escape
+.wait_adlc_b_idle
     lda #0                                                            ; e690: a9 00       ..
     sta ctr24_lo                                                      ; e692: 8d 14 02    ...
     sta ctr24_mid                                                     ; e695: 8d 15 02    ...
@@ -1235,38 +1236,37 @@ adlc_b_tx2      = &d803
     rts                                                               ; e6db: 60          `
 
 ; ***************************************************************************************
-; Poll ADLC A with ~2s timeout; on timeout bypass caller
+; Wait for ADLC A's line to go idle (CSMA) or escape
 ; 
-; Polls ADLC A's SR2 with a 24-bit timeout counter at ctr24_lo/mid/hi
-; (&0214-&0216), initialised to &00_00_FE. The counter is incremented
-; LSB-first every iteration, giving roughly 131K iterations (a few
-; seconds at typical bus speeds) before overflow.
+; Pre-transmit carrier-sense: polls ADLC A's SR2 until the Rx Idle
+; bit goes high (SR2 bit 2 = 15+ consecutive 1s received, i.e. the
+; line is quiet and it is safe to start a frame). A 24-bit timeout
+; counter at ctr24_lo/mid/hi (&0214-&0216) starts at &00_00_FE and
+; increments LSB-first; overflow takes ~131K iterations, a few
+; seconds at typical bus speeds.
 ; 
-; Each iteration re-primes CR2 with &67 (clear TX/RX status, FC_TDRA,
-; 2/1-byte, PSE), then reads SR2. Three outcomes:
+; Each iteration re-primes CR2 with &67 (clear TX/RX status,
+; FC_TDRA, 2/1-byte, PSE) then reads SR2. Three outcomes:
 ; 
-;   * SR2 bit 2 set (mid-poll): activity detected. Configure the chip
-;     for the expected follow-up (CR2=&E7, CR1=&44) and RTS back to
-;     the caller -- the normal return path.
+;   * SR2 bit 2 set (Rx Idle): line is quiet. Arm CR2=&E7 and
+;     CR1=&44, RTS -- caller proceeds to transmit.
 ; 
-;   * SR2 bit 0 or bit 7 set (AP or IRQ): tickle CR1 through
-;     &C2 -> &82 to reset TX without disturbing the RX state machine,
-;     then continue polling. This rides out incomplete frames or
-;     stale flags.
+;   * SR2 bit 0 or bit 7 set (AP or RDA): another station is
+;     sending into this ADLC. Back off by cycling CR1 through
+;     &C2 -> &82 (reset TX without touching RX) and keep polling.
+;     The Bridge is not the right place to assert on a busy line.
 ; 
-;   * Timeout (counter overflows with none of the above): PLA/PLA
-;     discards the caller's saved return address from the stack and
-;     JMP &E051 bypasses into the main Bridge loop. The code between
-;     the caller's JSR and the main loop is therefore *skipped
-;     entirely* when the poll times out.
+;   * Timeout (counter overflows without ever seeing Rx Idle):
+;     PLA/PLA discards the caller's saved return address from the
+;     stack and JMP &E051 escapes into the main Bridge loop. The
+;     code between the caller's JSR and the main loop is skipped
+;     entirely. See docs/analysis/escape-to-main-control-flow.md.
 ; 
-; Called from four sites: reset (&E03B), &E0AA, &E1AF, &E392. Every
-; caller must accept that the routine may not return normally --
-; anything the caller intended to do after the JSR is abandoned on
-; timeout.
+; Called from four sites, always immediately before a transmit:
+; reset (&E03B, before transmit_frame_a), &E0AA, &E1AF, &E392.
 ; Timeout counter = &00_00_FE (~131K iterations)
 ; &e6dc referenced 4 times by &e03b, &e0aa, &e1af, &e392
-.adlc_a_poll_or_escape
+.wait_adlc_a_idle
     lda #0                                                            ; e6dc: a9 00       ..
     sta ctr24_lo                                                      ; e6de: 8d 14 02    ...
     sta ctr24_mid                                                     ; e6e1: 8d 15 02    ...
@@ -1274,24 +1274,24 @@ adlc_b_tx2      = &d803
     sta ctr24_hi                                                      ; e6e6: 8d 16 02    ...
 ; (spurious SR2 read; Z/N set but A overwritten below)
     lda adlc_a_cr2                                                    ; e6e9: ad 01 c8    ...
-; Y = &E7: CR2 value written on activity-detected exit
+; Y = &E7: CR2 value written on Rx-Idle exit
     ldy #&e7                                                          ; e6ec: a0 e7       ..
 ; Re-prime CR2 = &67: clear status, FC_TDRA etc.
 ; &e6ee referenced 3 times by &e70e, &e713, &e718
 .ce6ee
     lda #&67 ; 'g'                                                    ; e6ee: a9 67       .g
     sta adlc_a_cr2                                                    ; e6f0: 8d 01 c8    ...
-; A = &04 for the next BIT: test SR2 bit 2
+; A = &04 for the BIT: test SR2 bit 2 (Rx Idle)
     lda #4                                                            ; e6f3: a9 04       ..
     bit adlc_a_cr2                                                    ; e6f5: 2c 01 c8    ,..
-; Bit 2 set -> activity detected, exit via &E71F
+; Rx Idle -> line quiet, exit to transmit via &E71F
     bne ce71f                                                         ; e6f8: d0 25       .%
     lda adlc_a_cr2                                                    ; e6fa: ad 01 c8    ...
-; Mask AP (bit 0) and IRQ (bit 7)
+; Mask AP (bit 0) and RDA (bit 7) -- incoming data?
     and #&81                                                          ; e6fd: 29 81       ).
-; Neither set -> no frame in progress, skip tickle
+; Neither -> line busy but nothing for us, keep polling
     beq ce70b                                                         ; e6ff: f0 0a       ..
-; CR1 tickle: reset TX without touching RX
+; CR1 tickle: reset TX while another station sends
     lda #&c2                                                          ; e701: a9 c2       ..
     sta adlc_a_cr1                                                    ; e703: 8d 00 c8    ...
     lda #&82                                                          ; e706: a9 82       ..
@@ -1311,13 +1311,13 @@ adlc_b_tx2      = &d803
 ; ...and jump straight to the main Bridge loop
     jmp main_loop                                                     ; e71c: 4c 51 e0    LQ.
 
-; Activity exit: arm CR2 and CR1 for what's next
+; Rx Idle seen: arm CR2 and CR1 ready for transmit
 ; &e71f referenced 1 time by &e6f8
 .ce71f
     sty adlc_a_cr2                                                    ; e71f: 8c 01 c8    ...
     lda #&44 ; 'D'                                                    ; e722: a9 44       .D
     sta adlc_a_cr1                                                    ; e724: 8d 00 c8    ...
-; Normal return to caller
+; Normal return: caller may now transmit
     rts                                                               ; e727: 60          `
 
     equb &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff   ; e728: ff ff ff... ...
@@ -1534,11 +1534,13 @@ adlc_b_tx2      = &d803
 ; 
 ; Byte-for-byte identical to the adlc_*_full_reset pair except for
 ; one crucial detail: CR3 is programmed to &80 (bit 7 set) instead
-; of &00. Bit 7 of CR3 drives the MC6854's LOC/DTR output pin; on
-; ADLC B (IC18) that pin drives the high side of the front-panel
-; status LED. Writing &80 here lights the LED, advertising that
-; self-test is in progress. ADLC A's LOC/DTR pin is not wired and
-; receives the same write for code symmetry only.
+; of &00. CR3 bit 7 is the MC6854's LOC/DTR control bit — but the
+; pin it drives is inverted: when the control bit is HIGH, the pin
+; output goes LOW. On ADLC B (IC18) that pin sinks the low side of
+; the front-panel status LED (which has its high side tied through
+; a resistor to Vcc), so CR3 bit 7 = 1 pulls current through the
+; LED and lights it. ADLC A's LOC/DTR pin is not wired and gets the
+; same write for code symmetry only.
 ; 
 ; Re-entered at &F26C after certain test paths need to reset the
 ; chips again; the LED stays lit until a normal reset runs
@@ -1553,10 +1555,10 @@ adlc_b_tx2      = &d803
     lda #&1e                                                          ; f00d: a9 1e       ..
     sta adlc_a_tx2                                                    ; f00f: 8d 03 c8    ...
     sta adlc_b_tx2                                                    ; f012: 8d 03 d8    ...
-; CR3=&80 (both): bit 7 = 1 -> ADLC B LOC/DTR high
+; CR3=&80 (both): bit 7=1 -> LOC/DTR pin LOW (inverted)
     lda #&80                                                          ; f015: a9 80       ..
     sta adlc_a_cr2                                                    ; f017: 8d 01 c8    ...
-; Same write to ADLC A: no visible effect (pin NC)
+; On ADLC B -> LED ON; on ADLC A pin NC, no effect
     lda #&80                                                          ; f01a: a9 80       ..
     sta adlc_b_cr2                                                    ; f01c: 8d 01 d8    ...
 ; CR1=&82 (both): TX in reset, AC=0; CR3 values persist
@@ -2357,8 +2359,6 @@ save pydis_start, pydis_end
 ;     sub_ce56e:                5
 ;     sub_ce5ff:                5
 ;     tx_ctrl:                  5
-;     adlc_a_poll_or_escape:    4
-;     adlc_b_poll_or_escape:    4
 ;     announce_count:           4
 ;     announce_tmr_hi:          4
 ;     announce_tmr_lo:          4
@@ -2371,6 +2371,8 @@ save pydis_start, pydis_end
 ;     sub_ce48d:                4
 ;     tx_dst_stn:               4
 ;     tx_port:                  4
+;     wait_adlc_a_idle:         4
+;     wait_adlc_b_idle:         4
 ;     ce6a2:                    3
 ;     ce6ee:                    3
 ;     cf105:                    3

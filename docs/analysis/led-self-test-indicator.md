@@ -7,13 +7,17 @@ This note documents how the Bridge firmware uses that LED, and draws out what th
 
 ## What the firmware does
 
-On the MC68B54, the `~LOC/DTR` pin is the output of CR3 bit 7 in non-loop mode. It is nominally meant as a "Data Terminal Ready" indicator for RS-232-like applications, which the Econet Bridge isn't. The Bridge reuses the pin purely as a GPIO.
+On the MC68B54, the `~LOC/DTR` pin is driven from CR3 bit 7 in non-loop mode. The datasheet is specific about the polarity, and the relevant detail is that the pin is inverted relative to the control bit:
 
-A full-ROM search for every write to CR3 on ADLC B (the ADLC with the LED) turns up exactly two:
+> When the LOC/DTR control bit is high the DTR output will be low.
+
+So writing `1` to CR3 bit 7 pulls the pin to ground; writing `0` releases it. On the Bridge schematic, the pin is connected to the low side of the LED, with the high side tied via a resistor to Vcc. Current therefore flows through the LED (and it lights) when CR3 bit 7 is high, and the LED is dark when CR3 bit 7 is low. The control bit is "active high for LED on", despite the pin being inverted, because the circuit is wired expecting a current-sink driver.
+
+A full-ROM search for every write to CR3 on ADLC B — the ADLC with the LED — turns up exactly two:
 
 ```
-&E414  (inside adlc_b_full_reset):      CR3 = &00   bit 7 = 0  ->  LED OFF
-&F01C  (inside self_test_reset_adlcs):  CR3 = &80   bit 7 = 1  ->  LED ON
+&E414  (inside adlc_b_full_reset):      CR3 = &00   bit 7 = 0  ->  pin HIGH -> LED OFF
+&F01C  (inside self_test_reset_adlcs):  CR3 = &80   bit 7 = 1  ->  pin LOW  -> LED ON
 ```
 
 The surrounding sequences are otherwise byte-for-byte identical: both write `CR1 = &C1` (reset with AC=1), then `CR4 = &1E`, then their respective CR3 value, then `CR1 = &82`, then `CR2 = &67`. The only behavioural difference between the "run-time" reset and the "self-test" reset is the bit that drives the LED.

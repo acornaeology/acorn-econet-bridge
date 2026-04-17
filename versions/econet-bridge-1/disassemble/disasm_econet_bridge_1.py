@@ -202,7 +202,7 @@ register set at &D800-&D803. Falls through to adlc_b_listen.""")
 
 comment(0xE40A, "CR1=&C1: reset TX+RX, AC=1 (enable CR3/CR4 access)")
 comment(0xE40F, "CR4=&1E: 8-bit RX, abort extend, NRZ")
-comment(0xE414, "CR3=&00: normal; bit 7 = 0 -> LOC/DTR low -> status LED OFF")
+comment(0xE414, "CR3=&00: bit 7=0 -> LOC/DTR pin HIGH -> status LED OFF")
 
 label(0xE419, "adlc_b_listen")
 subroutine(0xE419, "adlc_b_listen", hook=None,
@@ -229,7 +229,7 @@ label(0x025A, "net_a_map")   # 256-entry table indexed by station id
 label(0x035A, "net_b_map")
 
 # Multi-byte counter reused for different purposes by several
-# routines. adlc_a_poll_or_escape (&E6DC) uses all three bytes as a
+# routines. wait_adlc_a_idle (&E6DC) uses all three bytes as a
 # 24-bit timeout; sub_ce448 (&E448) uses only the low byte as an
 # 8-bit delay counter. Byte-aligned rather than semantic names so the
 # shared use is explicit.
@@ -431,7 +431,7 @@ subroutine(0xE051, "main_loop", hook=None, is_entry_point=False,
 The Bridge's continuous-operation entry point. Reached by fall-
 through from the reset handler once startup completes, and by JMP
 from fourteen other sites — every routine that takes an "escape to
-main" path (adlc_a_poll_or_escape, transmit_frame_a/b, etc.) lands
+main" path (wait_adlc_a_idle, transmit_frame_a/b, etc.) lands
 here.
 
 The loop clears stale status on both ADLCs, then enters an inner
@@ -480,7 +480,7 @@ Abnormal exit: if any of the three wait_adlc_a_irq polls returns
 with SR1's V-bit clear instead of set (meaning the ADLC didn't reach
 the expected TDRA state), the routine drops the caller's return
 address from the stack and JMP's into the main loop at &E051 —
-the same escape-to-main pattern used by adlc_a_poll_or_escape.
+the same escape-to-main pattern used by wait_adlc_a_idle.
 
 Called from seven sites: reset (&E03E), &E0AD, &E1B2, &E1CD, &E251,
 &E25D, &E3D8.""")
@@ -524,16 +524,17 @@ Called from seven sites: reset (&E04E), &E0D8, &E257, &E333, &E34E,
 
 # =====================================================================
 # Poll ADLC B for activity, or escape to the main loop
-#  (mirror of adlc_a_poll_or_escape)
+#  (mirror of wait_adlc_a_idle)
 # =====================================================================
 
-label(0xE690, "adlc_b_poll_or_escape")
-subroutine(0xE690, "adlc_b_poll_or_escape", hook=None,
-    title="Poll ADLC B with ~2s timeout; on timeout bypass caller",
+label(0xE690, "wait_adlc_b_idle")
+subroutine(0xE690, "wait_adlc_b_idle", hook=None,
+    title="Wait for ADLC B's line to go idle (CSMA) or escape",
     description="""\
-Byte-for-byte mirror of adlc_a_poll_or_escape (&E6DC) with adlc_a_*
-replaced by adlc_b_*. Same 24-bit timeout, same escape pattern, same
-normal exit semantics.
+Byte-for-byte mirror of wait_adlc_a_idle (&E6DC) with adlc_a_*
+replaced by adlc_b_*. Same pre-transmit carrier-sense semantics:
+wait for SR2 bit 2 (Rx Idle), back off on AP/RDA, escape to main
+loop on ~131K-iteration timeout.
 
 Called from four sites: reset (&E04B), &E0D5, &E211, &E330.""")
 
@@ -542,52 +543,51 @@ Called from four sites: reset (&E04B), &E0D5, &E211, &E330.""")
 # Poll ADLC A for activity, or escape to the main loop
 # =====================================================================
 
-label(0xE6DC, "adlc_a_poll_or_escape")
-subroutine(0xE6DC, "adlc_a_poll_or_escape", hook=None,
-    title="Poll ADLC A with ~2s timeout; on timeout bypass caller",
+label(0xE6DC, "wait_adlc_a_idle")
+subroutine(0xE6DC, "wait_adlc_a_idle", hook=None,
+    title="Wait for ADLC A's line to go idle (CSMA) or escape",
     description="""\
-Polls ADLC A's SR2 with a 24-bit timeout counter at ctr24_lo/mid/hi
-(&0214-&0216), initialised to &00_00_FE. The counter is incremented
-LSB-first every iteration, giving roughly 131K iterations (a few
-seconds at typical bus speeds) before overflow.
+Pre-transmit carrier-sense: polls ADLC A's SR2 until the Rx Idle
+bit goes high (SR2 bit 2 = 15+ consecutive 1s received, i.e. the
+line is quiet and it is safe to start a frame). A 24-bit timeout
+counter at ctr24_lo/mid/hi (&0214-&0216) starts at &00_00_FE and
+increments LSB-first; overflow takes ~131K iterations, a few
+seconds at typical bus speeds.
 
-Each iteration re-primes CR2 with &67 (clear TX/RX status, FC_TDRA,
-2/1-byte, PSE), then reads SR2. Three outcomes:
+Each iteration re-primes CR2 with &67 (clear TX/RX status,
+FC_TDRA, 2/1-byte, PSE) then reads SR2. Three outcomes:
 
-  * SR2 bit 2 set (mid-poll): activity detected. Configure the chip
-    for the expected follow-up (CR2=&E7, CR1=&44) and RTS back to
-    the caller -- the normal return path.
+  * SR2 bit 2 set (Rx Idle): line is quiet. Arm CR2=&E7 and
+    CR1=&44, RTS -- caller proceeds to transmit.
 
-  * SR2 bit 0 or bit 7 set (AP or IRQ): tickle CR1 through
-    &C2 -> &82 to reset TX without disturbing the RX state machine,
-    then continue polling. This rides out incomplete frames or
-    stale flags.
+  * SR2 bit 0 or bit 7 set (AP or RDA): another station is
+    sending into this ADLC. Back off by cycling CR1 through
+    &C2 -> &82 (reset TX without touching RX) and keep polling.
+    The Bridge is not the right place to assert on a busy line.
 
-  * Timeout (counter overflows with none of the above): PLA/PLA
-    discards the caller's saved return address from the stack and
-    JMP &E051 bypasses into the main Bridge loop. The code between
-    the caller's JSR and the main loop is therefore *skipped
-    entirely* when the poll times out.
+  * Timeout (counter overflows without ever seeing Rx Idle):
+    PLA/PLA discards the caller's saved return address from the
+    stack and JMP &E051 escapes into the main Bridge loop. The
+    code between the caller's JSR and the main loop is skipped
+    entirely. See docs/analysis/escape-to-main-control-flow.md.
 
-Called from four sites: reset (&E03B), &E0AA, &E1AF, &E392. Every
-caller must accept that the routine may not return normally --
-anything the caller intended to do after the JSR is abandoned on
-timeout.""")
+Called from four sites, always immediately before a transmit:
+reset (&E03B, before transmit_frame_a), &E0AA, &E1AF, &E392.""")
 
 comment(0xE6DC, "Timeout counter = &00_00_FE (~131K iterations)")
 comment(0xE6E9, "(spurious SR2 read; Z/N set but A overwritten below)")
-comment(0xE6EC, "Y = &E7: CR2 value written on activity-detected exit")
+comment(0xE6EC, "Y = &E7: CR2 value written on Rx-Idle exit")
 comment(0xE6EE, "Re-prime CR2 = &67: clear status, FC_TDRA etc.")
-comment(0xE6F3, "A = &04 for the next BIT: test SR2 bit 2")
-comment(0xE6F8, "Bit 2 set -> activity detected, exit via &E71F")
-comment(0xE6FD, "Mask AP (bit 0) and IRQ (bit 7)")
-comment(0xE6FF, "Neither set -> no frame in progress, skip tickle")
-comment(0xE701, "CR1 tickle: reset TX without touching RX")
+comment(0xE6F3, "A = &04 for the BIT: test SR2 bit 2 (Rx Idle)")
+comment(0xE6F8, "Rx Idle -> line quiet, exit to transmit via &E71F")
+comment(0xE6FD, "Mask AP (bit 0) and RDA (bit 7) -- incoming data?")
+comment(0xE6FF, "Neither -> line busy but nothing for us, keep polling")
+comment(0xE701, "CR1 tickle: reset TX while another station sends")
 comment(0xE70B, "Bump 24-bit timeout counter (LSB first)")
 comment(0xE71A, "Timeout: drop caller's return address from stack...")
 comment(0xE71C, "...and jump straight to the main Bridge loop")
-comment(0xE71F, "Activity exit: arm CR2 and CR1 for what's next")
-comment(0xE727, "Normal return to caller")
+comment(0xE71F, "Rx Idle seen: arm CR2 and CR1 ready for transmit")
+comment(0xE727, "Normal return: caller may now transmit")
 
 
 # =====================================================================
@@ -635,11 +635,13 @@ subroutine(0xF005, "self_test_reset_adlcs", hook=None,
     description="""\
 Byte-for-byte identical to the adlc_*_full_reset pair except for
 one crucial detail: CR3 is programmed to &80 (bit 7 set) instead
-of &00. Bit 7 of CR3 drives the MC6854's LOC/DTR output pin; on
-ADLC B (IC18) that pin drives the high side of the front-panel
-status LED. Writing &80 here lights the LED, advertising that
-self-test is in progress. ADLC A's LOC/DTR pin is not wired and
-receives the same write for code symmetry only.
+of &00. CR3 bit 7 is the MC6854's LOC/DTR control bit — but the
+pin it drives is inverted: when the control bit is HIGH, the pin
+output goes LOW. On ADLC B (IC18) that pin sinks the low side of
+the front-panel status LED (which has its high side tied through
+a resistor to Vcc), so CR3 bit 7 = 1 pulls current through the
+LED and lights it. ADLC A's LOC/DTR pin is not wired and gets the
+same write for code symmetry only.
 
 Re-entered at &F26C after certain test paths need to reset the
 chips again; the LED stays lit until a normal reset runs
@@ -647,8 +649,8 @@ adlc_b_full_reset and clears CR3.""")
 
 comment(0xF005, "CR1=&C1: reset TX+RX, AC=1 (both ADLCs)")
 comment(0xF00D, "CR4=&1E (both): 8-bit RX, abort extend, NRZ")
-comment(0xF015, "CR3=&80 (both): bit 7 = 1 -> ADLC B LOC/DTR high")
-comment(0xF01A, "Same write to ADLC A: no visible effect (pin NC)")
+comment(0xF015, "CR3=&80 (both): bit 7=1 -> LOC/DTR pin LOW (inverted)")
+comment(0xF01A, "On ADLC B -> LED ON; on ADLC A pin NC, no effect")
 comment(0xF01F, "CR1=&82 (both): TX in reset, AC=0; CR3 values persist")
 comment(0xF027, "CR2=&67 (both): clear status, FC_TDRA, 2/1-byte, PSE")
 

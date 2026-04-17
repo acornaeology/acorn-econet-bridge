@@ -12,10 +12,10 @@ The two `PLA`s pop the caller's return address off the 6502 stack, and the `JMP`
 
 Four routines in the ROM use this pattern, all in the ADLC-driven communication paths:
 
-- `adlc_a_poll_or_escape` (`&E6DC`) — on timeout
-- `adlc_b_poll_or_escape` (`&E690`) — on timeout
-- `transmit_frame_a` (`&E517`) — on unexpected SR1 state
-- `transmit_frame_b` (`&E4C0`) — on unexpected SR1 state
+- `wait_adlc_a_idle` (`&E6DC`) — on timeout waiting for the Rx Idle bit
+- `wait_adlc_b_idle` (`&E690`) — on timeout waiting for the Rx Idle bit
+- `transmit_frame_a` (`&E517`) — on unexpected SR1 state during TX
+- `transmit_frame_b` (`&E4C0`) — on unexpected SR1 state during TX
 
 Together they are called from roughly twenty sites. Every one of those sites must be written on the assumption that the `JSR` may not return.
 
@@ -47,22 +47,22 @@ The second invariant is what makes the abandoned work tolerable. An incomplete t
 
 ## What it means for the code
 
-For every `JSR adlc_*_poll_or_escape` and every `JSR transmit_frame_*` in the ROM, the caller's instructions _after_ the `JSR` are conditional on non-escape: they execute only when the subroutine returns normally. Reading the ROM as though `JSR` is always followed by "normal control flow" will mislead you on timeout paths.
+For every `JSR wait_adlc_?_idle` and every `JSR transmit_frame_*` in the ROM, the caller's instructions _after_ the `JSR` are conditional on non-escape: they execute only when the subroutine returns normally. Reading the ROM as though `JSR` is always followed by "normal control flow" will mislead you on timeout paths.
 
 In the reset sequence, for example:
 
 ```
     jsr build_announce_b
-    jsr adlc_a_poll_or_escape      ; may not return
+    jsr wait_adlc_a_idle      ; may not return
     jsr transmit_frame_a           ; may not return
     lda station_id_a               ; reached only if both returned
     sta tx_data0
     ...
 ```
 
-If `adlc_a_poll_or_escape` times out because no ADLC A activity is seen within ~2 s, the Bridge simply enters the main loop without ever transmitting the side-A announcement, and without patching `tx_data0` for the side-B transmission. It also never reaches the side-B transmission. The main loop eventually re-attempts the announcement itself via the periodic-re-announce mechanism controlled by `announce_flag` / `announce_tmr_*`. That re-announce path is the recovery.
+If `wait_adlc_a_idle` times out because the line never goes quiet within ~2 s (another station is hogging the network), the Bridge simply enters the main loop without ever transmitting the side-A announcement, and without patching `tx_data0` for the side-B transmission. It also never reaches the side-B transmission. The main loop eventually re-attempts the announcement itself via the periodic-re-announce mechanism controlled by `announce_flag` / `announce_tmr_*`. That re-announce path is the recovery.
 
-This is a design that trades per-site clarity for global simplicity. Individual call sites are terse to the point of being misleading; the recovery logic lives entirely in one place. Once you know to read `JSR adlc_*_poll_or_escape` as "try this, or fall back to the main loop", the ROM becomes very compact indeed.
+This is a design that trades per-site clarity for global simplicity. Individual call sites are terse to the point of being misleading; the recovery logic lives entirely in one place. Once you know to read `JSR wait_adlc_?_idle` as "try this, or fall back to the main loop", the ROM becomes very compact indeed.
 
 
 ## Contrast with a naive implementation
@@ -70,7 +70,7 @@ This is a design that trades per-site clarity for global simplicity. Individual 
 A caller written without the escape convention would need something like:
 
 ```
-    jsr adlc_a_poll_or_escape
+    jsr wait_adlc_a_idle
     bcs poll_failed                ; status-flag-based error
     jsr transmit_frame_a
     bcs tx_failed
@@ -86,6 +86,6 @@ Four extra instructions per call site, and a branch-on-status convention to upho
 
 ## Cross-references
 
-- `adlc_a_poll_or_escape` (`&E6DC`) and `adlc_b_poll_or_escape` (`&E690`) in the disassembly.
+- `wait_adlc_a_idle` (`&E6DC`) and `wait_adlc_b_idle` (`&E690`) in the disassembly.
 - `transmit_frame_a` (`&E517`) and `transmit_frame_b` (`&E4C0`) — same escape pattern guarding the TX path.
 - `main_loop` at `&E051` — reached by JMP from all four escaping routines plus ten other sites.

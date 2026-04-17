@@ -84,7 +84,7 @@ Both use the same shape: `{"pattern": "...", "occurrence": 0, "term"|"address": 
 - Two MC6854 ADLCs: one at &C800-&C803 (`adlc_a_*`), one at &D800-&D803 (`adlc_b_*`). ~IRQ outputs are **not** wired to the 6502 ~IRQ line — all ADLC attention is polled via SR1.
 - Two 74LS244 buffers exposing soldered station-number links: station_id_a at &C000 (read-only), station_id_b at &D000.
 - 6502 ~IRQ line carries a **single push-button** that enters the self-test at the IRQ/BRK vector target &F000. Do not press while connected to a live network.
-- **Status LED on ADLC B.** The ~LOC/DTR pin of IC18 (the ADLC at &D800 — `adlc_b`) drives the high side of an LED. The corresponding pin on IC12 (`adlc_a` at &C800) is not connected. On the MC6854, ~LOC/DTR is driven by CR3 bit 7 in non-loop mode, so the firmware can control the LED by writing to CR3 on ADLC B (via `adlc_b_cr2` when AC=1 in CR1).
+- **Status LED on ADLC B.** The ~LOC/DTR pin of IC18 (the ADLC at &D800 — `adlc_b`) is wired to the low side of the front-panel LED (high side tied via a resistor to Vcc). The equivalent pin on IC12 (`adlc_a` at &C800) is not connected. On the MC6854, ~LOC/DTR is driven by CR3 bit 7 in non-loop mode **with inverted polarity** — the datasheet states "when the LOC/DTR control bit is high the DTR output will be low". So CR3 bit 7 = 1 sinks the pin low and lights the LED; CR3 bit 7 = 0 releases the pin and leaves the LED dark. The firmware lights the LED only inside `self_test_reset_adlcs` at &F005; any normal `adlc_b_full_reset` clears it.
 
 ### py8dis configuration
 
