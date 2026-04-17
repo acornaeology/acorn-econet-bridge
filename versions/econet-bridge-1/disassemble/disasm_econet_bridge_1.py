@@ -856,6 +856,7 @@ comment(0xE348, "Fetch the network the querier asked about", inline=True)
 comment(0xE34B, "Write as data-frame payload byte 1", inline=True)
 comment(0xE34E, "Transmit the data frame", inline=True)
 comment(0xE351, "Wait for final data-ACK", inline=True)
+label(0xE354, "rx_b_query_done")
 comment(0xE354, "Transaction complete -> back to main_loop", inline=True)
 
 
@@ -1397,6 +1398,7 @@ comment(0xE1C7, "Fetch the network the querier asked about", inline=True)
 comment(0xE1CA, "Write it as data-frame payload byte 1 (tx_port slot)", inline=True)
 comment(0xE1CD, "Transmit the data frame", inline=True)
 comment(0xE1D0, "Wait for the querier's final data-ACK", inline=True)
+label(0xE1D3, "rx_a_query_done")
 comment(0xE1D3, "Transaction complete -> back to main_loop", inline=True)
 
 

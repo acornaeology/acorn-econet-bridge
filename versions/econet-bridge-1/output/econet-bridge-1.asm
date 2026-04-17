@@ -448,7 +448,7 @@ adlc_b_tx2      = &d803
 .rx_a_handle_83
     ldy rx_query_net                                                  ; e195: ac 49 02    .I.            ; Y = the queried network number
     lda reachable_via_b,y                                             ; e198: b9 5a 02    .Z.            ; Check if we have a route via the other side
-    beq ce1d3                                                         ; e19b: f0 36       .6             ; Unknown -> silently drop this IsNet query
+    beq rx_a_query_done                                               ; e19b: f0 36       .6             ; Unknown -> silently drop this IsNet query
 ; ***************************************************************************************
 ; Side-A WhatNet query (ctrl=&82); also the IsNet response path
 ; 
@@ -519,7 +519,7 @@ adlc_b_tx2      = &d803
     jsr transmit_frame_a                                              ; e1cd: 20 17 e5     ..            ; Transmit the data frame
     jsr handshake_rx_a                                                ; e1d0: 20 6e e5     n.            ; Wait for the querier's final data-ACK
 ; &e1d3 referenced 1 time by &e19b
-.ce1d3
+.rx_a_query_done
     jmp main_loop                                                     ; e1d3: 4c 51 e0    LQ.            ; Transaction complete -> back to main_loop
 
 ; ***************************************************************************************
@@ -819,7 +819,7 @@ adlc_b_tx2      = &d803
 .rx_b_handle_83
     ldy rx_query_net                                                  ; e316: ac 49 02    .I.            ; Y = the queried network number
     lda reachable_via_a,y                                             ; e319: b9 5a 03    .Z.            ; Check if we have a route via the other side
-    beq ce354                                                         ; e31c: f0 36       .6             ; Unknown -> silently drop this IsNet query
+    beq rx_b_query_done                                               ; e31c: f0 36       .6             ; Unknown -> silently drop this IsNet query
 ; ***************************************************************************************
 ; Side-B WhatNet query (ctrl=&82); also IsNet response path
 ; 
@@ -849,7 +849,7 @@ adlc_b_tx2      = &d803
     jsr transmit_frame_b                                              ; e34e: 20 c0 e4     ..            ; Transmit the data frame
     jsr handshake_rx_b                                                ; e351: 20 ff e5     ..            ; Wait for final data-ACK
 ; &e354 referenced 1 time by &e31c
-.ce354
+.rx_b_query_done
     jmp main_loop                                                     ; e354: 4c 51 e0    LQ.            ; Transaction complete -> back to main_loop
 
 ; ***************************************************************************************
@@ -2940,8 +2940,6 @@ save pydis_start, pydis_end
 ;     tx_src_stn:                    2
 ;     adlc_a_full_reset:             1
 ;     adlc_b_full_reset:             1
-;     ce1d3:                         1
-;     ce354:                         1
 ;     handshake_rx_a_drained:        1
 ;     handshake_rx_a_end:            1
 ;     handshake_rx_a_finalise_len:   1
@@ -2977,6 +2975,7 @@ save pydis_start, pydis_end
 ;     rx_a_handle_81:                1
 ;     rx_a_handle_82:                1
 ;     rx_a_learn_loop:               1
+;     rx_a_query_done:               1
 ;     rx_a_src_net_resolved:         1
 ;     rx_b_broadcast_check:          1
 ;     rx_b_forward_ack_round:        1
@@ -2986,6 +2985,7 @@ save pydis_start, pydis_end
 ;     rx_b_handle_81:                1
 ;     rx_b_handle_82:                1
 ;     rx_b_learn_loop:               1
+;     rx_b_query_done:               1
 ;     rx_b_src_net_resolved:         1
 ;     rx_frame_a:                    1
 ;     rx_frame_a_drain:              1
@@ -3022,8 +3022,6 @@ save pydis_start, pydis_end
 ;     wait_adlc_b_idle_tick:         1
 
 ; Automatically generated labels:
-;     ce1d3
-;     ce354
 ;     l0000
 ;     l0001
 ;     l0002
