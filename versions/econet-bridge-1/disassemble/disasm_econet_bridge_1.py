@@ -624,6 +624,48 @@ comment(0xE195, "Station Y known in reachable_via_b?")
 comment(0xE19B, "Unknown -> skip, back to main loop")
 
 
+label(0xE316, "rx_b_handle_83")
+subroutine(0xE316, "rx_b_handle_83", hook=None, is_entry_point=False,
+    title="Side-B bridge query for a specific network (ctrl=&83)",
+    description="""\
+Mirror of rx_a_handle_83 (&E195) with A/B swapped: consults
+reachable_via_a (not _b) because the frame arrived on side B.
+Falls through to rx_b_handle_82 when the queried network is
+known.""")
+
+label(0xE31E, "rx_b_handle_82")
+subroutine(0xE31E, "rx_b_handle_82", hook=None, is_entry_point=False,
+    title="Side-B bridge general query (ctrl=&82)",
+    description="""\
+Mirror of rx_a_handle_82 (&E19D) with A/B swapped throughout:
+delay-stagger seeded from net_num_a, transmit via ADLC B,
+tx_src_net patched to net_num_a, response-data's ctrl encodes
+net_num_b (the Bridge's B-side network). See rx_a_handle_82
+for the full protocol description.""")
+
+label(0xE357, "rx_b_handle_80")
+subroutine(0xE357, "rx_b_handle_80", hook=None, is_entry_point=False,
+    title="Side-B initial bridge announcement (ctrl=&80)",
+    description="""\
+Mirror of rx_a_handle_80 (&E1D6): wipe reachable_via_* via
+init_reachable_nets, seed the re-announce timer's high byte
+from net_num_a (mirror of A-side seeding from net_num_b), set
+announce_count = 10 and announce_flag = &80 (bit 7 set = side B
+selected). Falls through to rx_b_handle_81.""")
+
+label(0xE36F, "rx_b_handle_81")
+subroutine(0xE36F, "rx_b_handle_81", hook=None, is_entry_point=False,
+    title="Side-B re-announcement (ctrl=&81); learn + re-forward",
+    description="""\
+Mirror of rx_a_handle_81 (&E1EE): reads each payload byte from
+offset 6 onward as a network number reachable via side B, marks
+reachable_via_b[x] = &FF for each (mirror of the A-side writing
+reachable_via_a). Appends net_num_b to the payload and falls
+through to rx_b_forward for re-broadcast onto side A.""")
+
+label(0xE371, "rx_b_learn_loop")
+
+
 label(0xE263, "rx_frame_b")
 subroutine(0xE263, "rx_frame_b", hook=None, is_entry_point=False,
     title="Drain and dispatch an inbound frame on ADLC B",

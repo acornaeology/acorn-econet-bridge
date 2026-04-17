@@ -881,18 +881,34 @@ adlc_b_tx2      = &d803
     bne rx_b_to_forward                                               ; e301: d0 c5       ..
     lda rx_ctrl                                                       ; e303: ad 40 02    .@.
     cmp #&81                                                          ; e306: c9 81       ..
-    beq ce36f                                                         ; e308: f0 65       .e
+    beq rx_b_handle_81                                                ; e308: f0 65       .e
     cmp #&80                                                          ; e30a: c9 80       ..
-    beq ce357                                                         ; e30c: f0 49       .I
+    beq rx_b_handle_80                                                ; e30c: f0 49       .I
     cmp #&82                                                          ; e30e: c9 82       ..
-    beq ce31e                                                         ; e310: f0 0c       ..
+    beq rx_b_handle_82                                                ; e310: f0 0c       ..
     cmp #&83                                                          ; e312: c9 83       ..
     bne rx_b_forward                                                  ; e314: d0 73       .s
+; ***************************************************************************************
+; Side-B bridge query for a specific network (ctrl=&83)
+; 
+; Mirror of rx_a_handle_83 (&E195) with A/B swapped: consults
+; reachable_via_a (not _b) because the frame arrived on side B.
+; Falls through to rx_b_handle_82 when the queried network is
+; known.
+.rx_b_handle_83
     ldy rx_query_net                                                  ; e316: ac 49 02    .I.
     lda reachable_via_a,y                                             ; e319: b9 5a 03    .Z.
     beq ce354                                                         ; e31c: f0 36       .6
+; ***************************************************************************************
+; Side-B bridge general query (ctrl=&82)
+; 
+; Mirror of rx_a_handle_82 (&E19D) with A/B swapped throughout:
+; delay-stagger seeded from net_num_a, transmit via ADLC B,
+; tx_src_net patched to net_num_a, response-data's ctrl encodes
+; net_num_b (the Bridge's B-side network). See rx_a_handle_82
+; for the full protocol description.
 ; &e31e referenced 1 time by &e310
-.ce31e
+.rx_b_handle_82
     jsr adlc_b_listen                                                 ; e31e: 20 19 e4     ..
     jsr build_query_response                                          ; e321: 20 8d e4     ..
     lda net_num_a                                                     ; e324: ad 00 c0    ...
@@ -915,8 +931,16 @@ adlc_b_tx2      = &d803
 .ce354
     jmp main_loop                                                     ; e354: 4c 51 e0    LQ.
 
+; ***************************************************************************************
+; Side-B initial bridge announcement (ctrl=&80)
+; 
+; Mirror of rx_a_handle_80 (&E1D6): wipe reachable_via_* via
+; init_reachable_nets, seed the re-announce timer's high byte
+; from net_num_a (mirror of A-side seeding from net_num_b), set
+; announce_count = 10 and announce_flag = &80 (bit 7 set = side B
+; selected). Falls through to rx_b_handle_81.
 ; &e357 referenced 1 time by &e30c
-.ce357
+.rx_b_handle_80
     jsr init_reachable_nets                                           ; e357: 20 24 e4     $.
     lda net_num_a                                                     ; e35a: ad 00 c0    ...
     sta announce_tmr_hi                                               ; e35d: 8d 2b 02    .+.
@@ -926,18 +950,26 @@ adlc_b_tx2      = &d803
     sta announce_count                                                ; e367: 8d 2c 02    .,.
     lda #&80                                                          ; e36a: a9 80       ..
     sta announce_flag                                                 ; e36c: 8d 29 02    .).
+; ***************************************************************************************
+; Side-B re-announcement (ctrl=&81); learn + re-forward
+; 
+; Mirror of rx_a_handle_81 (&E1EE): reads each payload byte from
+; offset 6 onward as a network number reachable via side B, marks
+; reachable_via_b[x] = &FF for each (mirror of the A-side writing
+; reachable_via_a). Appends net_num_b to the payload and falls
+; through to rx_b_forward for re-broadcast onto side A.
 ; &e36f referenced 1 time by &e308
-.ce36f
+.rx_b_handle_81
     ldy #6                                                            ; e36f: a0 06       ..
 ; &e371 referenced 1 time by &e37e
-.loop_ce371
+.rx_b_learn_loop
     lda rx_dst_stn,y                                                  ; e371: b9 3c 02    .<.
     tax                                                               ; e374: aa          .
     lda #&ff                                                          ; e375: a9 ff       ..
     sta reachable_via_b,x                                             ; e377: 9d 5a 02    .Z.
     iny                                                               ; e37a: c8          .
     cpy rx_len                                                        ; e37b: cc 28 02    .(.
-    bne loop_ce371                                                    ; e37e: d0 f1       ..
+    bne rx_b_learn_loop                                               ; e37e: d0 f1       ..
     lda net_num_b                                                     ; e380: ad 00 d0    ...
     sta rx_dst_stn,y                                                  ; e383: 99 3c 02    .<.
     inc rx_len                                                        ; e386: ee 28 02    .(.
@@ -2912,10 +2944,7 @@ save pydis_start, pydis_end
 ;     ce1d3:                    1
 ;     ce2dd:                    1
 ;     ce2ea:                    1
-;     ce31e:                    1
 ;     ce354:                    1
-;     ce357:                    1
-;     ce36f:                    1
 ;     ce4d4:                    1
 ;     ce4d9:                    1
 ;     ce4e9:                    1
@@ -2948,7 +2977,6 @@ save pydis_start, pydis_end
 ;     cf26f:                    1
 ;     cf28c:                    1
 ;     cf291:                    1
-;     loop_ce371:               1
 ;     loop_ce428:               1
 ;     loop_ce44a:               1
 ;     loop_ce44d:               1
@@ -2973,6 +3001,10 @@ save pydis_start, pydis_end
 ;     rx_b_forward_ack_round:   1
 ;     rx_b_forward_done:        1
 ;     rx_b_forward_pair_loop:   1
+;     rx_b_handle_80:           1
+;     rx_b_handle_81:           1
+;     rx_b_handle_82:           1
+;     rx_b_learn_loop:          1
 ;     rx_frame_a:               1
 ;     rx_frame_a_drain:         1
 ;     rx_frame_a_end:           1
@@ -2994,10 +3026,7 @@ save pydis_start, pydis_end
 ;     ce1d3
 ;     ce2dd
 ;     ce2ea
-;     ce31e
 ;     ce354
-;     ce357
-;     ce36f
 ;     ce4cc
 ;     ce4d4
 ;     ce4d9
@@ -3057,7 +3086,6 @@ save pydis_start, pydis_end
 ;     l0001
 ;     l0002
 ;     l0003
-;     loop_ce371
 ;     loop_ce428
 ;     loop_ce44a
 ;     loop_ce44d
