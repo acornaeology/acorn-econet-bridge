@@ -228,6 +228,15 @@ comment(0xE41E, "CR2=&67: clear status, FC_TDRA, 2/1-byte, PSE")
 label(0x025A, "net_a_map")   # 256-entry table indexed by station id
 label(0x035A, "net_b_map")
 
+# Multi-byte counter reused for different purposes by several
+# routines. adlc_a_poll_or_escape (&E6DC) uses all three bytes as a
+# 24-bit timeout; sub_ce448 (&E448) uses only the low byte as an
+# 8-bit delay counter. Byte-aligned rather than semantic names so the
+# shared use is explicit.
+label(0x0214, "ctr24_lo")
+label(0x0215, "ctr24_mid")
+label(0x0216, "ctr24_hi")
+
 # Outbound-frame control block at &045A-&0460. Populated by various
 # "frame builder" subroutines, then consumed by the transmit path
 # (via mem_ptr at &80/&81 = &045A). Field names follow the Acorn
@@ -387,6 +396,58 @@ comment(0xE472, "Payload byte 0: bridge's station id on side B")
 comment(0xE478, "X = 1: probable side selector (B)")
 comment(0xE47A, "tx command block: len=&06, ?=&04 (provisional)")
 comment(0xE484, "mem_ptr = &045A (start of frame block)")
+
+
+# =====================================================================
+# Poll ADLC A for activity, or escape to the main loop
+# =====================================================================
+
+label(0xE6DC, "adlc_a_poll_or_escape")
+subroutine(0xE6DC, "adlc_a_poll_or_escape", hook=None,
+    title="Poll ADLC A with ~2s timeout; on timeout bypass caller",
+    description="""\
+Polls ADLC A's SR2 with a 24-bit timeout counter at ctr24_lo/mid/hi
+(&0214-&0216), initialised to &00_00_FE. The counter is incremented
+LSB-first every iteration, giving roughly 131K iterations (a few
+seconds at typical bus speeds) before overflow.
+
+Each iteration re-primes CR2 with &67 (clear TX/RX status, FC_TDRA,
+2/1-byte, PSE), then reads SR2. Three outcomes:
+
+  * SR2 bit 2 set (mid-poll): activity detected. Configure the chip
+    for the expected follow-up (CR2=&E7, CR1=&44) and RTS back to
+    the caller -- the normal return path.
+
+  * SR2 bit 0 or bit 7 set (AP or IRQ): tickle CR1 through
+    &C2 -> &82 to reset TX without disturbing the RX state machine,
+    then continue polling. This rides out incomplete frames or
+    stale flags.
+
+  * Timeout (counter overflows with none of the above): PLA/PLA
+    discards the caller's saved return address from the stack and
+    JMP &E051 bypasses into the main Bridge loop. The code between
+    the caller's JSR and the main loop is therefore *skipped
+    entirely* when the poll times out.
+
+Called from four sites: reset (&E03B), &E0AA, &E1AF, &E392. Every
+caller must accept that the routine may not return normally --
+anything the caller intended to do after the JSR is abandoned on
+timeout.""")
+
+comment(0xE6DC, "Timeout counter = &00_00_FE (~131K iterations)")
+comment(0xE6E9, "(spurious SR2 read; Z/N set but A overwritten below)")
+comment(0xE6EC, "Y = &E7: CR2 value written on activity-detected exit")
+comment(0xE6EE, "Re-prime CR2 = &67: clear status, FC_TDRA etc.")
+comment(0xE6F3, "A = &04 for the next BIT: test SR2 bit 2")
+comment(0xE6F8, "Bit 2 set -> activity detected, exit via &E71F")
+comment(0xE6FD, "Mask AP (bit 0) and IRQ (bit 7)")
+comment(0xE6FF, "Neither set -> no frame in progress, skip tickle")
+comment(0xE701, "CR1 tickle: reset TX without touching RX")
+comment(0xE70B, "Bump 24-bit timeout counter (LSB first)")
+comment(0xE71A, "Timeout: drop caller's return address from stack...")
+comment(0xE71C, "...and jump straight to the main Bridge loop")
+comment(0xE71F, "Activity exit: arm CR2 and CR1 for what's next")
+comment(0xE727, "Normal return to caller")
 
 
 # =====================================================================

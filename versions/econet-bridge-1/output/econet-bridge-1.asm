@@ -8,9 +8,9 @@ mem_ptr_hi  = &0081
 top_ram_page = &0082
 l0200       = &0200
 l0201       = &0201
-l0214       = &0214
-l0215       = &0215
-l0216       = &0216
+ctr24_lo    = &0214
+ctr24_mid   = &0215
+ctr24_hi    = &0216
 l0228       = &0228
 l0229       = &0229
 l022a       = &022a
@@ -135,7 +135,7 @@ adlc_b_tx2  = &d803
     lda #0                                                            ; e033: a9 00       ..
     sta l0229                                                         ; e035: 8d 29 02    .).
     jsr build_announce_b                                              ; e038: 20 58 e4     X.
-    jsr sub_ce6dc                                                     ; e03b: 20 dc e6     ..
+    jsr adlc_a_poll_or_escape                                         ; e03b: 20 dc e6     ..
     jsr sub_ce517                                                     ; e03e: 20 17 e5     ..
     lda station_id_a                                                  ; e041: ad 00 c0    ...
     sta tx_data0                                                      ; e044: 8d 60 04    .`.
@@ -192,7 +192,7 @@ adlc_b_tx2  = &d803
     bmi ce0ca                                                         ; e0a3: 30 25       0%
     lda #&c2                                                          ; e0a5: a9 c2       ..
     sta adlc_b_cr1                                                    ; e0a7: 8d 00 d8    ...
-    jsr sub_ce6dc                                                     ; e0aa: 20 dc e6     ..
+    jsr adlc_a_poll_or_escape                                         ; e0aa: 20 dc e6     ..
     jsr sub_ce517                                                     ; e0ad: 20 17 e5     ..
     dec l022c                                                         ; e0b0: ce 2c 02    .,.
     beq ce0c2                                                         ; e0b3: f0 0d       ..
@@ -325,9 +325,9 @@ adlc_b_tx2  = &d803
     jsr sub_ce48d                                                     ; e1a0: 20 8d e4     ..
     lda station_id_b                                                  ; e1a3: ad 00 d0    ...
     sta tx_src_net                                                    ; e1a6: 8d 5d 04    .].
-    sta l0214                                                         ; e1a9: 8d 14 02    ...
+    sta ctr24_lo                                                      ; e1a9: 8d 14 02    ...
     jsr sub_ce448                                                     ; e1ac: 20 48 e4     H.
-    jsr sub_ce6dc                                                     ; e1af: 20 dc e6     ..
+    jsr adlc_a_poll_or_escape                                         ; e1af: 20 dc e6     ..
     jsr sub_ce517                                                     ; e1b2: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e1b5: 20 6e e5     n.
     jsr sub_ce48d                                                     ; e1b8: 20 8d e4     ..
@@ -518,7 +518,7 @@ adlc_b_tx2  = &d803
     jsr sub_ce48d                                                     ; e321: 20 8d e4     ..
     lda station_id_a                                                  ; e324: ad 00 c0    ...
     sta tx_src_net                                                    ; e327: 8d 5d 04    .].
-    sta l0214                                                         ; e32a: 8d 14 02    ...
+    sta ctr24_lo                                                      ; e32a: 8d 14 02    ...
     jsr sub_ce448                                                     ; e32d: 20 48 e4     H.
     jsr sub_ce690                                                     ; e330: 20 90 e6     ..
     jsr sub_ce4c0                                                     ; e333: 20 c0 e4     ..
@@ -568,7 +568,7 @@ adlc_b_tx2  = &d803
     tax                                                               ; e38c: aa          .
     and #&fe                                                          ; e38d: 29 fe       ).
     sta l0228                                                         ; e38f: 8d 28 02    .(.
-    jsr sub_ce6dc                                                     ; e392: 20 dc e6     ..
+    jsr adlc_a_poll_or_escape                                         ; e392: 20 dc e6     ..
     ldy #0                                                            ; e395: a0 00       ..
 ; &e397 referenced 1 time by &e3b0
 .loop_ce397
@@ -753,7 +753,7 @@ adlc_b_tx2  = &d803
 .loop_ce44f
     dey                                                               ; e44f: 88          .
     bne loop_ce44f                                                    ; e450: d0 fd       ..
-    dec l0214                                                         ; e452: ce 14 02    ...
+    dec ctr24_lo                                                      ; e452: ce 14 02    ...
     bne loop_ce44d                                                    ; e455: d0 f6       ..
     rts                                                               ; e457: 60          `
 
@@ -1107,10 +1107,10 @@ adlc_b_tx2  = &d803
 ; &e690 referenced 4 times by &e04b, &e0d5, &e211, &e330
 .sub_ce690
     lda #0                                                            ; e690: a9 00       ..
-    sta l0214                                                         ; e692: 8d 14 02    ...
-    sta l0215                                                         ; e695: 8d 15 02    ...
+    sta ctr24_lo                                                      ; e692: 8d 14 02    ...
+    sta ctr24_mid                                                     ; e695: 8d 15 02    ...
     lda #&fe                                                          ; e698: a9 fe       ..
-    sta l0216                                                         ; e69a: 8d 16 02    ...
+    sta ctr24_hi                                                      ; e69a: 8d 16 02    ...
     lda adlc_b_cr2                                                    ; e69d: ad 01 d8    ...
     ldy #&e7                                                          ; e6a0: a0 e7       ..
 ; &e6a2 referenced 3 times by &e6c2, &e6c7, &e6cc
@@ -1129,11 +1129,11 @@ adlc_b_tx2  = &d803
     sta adlc_b_cr1                                                    ; e6bc: 8d 00 d8    ...
 ; &e6bf referenced 1 time by &e6b3
 .ce6bf
-    inc l0214                                                         ; e6bf: ee 14 02    ...
+    inc ctr24_lo                                                      ; e6bf: ee 14 02    ...
     bne ce6a2                                                         ; e6c2: d0 de       ..
-    inc l0215                                                         ; e6c4: ee 15 02    ...
+    inc ctr24_mid                                                     ; e6c4: ee 15 02    ...
     bne ce6a2                                                         ; e6c7: d0 d9       ..
-    inc l0216                                                         ; e6c9: ee 16 02    ...
+    inc ctr24_hi                                                      ; e6c9: ee 16 02    ...
     bne ce6a2                                                         ; e6cc: d0 d4       ..
     pla                                                               ; e6ce: 68          h
     pla                                                               ; e6cf: 68          h
@@ -1146,46 +1146,90 @@ adlc_b_tx2  = &d803
     sta adlc_b_cr1                                                    ; e6d8: 8d 00 d8    ...
     rts                                                               ; e6db: 60          `
 
+; ***************************************************************************************
+; Poll ADLC A with ~2s timeout; on timeout bypass caller
+; 
+; Polls ADLC A's SR2 with a 24-bit timeout counter at ctr24_lo/mid/hi
+; (&0214-&0216), initialised to &00_00_FE. The counter is incremented
+; LSB-first every iteration, giving roughly 131K iterations (a few
+; seconds at typical bus speeds) before overflow.
+; 
+; Each iteration re-primes CR2 with &67 (clear TX/RX status, FC_TDRA,
+; 2/1-byte, PSE), then reads SR2. Three outcomes:
+; 
+;   * SR2 bit 2 set (mid-poll): activity detected. Configure the chip
+;     for the expected follow-up (CR2=&E7, CR1=&44) and RTS back to
+;     the caller -- the normal return path.
+; 
+;   * SR2 bit 0 or bit 7 set (AP or IRQ): tickle CR1 through
+;     &C2 -> &82 to reset TX without disturbing the RX state machine,
+;     then continue polling. This rides out incomplete frames or
+;     stale flags.
+; 
+;   * Timeout (counter overflows with none of the above): PLA/PLA
+;     discards the caller's saved return address from the stack and
+;     JMP &E051 bypasses into the main Bridge loop. The code between
+;     the caller's JSR and the main loop is therefore *skipped
+;     entirely* when the poll times out.
+; 
+; Called from four sites: reset (&E03B), &E0AA, &E1AF, &E392. Every
+; caller must accept that the routine may not return normally --
+; anything the caller intended to do after the JSR is abandoned on
+; timeout.
+; Timeout counter = &00_00_FE (~131K iterations)
 ; &e6dc referenced 4 times by &e03b, &e0aa, &e1af, &e392
-.sub_ce6dc
+.adlc_a_poll_or_escape
     lda #0                                                            ; e6dc: a9 00       ..
-    sta l0214                                                         ; e6de: 8d 14 02    ...
-    sta l0215                                                         ; e6e1: 8d 15 02    ...
+    sta ctr24_lo                                                      ; e6de: 8d 14 02    ...
+    sta ctr24_mid                                                     ; e6e1: 8d 15 02    ...
     lda #&fe                                                          ; e6e4: a9 fe       ..
-    sta l0216                                                         ; e6e6: 8d 16 02    ...
+    sta ctr24_hi                                                      ; e6e6: 8d 16 02    ...
+; (spurious SR2 read; Z/N set but A overwritten below)
     lda adlc_a_cr2                                                    ; e6e9: ad 01 c8    ...
+; Y = &E7: CR2 value written on activity-detected exit
     ldy #&e7                                                          ; e6ec: a0 e7       ..
+; Re-prime CR2 = &67: clear status, FC_TDRA etc.
 ; &e6ee referenced 3 times by &e70e, &e713, &e718
 .ce6ee
     lda #&67 ; 'g'                                                    ; e6ee: a9 67       .g
     sta adlc_a_cr2                                                    ; e6f0: 8d 01 c8    ...
+; A = &04 for the next BIT: test SR2 bit 2
     lda #4                                                            ; e6f3: a9 04       ..
     bit adlc_a_cr2                                                    ; e6f5: 2c 01 c8    ,..
+; Bit 2 set -> activity detected, exit via &E71F
     bne ce71f                                                         ; e6f8: d0 25       .%
     lda adlc_a_cr2                                                    ; e6fa: ad 01 c8    ...
+; Mask AP (bit 0) and IRQ (bit 7)
     and #&81                                                          ; e6fd: 29 81       ).
+; Neither set -> no frame in progress, skip tickle
     beq ce70b                                                         ; e6ff: f0 0a       ..
+; CR1 tickle: reset TX without touching RX
     lda #&c2                                                          ; e701: a9 c2       ..
     sta adlc_a_cr1                                                    ; e703: 8d 00 c8    ...
     lda #&82                                                          ; e706: a9 82       ..
     sta adlc_a_cr1                                                    ; e708: 8d 00 c8    ...
+; Bump 24-bit timeout counter (LSB first)
 ; &e70b referenced 1 time by &e6ff
 .ce70b
-    inc l0214                                                         ; e70b: ee 14 02    ...
+    inc ctr24_lo                                                      ; e70b: ee 14 02    ...
     bne ce6ee                                                         ; e70e: d0 de       ..
-    inc l0215                                                         ; e710: ee 15 02    ...
+    inc ctr24_mid                                                     ; e710: ee 15 02    ...
     bne ce6ee                                                         ; e713: d0 d9       ..
-    inc l0216                                                         ; e715: ee 16 02    ...
+    inc ctr24_hi                                                      ; e715: ee 16 02    ...
     bne ce6ee                                                         ; e718: d0 d4       ..
+; Timeout: drop caller's return address from stack...
     pla                                                               ; e71a: 68          h
     pla                                                               ; e71b: 68          h
+; ...and jump straight to the main Bridge loop
     jmp ce051                                                         ; e71c: 4c 51 e0    LQ.
 
+; Activity exit: arm CR2 and CR1 for what's next
 ; &e71f referenced 1 time by &e6f8
 .ce71f
     sty adlc_a_cr2                                                    ; e71f: 8c 01 c8    ...
     lda #&44 ; 'D'                                                    ; e722: a9 44       .D
     sta adlc_a_cr1                                                    ; e724: 8d 00 c8    ...
+; Normal return to caller
     rts                                                               ; e727: 60          `
 
     equb &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff   ; e728: ff ff ff... ...
@@ -2207,7 +2251,7 @@ save pydis_start, pydis_end
 ;     tx_src_net:              10
 ;     l023d:                    8
 ;     tx_dst_net:               8
-;     l0214:                    7
+;     ctr24_lo:                 7
 ;     net_a_map:                7
 ;     net_b_map:                7
 ;     pydis_start:              7
@@ -2225,10 +2269,11 @@ save pydis_start, pydis_end
 ;     sub_ce56e:                5
 ;     sub_ce5ff:                5
 ;     tx_ctrl:                  5
+;     adlc_a_poll_or_escape:    4
 ;     ce13c:                    4
 ;     ce2bd:                    4
-;     l0215:                    4
-;     l0216:                    4
+;     ctr24_hi:                 4
+;     ctr24_mid:                4
 ;     l022a:                    4
 ;     l022b:                    4
 ;     l022c:                    4
@@ -2236,7 +2281,6 @@ save pydis_start, pydis_end
 ;     l0249:                    4
 ;     sub_ce48d:                4
 ;     sub_ce690:                4
-;     sub_ce6dc:                4
 ;     tx_dst_stn:               4
 ;     tx_port:                  4
 ;     ce6a2:                    3
@@ -2463,9 +2507,6 @@ save pydis_start, pydis_end
 ;     l0003
 ;     l0200
 ;     l0201
-;     l0214
-;     l0215
-;     l0216
 ;     l0228
 ;     l0229
 ;     l022a
@@ -2501,7 +2542,6 @@ save pydis_start, pydis_end
 ;     sub_ce56e
 ;     sub_ce5ff
 ;     sub_ce690
-;     sub_ce6dc
 
 ; Stats:
 ;     Total size (Code + Data) = 8192 bytes
