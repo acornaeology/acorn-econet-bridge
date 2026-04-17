@@ -49,6 +49,8 @@ Writeups of interesting details uncovered during the disassembly work.
   Four routines share a PLA/PLA/JMP main_loop abnormal exit that drops the caller's return address and collapses any failed operation back to the main dispatcher. Trades per-site clarity for global simplicity and a meaningful ROM-space saving.
 - [One frame, two broadcasts: reset-time announcement](docs/analysis/two-broadcasts-one-template.md)
   The Bridge announces itself on both Econet sides at power-on by building a single frame template and transmitting it twice, patching a single byte of payload between the two transmissions. A small idiom with a clean separation of concerns between builder and transmitter.
+- [The Econet Bridge has no station address](docs/analysis/bridge-has-no-station-number.md)
+  Architectural writeup on why the Bridge operates without a station number on either of its connected networks. Evidence from the board's two 74LS244 network-number buffers, the firmware's network-keyed routing tables, and the Installation Guide. Covers the &18 firmware marker in outbound announcements and the practical implications for anyone reading the disassembly.
 
 ## References
 
