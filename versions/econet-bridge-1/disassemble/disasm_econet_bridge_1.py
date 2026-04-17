@@ -426,27 +426,120 @@ comment(0xE484, "mem_ptr = &045A (start of frame block)")
 
 label(0xE051, "main_loop")
 subroutine(0xE051, "main_loop", hook=None, is_entry_point=False,
-    title="Main Bridge loop: poll both ADLCs for frames, re-announce",
+    title="Main Bridge loop: re-arm ADLCs, poll for frames, re-announce",
     description="""\
 The Bridge's continuous-operation entry point. Reached by fall-
 through from the reset handler once startup completes, and by JMP
 from fourteen other sites — every routine that takes an "escape to
 main" path (wait_adlc_a_idle, transmit_frame_a/b, etc.) lands
-here.
+here, so main_loop is the anchor of every packet-processing cycle.
 
-The loop clears stale status on both ADLCs, then enters an inner
-polling loop that tests SR1 bit 7 (IRQ) on each chip in turn:
+The header (&E051-&E078) forces each ADLC into a known RX-listening
+state: if SR2 bit 0 or 7 (AP or RDA) is already set from a partial
+or aborted previous operation, CR1 is cycled through &C2 (reset TX,
+leave RX running) before setting it to &82 (TX in reset, RX IRQs
+enabled). CR2 is set to &67 — the standard listen-mode value used
+throughout the firmware.
 
-  ADLC B IRQ set  ->  jump to frame handler at &E263
-  ADLC A IRQ set  ->  jump to frame handler at &E0E2
-  Neither set     ->  check announce_flag; if set, decrement the
-                      16-bit timer; when it expires, rebuild and
-                      retransmit the bridge-announcement frame and
-                      bump announce_count
+The inner poll loop at main_loop_poll (&E079) tests SR1 bit 7 (IRQ
+summary) on each ADLC in turn, with side B checked first. If either
+chip has a pending IRQ, control jumps straight to the corresponding
+frame handler; otherwise the idle path at main_loop_idle (&E089)
+runs the periodic re-announcement.
 
-The handlers at &E0E2 (side A) and &E263 (side B) ultimately JMP
-back here, so main_loop is the anchor of every packet-processing
-cycle.""")
+The re-announce scheme uses three bytes of workspace:
+
+  announce_flag   enables re-announce (bit 7 additionally selects
+                  which side the re-announce goes out on)
+  announce_tmr_   16-bit countdown, decremented every idle-path
+    lo/hi         iteration; zero triggers the re-announce
+  announce_count  remaining re-announce cycles; when this hits
+                  zero, announce_flag is cleared and re-announce
+                  stops until something else re-enables it
+
+The re-announce path (&E098) rebuilds the announcement frame, sets
+tx_ctrl to &81 (distinguishing it from the reset-time &80 first
+announcement), then dispatches to side A or side B based on
+announce_flag bit 7. The timer is re-armed to &8000 (32768 idle
+iterations) after each announce, giving a roughly constant cadence
+regardless of how busy the ADLCs are with other traffic.""")
+
+comment(0xE051, "Check ADLC A for stale AP/RDA from previous activity")
+comment(0xE058, "Reset A's TX path but leave RX running")
+comment(0xE05D, "Arm CR1 A = &82: TX reset, RX IRQ enabled")
+comment(0xE062, "Arm CR2 A = &67: standard listen-mode config")
+comment(0xE067, "Same stale-state check for ADLC B")
+comment(0xE073, "Arm CR1 B = &82 and CR2 B = &67")
+
+
+label(0xE079, "main_loop_poll")
+comment(0xE079, "Test SR1 bit 7 on B (IRQ summary)")
+comment(0xE07C, "No IRQ on B, check A")
+comment(0xE07E, "B IRQ: hand off to side-B frame handler")
+comment(0xE081, "Test SR1 bit 7 on A (IRQ summary)")
+comment(0xE084, "No IRQ on A, drop to idle path")
+comment(0xE086, "A IRQ: hand off to side-A frame handler")
+
+label(0xE089, "main_loop_idle")
+comment(0xE089, "Re-announce enabled?")
+comment(0xE08C, "No: go back to polling the ADLCs")
+comment(0xE08E, "Yes: decrement 16-bit re-announce timer")
+comment(0xE091, "Still ticking, back to poll")
+comment(0xE093, "LSB wrapped, tick MSB too")
+comment(0xE096, "Still ticking, back to poll")
+
+label(0xE098, "re_announce")
+subroutine(0xE098, "re_announce", hook=None, is_entry_point=False,
+    title="Periodic re-announcement of the bridge on one side",
+    description="""\
+Reached from the idle path once the 16-bit announce_tmr has
+ticked down to zero. Rebuilds the announcement frame via
+build_announce_b (same template used at reset), then patches
+tx_ctrl to &81 — the &80 value written by build_announce_b is
+the initial/first-broadcast control byte, while &81 is the
+re-announce variant. The receiving stations can presumably
+distinguish first-seen-bridge from follow-up announcements by
+this single bit.
+
+Which side to transmit on is selected by announce_flag bit 7:
+
+  bit 7 clear (flag = 1..&7F)  ->  transmit via ADLC A (side A)
+  bit 7 set   (flag = &80..FF) ->  transmit via ADLC B (side B,
+                                   after patching tx_data0 with
+                                   station_id_a, mirroring the
+                                   reset-time dual-broadcast)
+
+Each visit decrements announce_count. If it hits zero, announce_
+flag is cleared and periodic re-announce stops (re_announce_done).
+Otherwise the timer is re-armed to &8000 and control returns to
+main_loop (re_announce_rearm).
+
+Before transmitting on one side, the routine resets the OTHER
+ADLC's TX path (CR1 = &C2) — this prevents the opposite side from
+accidentally transmitting a collision during our operation.""")
+
+comment(0xE098, "Rebuild the frame template (dst=FF, ctrl=&80, ...)")
+comment(0xE09B, "Patch ctrl = &81 (re-announce variant)")
+comment(0xE0A0, "Test announce_flag bit 7: which side?")
+comment(0xE0A3, "Bit 7 set -> transmit via side B")
+comment(0xE0A5, "Side A path: reset B's TX first (no collision)")
+comment(0xE0AA, "Wait for A's line to go idle then transmit")
+comment(0xE0B0, "Count this announce; stop if exhausted")
+
+label(0xE0B5, "re_announce_rearm")
+comment(0xE0B5, "Re-arm timer to &8000 (32K idle iterations)")
+comment(0xE0BF, "Back to main loop")
+
+label(0xE0C2, "re_announce_done")
+comment(0xE0C2, "announce_count exhausted: disable re-announce")
+comment(0xE0C7, "Back to main loop")
+
+label(0xE0CA, "re_announce_side_b")
+comment(0xE0CA, "Side B path: patch tx_data0 for side-B broadcast")
+comment(0xE0D0, "Reset A's TX first (mirror of side-A path)")
+comment(0xE0D5, "Wait for B's line to go idle then transmit")
+comment(0xE0DB, "Count this announce; stop if exhausted")
+comment(0xE0E0, "Not exhausted -> re_announce_rearm (ALWAYS branch)")
 
 
 # =====================================================================

@@ -144,105 +144,184 @@ adlc_b_tx2      = &d803
     jsr wait_adlc_b_idle                                              ; e04b: 20 90 e6     ..
     jsr transmit_frame_b                                              ; e04e: 20 c0 e4     ..
 ; ***************************************************************************************
-; Main Bridge loop: poll both ADLCs for frames, re-announce
+; Main Bridge loop: re-arm ADLCs, poll for frames, re-announce
 ; 
 ; The Bridge's continuous-operation entry point. Reached by fall-
 ; through from the reset handler once startup completes, and by JMP
 ; from fourteen other sites — every routine that takes an "escape to
 ; main" path (wait_adlc_a_idle, transmit_frame_a/b, etc.) lands
-; here.
+; here, so main_loop is the anchor of every packet-processing cycle.
 ; 
-; The loop clears stale status on both ADLCs, then enters an inner
-; polling loop that tests SR1 bit 7 (IRQ) on each chip in turn:
+; The header (&E051-&E078) forces each ADLC into a known RX-listening
+; state: if SR2 bit 0 or 7 (AP or RDA) is already set from a partial
+; or aborted previous operation, CR1 is cycled through &C2 (reset TX,
+; leave RX running) before setting it to &82 (TX in reset, RX IRQs
+; enabled). CR2 is set to &67 — the standard listen-mode value used
+; throughout the firmware.
 ; 
-;   ADLC B IRQ set  ->  jump to frame handler at &E263
-;   ADLC A IRQ set  ->  jump to frame handler at &E0E2
-;   Neither set     ->  check announce_flag; if set, decrement the
-;                       16-bit timer; when it expires, rebuild and
-;                       retransmit the bridge-announcement frame and
-;                       bump announce_count
+; The inner poll loop at main_loop_poll (&E079) tests SR1 bit 7 (IRQ
+; summary) on each ADLC in turn, with side B checked first. If either
+; chip has a pending IRQ, control jumps straight to the corresponding
+; frame handler; otherwise the idle path at main_loop_idle (&E089)
+; runs the periodic re-announcement.
 ; 
-; The handlers at &E0E2 (side A) and &E263 (side B) ultimately JMP
-; back here, so main_loop is the anchor of every packet-processing
-; cycle.
+; The re-announce scheme uses three bytes of workspace:
+; 
+;   announce_flag   enables re-announce (bit 7 additionally selects
+;                   which side the re-announce goes out on)
+;   announce_tmr_   16-bit countdown, decremented every idle-path
+;     lo/hi         iteration; zero triggers the re-announce
+;   announce_count  remaining re-announce cycles; when this hits
+;                   zero, announce_flag is cleared and re-announce
+;                   stops until something else re-enables it
+; 
+; The re-announce path (&E098) rebuilds the announcement frame, sets
+; tx_ctrl to &81 (distinguishing it from the reset-time &80 first
+; announcement), then dispatches to side A or side B based on
+; announce_flag bit 7. The timer is re-armed to &8000 (32768 idle
+; iterations) after each announce, giving a roughly constant cadence
+; regardless of how busy the ADLCs are with other traffic.
+; Check ADLC A for stale AP/RDA from previous activity
 ; &e051 referenced 14 times by &e0bf, &e0c7, &e13c, &e1d3, &e260, &e2bd, &e354, &e3e1, &e4d6, &e52d, &e5b3, &e644, &e6d0, &e71c
 .main_loop
     lda adlc_a_cr2                                                    ; e051: ad 01 c8    ...
     and #&81                                                          ; e054: 29 81       ).
     beq ce05d                                                         ; e056: f0 05       ..
+; Reset A's TX path but leave RX running
     lda #&c2                                                          ; e058: a9 c2       ..
     sta adlc_a_cr1                                                    ; e05a: 8d 00 c8    ...
+; Arm CR1 A = &82: TX reset, RX IRQ enabled
 ; &e05d referenced 1 time by &e056
 .ce05d
     ldx #&82                                                          ; e05d: a2 82       ..
     stx adlc_a_cr1                                                    ; e05f: 8e 00 c8    ...
+; Arm CR2 A = &67: standard listen-mode config
     ldy #&67 ; 'g'                                                    ; e062: a0 67       .g
     sty adlc_a_cr2                                                    ; e064: 8c 01 c8    ...
+; Same stale-state check for ADLC B
     lda adlc_b_cr2                                                    ; e067: ad 01 d8    ...
     and #&81                                                          ; e06a: 29 81       ).
     beq ce073                                                         ; e06c: f0 05       ..
     lda #&c2                                                          ; e06e: a9 c2       ..
     sta adlc_b_cr1                                                    ; e070: 8d 00 d8    ...
+; Arm CR1 B = &82 and CR2 B = &67
 ; &e073 referenced 1 time by &e06c
 .ce073
     stx adlc_b_cr1                                                    ; e073: 8e 00 d8    ...
     sty adlc_b_cr2                                                    ; e076: 8c 01 d8    ...
+; Test SR1 bit 7 on B (IRQ summary)
 ; &e079 referenced 5 times by &e08c, &e091, &e096, &e144, &e2c5
-.ce079
+.main_loop_poll
     bit adlc_b_cr1                                                    ; e079: 2c 00 d8    ,..
+; No IRQ on B, check A
     bpl ce081                                                         ; e07c: 10 03       ..
+; B IRQ: hand off to side-B frame handler
     jmp ce263                                                         ; e07e: 4c 63 e2    Lc.
 
+; Test SR1 bit 7 on A (IRQ summary)
 ; &e081 referenced 1 time by &e07c
 .ce081
     bit adlc_a_cr1                                                    ; e081: 2c 00 c8    ,..
-    bpl ce089                                                         ; e084: 10 03       ..
+; No IRQ on A, drop to idle path
+    bpl main_loop_idle                                                ; e084: 10 03       ..
+; A IRQ: hand off to side-A frame handler
     jmp ce0e2                                                         ; e086: 4c e2 e0    L..
 
+; Re-announce enabled?
 ; &e089 referenced 1 time by &e084
-.ce089
+.main_loop_idle
     lda announce_flag                                                 ; e089: ad 29 02    .).
-    beq ce079                                                         ; e08c: f0 eb       ..
+; No: go back to polling the ADLCs
+    beq main_loop_poll                                                ; e08c: f0 eb       ..
+; Yes: decrement 16-bit re-announce timer
     dec announce_tmr_lo                                               ; e08e: ce 2a 02    .*.
-    bne ce079                                                         ; e091: d0 e6       ..
+; Still ticking, back to poll
+    bne main_loop_poll                                                ; e091: d0 e6       ..
+; LSB wrapped, tick MSB too
     dec announce_tmr_hi                                               ; e093: ce 2b 02    .+.
-    bne ce079                                                         ; e096: d0 e1       ..
+; Still ticking, back to poll
+    bne main_loop_poll                                                ; e096: d0 e1       ..
+; ***************************************************************************************
+; Periodic re-announcement of the bridge on one side
+; 
+; Reached from the idle path once the 16-bit announce_tmr has
+; ticked down to zero. Rebuilds the announcement frame via
+; build_announce_b (same template used at reset), then patches
+; tx_ctrl to &81 — the &80 value written by build_announce_b is
+; the initial/first-broadcast control byte, while &81 is the
+; re-announce variant. The receiving stations can presumably
+; distinguish first-seen-bridge from follow-up announcements by
+; this single bit.
+; 
+; Which side to transmit on is selected by announce_flag bit 7:
+; 
+;   bit 7 clear (flag = 1..&7F)  ->  transmit via ADLC A (side A)
+;   bit 7 set   (flag = &80..FF) ->  transmit via ADLC B (side B,
+;                                    after patching tx_data0 with
+;                                    station_id_a, mirroring the
+;                                    reset-time dual-broadcast)
+; 
+; Each visit decrements announce_count. If it hits zero, announce_
+; flag is cleared and periodic re-announce stops (re_announce_done).
+; Otherwise the timer is re-armed to &8000 and control returns to
+; main_loop (re_announce_rearm).
+; 
+; Before transmitting on one side, the routine resets the OTHER
+; ADLC's TX path (CR1 = &C2) — this prevents the opposite side from
+; accidentally transmitting a collision during our operation.
+; Rebuild the frame template (dst=FF, ctrl=&80, ...)
+.re_announce
     jsr build_announce_b                                              ; e098: 20 58 e4     X.
+; Patch ctrl = &81 (re-announce variant)
     lda #&81                                                          ; e09b: a9 81       ..
     sta tx_ctrl                                                       ; e09d: 8d 5e 04    .^.
+; Test announce_flag bit 7: which side?
     bit announce_flag                                                 ; e0a0: 2c 29 02    ,).
-    bmi ce0ca                                                         ; e0a3: 30 25       0%
+; Bit 7 set -> transmit via side B
+    bmi re_announce_side_b                                            ; e0a3: 30 25       0%
+; Side A path: reset B's TX first (no collision)
     lda #&c2                                                          ; e0a5: a9 c2       ..
     sta adlc_b_cr1                                                    ; e0a7: 8d 00 d8    ...
+; Wait for A's line to go idle then transmit
     jsr wait_adlc_a_idle                                              ; e0aa: 20 dc e6     ..
     jsr transmit_frame_a                                              ; e0ad: 20 17 e5     ..
+; Count this announce; stop if exhausted
     dec announce_count                                                ; e0b0: ce 2c 02    .,.
-    beq ce0c2                                                         ; e0b3: f0 0d       ..
+    beq re_announce_done                                              ; e0b3: f0 0d       ..
+; Re-arm timer to &8000 (32K idle iterations)
 ; &e0b5 referenced 1 time by &e0e0
-.ce0b5
+.re_announce_rearm
     lda #&80                                                          ; e0b5: a9 80       ..
     sta announce_tmr_hi                                               ; e0b7: 8d 2b 02    .+.
     lda #0                                                            ; e0ba: a9 00       ..
     sta announce_tmr_lo                                               ; e0bc: 8d 2a 02    .*.
+; Back to main loop
     jmp main_loop                                                     ; e0bf: 4c 51 e0    LQ.
 
+; announce_count exhausted: disable re-announce
 ; &e0c2 referenced 2 times by &e0b3, &e0de
-.ce0c2
+.re_announce_done
     lda #0                                                            ; e0c2: a9 00       ..
     sta announce_flag                                                 ; e0c4: 8d 29 02    .).
+; Back to main loop
     jmp main_loop                                                     ; e0c7: 4c 51 e0    LQ.
 
+; Side B path: patch tx_data0 for side-B broadcast
 ; &e0ca referenced 1 time by &e0a3
-.ce0ca
+.re_announce_side_b
     lda station_id_a                                                  ; e0ca: ad 00 c0    ...
     sta tx_data0                                                      ; e0cd: 8d 60 04    .`.
+; Reset A's TX first (mirror of side-A path)
     lda #&c2                                                          ; e0d0: a9 c2       ..
     sta adlc_a_cr1                                                    ; e0d2: 8d 00 c8    ...
+; Wait for B's line to go idle then transmit
     jsr wait_adlc_b_idle                                              ; e0d5: 20 90 e6     ..
     jsr transmit_frame_b                                              ; e0d8: 20 c0 e4     ..
+; Count this announce; stop if exhausted
     dec announce_count                                                ; e0db: ce 2c 02    .,.
-    beq ce0c2                                                         ; e0de: f0 e2       ..
-    bne ce0b5                                                         ; e0e0: d0 d3       ..             ; ALWAYS branch
+    beq re_announce_done                                              ; e0de: f0 e2       ..
+; Not exhausted -> re_announce_rearm (ALWAYS branch)
+    bne re_announce_rearm                                             ; e0e0: d0 d3       ..             ; ALWAYS branch
 
 ; &e0e2 referenced 1 time by &e086
 .ce0e2
@@ -295,7 +374,7 @@ adlc_b_tx2      = &d803
 .ce13f
     lda #&a2                                                          ; e13f: a9 a2       ..
     sta adlc_a_cr1                                                    ; e141: 8d 00 c8    ...
-    jmp ce079                                                         ; e144: 4c 79 e0    Ly.
+    jmp main_loop_poll                                                ; e144: 4c 79 e0    Ly.
 
 ; &e147 referenced 2 times by &e171, &e180
 .ce147
@@ -488,7 +567,7 @@ adlc_b_tx2      = &d803
 .ce2c0
     lda #&a2                                                          ; e2c0: a9 a2       ..
     sta adlc_b_cr1                                                    ; e2c2: 8d 00 d8    ...
-    jmp ce079                                                         ; e2c5: 4c 79 e0    Ly.
+    jmp main_loop_poll                                                ; e2c5: 4c 79 e0    Ly.
 
 ; &e2c8 referenced 2 times by &e2f2, &e301
 .ce2c8
@@ -2353,9 +2432,9 @@ save pydis_start, pydis_end
 ;     cf09d:                    6
 ;     tx_end_hi:                6
 ;     tx_end_lo:                6
-;     ce079:                    5
 ;     ce5b1:                    5
 ;     ce642:                    5
+;     main_loop_poll:           5
 ;     sub_ce56e:                5
 ;     sub_ce5ff:                5
 ;     tx_ctrl:                  5
@@ -2386,7 +2465,6 @@ save pydis_start, pydis_end
 ;     adlc_b_listen:            2
 ;     adlc_b_tx2:               2
 ;     build_announce_b:         2
-;     ce0c2:                    2
 ;     ce13f:                    2
 ;     ce147:                    2
 ;     ce14a:                    2
@@ -2411,6 +2489,7 @@ save pydis_start, pydis_end
 ;     cf2e8:                    2
 ;     l0240:                    2
 ;     l0241:                    2
+;     re_announce_done:         2
 ;     sub_ce448:                2
 ;     tx_src_stn:               2
 ;     adlc_a_full_reset:        1
@@ -2418,9 +2497,6 @@ save pydis_start, pydis_end
 ;     ce05d:                    1
 ;     ce073:                    1
 ;     ce081:                    1
-;     ce089:                    1
-;     ce0b5:                    1
-;     ce0ca:                    1
 ;     ce0e2:                    1
 ;     ce120:                    1
 ;     ce15c:                    1
@@ -2490,8 +2566,11 @@ save pydis_start, pydis_end
 ;     loop_cf189:               1
 ;     loop_cf1c6:               1
 ;     loop_cf22a:               1
+;     main_loop_idle:           1
 ;     ram_test_done:            1
 ;     ram_test_loop:            1
+;     re_announce_rearm:        1
+;     re_announce_side_b:       1
 ;     self_test_reset_adlcs:    1
 ;     self_test_rom_checksum:   1
 ;     self_test_zp:             1
@@ -2499,12 +2578,7 @@ save pydis_start, pydis_end
 ; Automatically generated labels:
 ;     ce05d
 ;     ce073
-;     ce079
 ;     ce081
-;     ce089
-;     ce0b5
-;     ce0c2
-;     ce0ca
 ;     ce0e2
 ;     ce120
 ;     ce13c
