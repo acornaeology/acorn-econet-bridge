@@ -43,7 +43,46 @@ It's a small piece of design, but it compounds three good decisions into one vis
 - Keep the two variants of the init sequence diff-minimal, so the behavioural difference is localised to a single bit.
 - Put that bit in a register that can only be reached through the init path, so the LED state is inherently synchronised with which init ran.
 
-There's no unnecessary LED blinking or software timing involved — the Bridge simply answers "is self-test running?" with one bit of hardware, driven by one bit of firmware, and the pin was there for the taking.
+There's no unnecessary LED blinking or software timing involved during a healthy self-test — the Bridge simply answers "is self-test running?" with one bit of hardware, driven by one bit of firmware, and the pin was there for the taking.
+
+
+## When the self-test finds a problem
+
+The LED gets a second job when a test fails. The self-test has two distinct failure handlers, each with its own blink pattern, chosen to give the operator as much information as the hardware state allows:
+
+### `self_test_fail` — the countable blinker
+
+Reached from every non-RAM test: ROM checksum, ADLC register-state checks, A↔B loopback checks, network-number jumper checks. The caller loads an error code (2 through 8) into `A`, and the blinker toggles `CR3` between `&80` and `&00` that many times, separated by longer gaps, in a loop. The operator counts the flashes between gaps:
+
+```
+  2 flashes ... gap ... 2 flashes ... gap ...     ROM checksum fail
+  3 flashes ... gap ... 3 flashes ... gap ...     ADLC A state fail
+  ...
+  8 flashes ... gap ... 8 flashes ... gap ...     net_num_b != 2
+```
+
+Each code unambiguously identifies one of the failed sub-tests. This handler depends on a working RAM — it uses `&01` as the loop counter — so it can only run when the RAM tests have already passed.
+
+### `ram_test_fail` — the uncountable blinker
+
+Reached from the three RAM tests (ZP integrity, `&55`/`&AA` pattern, incrementing-byte pattern). By definition, if one of these has failed, _RAM cannot be trusted_ — which means no counting loop can work, because any counter variable is held in RAM. This handler therefore cannot count.
+
+Instead, it generates its pacing from a sequence of `DEC abs,X` instructions that read-modify-write bytes in the ROM itself. Writes to ROM are silently ignored, but the CPU still spends the full five-cycle read-modify-write time on each one. A loop of seven such instructions followed by `DEX`/`DEY` runs entirely from the CPU registers, touching RAM for nothing. It's not pretty, but it's a way to blink the LED when nothing else works.
+
+The resulting pattern is distinctively _structureless_: the LED alternates on and off at a regular pace without the gap-grouping that makes an error-code readable. The operator infers "the RAM is bad" not from counting pulses, but from the absence of a countable pattern.
+
+### Summary of LED behaviours
+
+Four distinct states, all encoded through a single pin on one ADLC:
+
+| State | Driver | Visible behaviour |
+|---|---|---|
+| Normal operation | `adlc_b_full_reset` writes `CR3=&00` | LED dark |
+| Self-test running | `self_test_reset_adlcs` writes `CR3=&80` | LED solid on |
+| Non-RAM test failed | `self_test_fail` alternates `CR3` N times per cycle | LED blinks countable pattern (2-8 per burst) |
+| RAM test failed | `ram_test_fail` alternates `CR3` with ROM-timed pacing | LED blinks uncountable pattern |
+
+A one-bit output reused four ways — normal operation, diagnostic-active, structured failure, unstructured failure. The fact that each state is unambiguous to an operator standing in front of the box owes something to the circuit designer, who gave the pin an LED, and something to the firmware author, who put the right amount of thought into the failure paths so that "my RAM is broken" looks visibly different from "I failed a check".
 
 
 ## Cross-references
