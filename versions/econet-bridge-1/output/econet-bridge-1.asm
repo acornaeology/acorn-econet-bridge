@@ -49,11 +49,11 @@ adlc_b_tx2      = &d803
 ; &e000 referenced 7 times by &f2a9, &f2ac, &f2af, &f2b2, &f2b5, &f2b8, &f2bb
 .pydis_start
 .reset
-    cli                                                               ; e000: 58          X
-    cld                                                               ; e001: d8          .
-    jsr init_reachable_nets                                           ; e002: 20 24 e4     $.
-    jsr adlc_a_full_reset                                             ; e005: 20 f0 e3     ..
-    jsr adlc_b_full_reset                                             ; e008: 20 0a e4     ..
+    cli                                                               ; e000: 58          X              ; Enable IRQs (self-test button wired to ~IRQ)
+    cld                                                               ; e001: d8          .              ; Clear decimal mode (6502 arithmetic in binary)
+    jsr init_reachable_nets                                           ; e002: 20 24 e4     $.            ; Initialise reachable_via_a/b tables for routing
+    jsr adlc_a_full_reset                                             ; e005: 20 f0 e3     ..            ; Reset ADLC A through its full CR1/CR2/CR3/CR4 sequence
+    jsr adlc_b_full_reset                                             ; e008: 20 0a e4     ..            ; Reset ADLC B through its full CR1/CR2/CR3/CR4 sequence
 ; ***************************************************************************************
 ; Scan pages from &1800 upward; record top of RAM
 ; 
@@ -92,57 +92,57 @@ adlc_b_tx2      = &d803
 ; 
 ; See docs/analysis/ram-test-anti-aliasing.md for the full
 ; cycle-level analysis.
-; Y = 0 (indirect offset, used throughout)
 .ram_test
-    ldy #0                                                            ; e00b: a0 00       ..
-; mem_ptr_lo = 0 (pages tested are page-aligned)
-    sty mem_ptr_lo                                                    ; e00d: 84 80       ..
-; mem_ptr_hi starts at &17; INC makes first test &18
-    lda #&17                                                          ; e00f: a9 17       ..
-    sta mem_ptr_hi                                                    ; e011: 85 81       ..
-; Advance to next page
+    ldy #0                                                            ; e00b: a0 00       ..             ; Y = 0: ZP offset used by (mem_ptr_lo),Y throughout
+    sty mem_ptr_lo                                                    ; e00d: 84 80       ..             ; Clear mem_ptr_lo so every probe is page-aligned
+    lda #&17                                                          ; e00f: a9 17       ..             ; A = &17: seed for mem_ptr_hi (first probe will be page &18)
+    sta mem_ptr_hi                                                    ; e011: 85 81       ..             ; Commit mem_ptr_hi; first INC at loop head advances to &18
 ; &e013 referenced 1 time by &e02b
 .ram_test_loop
-    inc mem_ptr_hi                                                    ; e013: e6 81       ..
-; Pattern 1: &AA (1010_1010)
-    lda #&aa                                                          ; e015: a9 aa       ..
-    sta (mem_ptr_lo),y                                                ; e017: 91 80       ..
-; Disturb ZP &00 -- defeat data-bus residue aliasing
-    inc l0000                                                         ; e019: e6 00       ..
-; Read back pattern 1
-    lda (mem_ptr_lo),y                                                ; e01b: b1 80       ..
-    cmp #&aa                                                          ; e01d: c9 aa       ..
-; Pattern 1 mismatch -- end of RAM
-    bne ram_test_done                                                 ; e01f: d0 0c       ..
-; Pattern 2: &55 (0101_0101)
-    lda #&55 ; 'U'                                                    ; e021: a9 55       .U
-    sta (mem_ptr_lo),y                                                ; e023: 91 80       ..
-; Disturb ZP &00 again
-    inc l0000                                                         ; e025: e6 00       ..
-; Read back pattern 2
-    lda (mem_ptr_lo),y                                                ; e027: b1 80       ..
-    cmp #&55 ; 'U'                                                    ; e029: c9 55       .U
-; Both patterns verified -- try next page
-    beq ram_test_loop                                                 ; e02b: f0 e6       ..
-; Back off: last-probed page did not verify
+    inc mem_ptr_hi                                                    ; e013: e6 81       ..             ; Step up to the next candidate page
+    lda #&aa                                                          ; e015: a9 aa       ..             ; Pattern 1: &AA (1010_1010) -- half the bits set
+    sta (mem_ptr_lo),y                                                ; e017: 91 80       ..             ; Write &AA to (mem_ptr_lo) indirect
+    inc l0000                                                         ; e019: e6 00       ..             ; INC $00: read-modify-write disturbs the data bus...
+    lda (mem_ptr_lo),y                                                ; e01b: b1 80       ..             ; ...then read the probe byte back
+    cmp #&aa                                                          ; e01d: c9 aa       ..             ; Did &AA survive the disturbance?
+    bne ram_test_done                                                 ; e01f: d0 0c       ..             ; Mismatch -> this page isn't real RAM; back off
+    lda #&55 ; 'U'                                                    ; e021: a9 55       .U             ; Pattern 2: &55 (0101_0101) -- exact complement of &AA
+    sta (mem_ptr_lo),y                                                ; e023: 91 80       ..             ; Write &55 to (mem_ptr_lo) indirect
+    inc l0000                                                         ; e025: e6 00       ..             ; INC $00 again -- anti-aliasing tripwire
+    lda (mem_ptr_lo),y                                                ; e027: b1 80       ..             ; Read pattern 2 back
+    cmp #&55 ; 'U'                                                    ; e029: c9 55       .U             ; Did &55 survive?
+    beq ram_test_loop                                                 ; e02b: f0 e6       ..             ; Both patterns held -- real RAM, try next page
 ; &e02d referenced 1 time by &e01f
 .ram_test_done
-    dec mem_ptr_hi                                                    ; e02d: c6 81       ..
-; Save top-of-RAM page to &82 for later use
-    lda mem_ptr_hi                                                    ; e02f: a5 81       ..
-    sta top_ram_page                                                  ; e031: 85 82       ..
-; Clear &0229 (flag, purpose TBD)
-    lda #0                                                            ; e033: a9 00       ..
-    sta announce_flag                                                 ; e035: 8d 29 02    .).
-    jsr build_announce_b                                              ; e038: 20 58 e4     X.
-    jsr wait_adlc_a_idle                                              ; e03b: 20 dc e6     ..
-    jsr transmit_frame_a                                              ; e03e: 20 17 e5     ..
-    lda net_num_a                                                     ; e041: ad 00 c0    ...
-    sta tx_data0                                                      ; e044: 8d 60 04    .`.
-    lda #4                                                            ; e047: a9 04       ..
-    sta mem_ptr_hi                                                    ; e049: 85 81       ..
-    jsr wait_adlc_b_idle                                              ; e04b: 20 90 e6     ..
-    jsr transmit_frame_b                                              ; e04e: 20 c0 e4     ..
+    dec mem_ptr_hi                                                    ; e02d: c6 81       ..             ; Step back one: last-probed page failed, prior page was OK
+    lda mem_ptr_hi                                                    ; e02f: a5 81       ..             ; Read the highest-verified page number
+    sta top_ram_page                                                  ; e031: 85 82       ..             ; Save as top_ram_page; workspace init caps buffers here
+; ***************************************************************************************
+; Emit the boot-time BridgeReset pair on both Econet sides
+; 
+; Second half of the reset handler. Clears announce_flag so the
+; idle-path re-announcer starts quiescent, then builds a single
+; BridgeReset template (ctrl=&80, port=&9C, payload=net_num_b) and
+; transmits it twice: first on side A with net_num_b in the payload,
+; then on side B after patching the payload to net_num_a. The two
+; wait_adlc_?_idle calls gate each transmit on carrier-sense; either
+; can escape to main_loop if the line never goes idle.
+; 
+; Falls through to main_loop on success. A clean reset therefore
+; emits exactly two frames before steady-state polling begins. See
+; two-broadcasts-one-template.md for why one template suffices.
+.reset_announce_broadcasts
+    lda #0                                                            ; e033: a9 00       ..             ; A = 0: clear announce_flag (idle path stays quiet initially)
+    sta announce_flag                                                 ; e035: 8d 29 02    .).            ; Commit announce_flag = 0 to workspace
+    jsr build_announce_b                                              ; e038: 20 58 e4     X.            ; Build the BridgeReset scout template into &045A-&0460
+    jsr wait_adlc_a_idle                                              ; e03b: 20 dc e6     ..            ; CSMA: wait for side A's line to go idle
+    jsr transmit_frame_a                                              ; e03e: 20 17 e5     ..            ; Transmit first broadcast (announcing net_num_b to side A)
+    lda net_num_a                                                     ; e041: ad 00 c0    ...            ; Load net_num_a -- the payload byte for the B-side broadcast
+    sta tx_data0                                                      ; e044: 8d 60 04    .`.            ; Patch payload byte 0 of the template in-place
+    lda #4                                                            ; e047: a9 04       ..             ; A = &04: reset mem_ptr_hi to the template's base page...
+    sta mem_ptr_hi                                                    ; e049: 85 81       ..             ; ...so transmit_frame_b re-reads from &045A
+    jsr wait_adlc_b_idle                                              ; e04b: 20 90 e6     ..            ; CSMA: wait for side B's line to go idle
+    jsr transmit_frame_b                                              ; e04e: 20 c0 e4     ..            ; Transmit second broadcast (announcing net_num_a to side B)
 ; ***************************************************************************************
 ; Main Bridge loop: re-arm ADLCs, poll for frames, re-announce
 ; 
@@ -2464,10 +2464,10 @@ adlc_b_tx2      = &d803
     dec reset,x                                                       ; f2a9: de 00 e0    ...            ; DEC of ROM (writes ignored); seven of them in a row...
     dec reset,x                                                       ; f2ac: de 00 e0    ...            ; ...pace the LED-on interval without RAM writes
     dec reset,x                                                       ; f2af: de 00 e0    ...            ; (all seven DECs hit the same RO address)
-    dec reset,x                                                       ; f2b2: de 00 e0    ...            ;
-    dec reset,x                                                       ; f2b5: de 00 e0    ...            ;
-    dec reset,x                                                       ; f2b8: de 00 e0    ...            ;
-    dec reset,x                                                       ; f2bb: de 00 e0    ...            ;
+    dec reset,x                                                       ; f2b2: de 00 e0    ...            ; DEC reset,X again -- 4 cycles, no side effect
+    dec reset,x                                                       ; f2b5: de 00 e0    ...            ; DEC reset,X again -- 4 cycles, no side effect
+    dec reset,x                                                       ; f2b8: de 00 e0    ...            ; DEC reset,X again -- 4 cycles, no side effect
+    dec reset,x                                                       ; f2bb: de 00 e0    ...            ; Last of the seven; together they lengthen the inner tick
     dex                                                               ; f2be: ca          .              ; Step X
     bne ram_test_fail_long_delay                                      ; f2bf: d0 e8       ..             ; Spin through X's 256 values
     dey                                                               ; f2c1: 88          .              ; Step Y
@@ -2520,8 +2520,8 @@ adlc_b_tx2      = &d803
     ldx #0                                                            ; f2d7: a2 00       ..             ; X = 0: inner loop counter
 ; &f2d9 referenced 2 times by &f2da, &f2dd
 .self_test_fail_dark_delay
-    dex                                                               ; f2d9: ca          .              ; Inner spin through X's 256 values
-    bne self_test_fail_dark_delay                                     ; f2da: d0 fd       ..             ;
+    dex                                                               ; f2d9: ca          .              ; DEX -- tick the inner counter
+    bne self_test_fail_dark_delay                                     ; f2da: d0 fd       ..             ; Inner spin through X's 256 values
     dey                                                               ; f2dc: 88          .              ; Step Y
     bne self_test_fail_dark_delay                                     ; f2dd: d0 fa       ..             ; Outer spin: Y cycles give ~65K iterations of dark
     ldx #&80                                                          ; f2df: a2 80       ..             ; X = &80: CR3 bit 7 set -> LED lit
@@ -2530,10 +2530,10 @@ adlc_b_tx2      = &d803
     ldx #0                                                            ; f2e6: a2 00       ..             ; X = 0
 ; &f2e8 referenced 2 times by &f2e9, &f2ec
 .self_test_fail_lit_delay
-    dex                                                               ; f2e8: ca          .              ; Same length delay while the LED is lit
-    bne self_test_fail_lit_delay                                      ; f2e9: d0 fd       ..             ;
-    dey                                                               ; f2eb: 88          .              ;
-    bne self_test_fail_lit_delay                                      ; f2ec: d0 fa       ..             ;
+    dex                                                               ; f2e8: ca          .              ; DEX -- tick the inner counter
+    bne self_test_fail_lit_delay                                      ; f2e9: d0 fd       ..             ; Inner spin through X's 256 values (LED lit)
+    dey                                                               ; f2eb: 88          .              ; Step Y
+    bne self_test_fail_lit_delay                                      ; f2ec: d0 fa       ..             ; Outer spin: Y cycles give the same length as the dark phase
     dec l0001                                                         ; f2ee: c6 01       ..             ; One pulse done; decrement the burst counter
     bne self_test_fail_pulse                                          ; f2f0: d0 de       ..             ; Loop until we've emitted N pulses
     lda #8                                                            ; f2f2: a9 08       ..             ; A = 8: spacer count between bursts
@@ -2542,10 +2542,10 @@ adlc_b_tx2      = &d803
     ldx #0                                                            ; f2f8: a2 00       ..             ; X = 0
 ; &f2fa referenced 3 times by &f2fb, &f2fe, &f302
 .self_test_fail_spacer_delay
-    dex                                                               ; f2fa: ca          .              ; Long quiet spacer between bursts
-    bne self_test_fail_spacer_delay                                   ; f2fb: d0 fd       ..             ;
-    dey                                                               ; f2fd: 88          .              ;
-    bne self_test_fail_spacer_delay                                   ; f2fe: d0 fa       ..             ;
+    dex                                                               ; f2fa: ca          .              ; DEX -- tick the inner spacer counter
+    bne self_test_fail_spacer_delay                                   ; f2fb: d0 fd       ..             ; Inner spin through X's 256 values (LED off)
+    dey                                                               ; f2fd: 88          .              ; Step Y
+    bne self_test_fail_spacer_delay                                   ; f2fe: d0 fa       ..             ; Outer spin: 8x this pair keeps the gap audibly long
     dec l0001                                                         ; f300: c6 01       ..             ; Decrement spacer loop counter
     bne self_test_fail_spacer_delay                                   ; f302: d0 f6       ..             ; Repeat eight times total
     lda l0000                                                         ; f304: a5 00       ..             ; Reload the N-pulse counter with the saved error code

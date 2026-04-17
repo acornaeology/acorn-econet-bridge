@@ -57,6 +57,11 @@ _nmi_addr = _nmi_lo | (_nmi_hi << 8)
 
 entry(_reset_addr)
 label(_reset_addr, "reset")
+comment(0xE000, "Enable IRQs (self-test button wired to ~IRQ)", inline=True)
+comment(0xE001, "Clear decimal mode (6502 arithmetic in binary)", inline=True)
+comment(0xE002, "Initialise reachable_via_a/b tables for routing", inline=True)
+comment(0xE005, "Reset ADLC A through its full CR1/CR2/CR3/CR4 sequence", inline=True)
+comment(0xE008, "Reset ADLC B through its full CR1/CR2/CR3/CR4 sequence", inline=True)
 
 if 0xE000 <= _irq_addr <= 0xFFF9:
     entry(_irq_addr)
@@ -472,25 +477,73 @@ report RAM where none exists:
 See docs/analysis/ram-test-anti-aliasing.md for the full
 cycle-level analysis.""")
 
-comment(0xE00B, "Y = 0 (indirect offset, used throughout)")
-comment(0xE00D, "mem_ptr_lo = 0 (pages tested are page-aligned)")
-comment(0xE00F, "mem_ptr_hi starts at &17; INC makes first test &18")
+comment(0xE00B, "Y = 0: ZP offset used by (mem_ptr_lo),Y throughout", inline=True)
+comment(0xE00D, "Clear mem_ptr_lo so every probe is page-aligned", inline=True)
+comment(0xE00F, "A = &17: seed for mem_ptr_hi (first probe will be page &18)", inline=True)
+comment(0xE011, "Commit mem_ptr_hi; first INC at loop head advances to &18", inline=True)
 
 label(0xE013, "ram_test_loop")
-comment(0xE013, "Advance to next page")
-comment(0xE015, "Pattern 1: &AA (1010_1010)")
-comment(0xE019, "Disturb ZP &00 -- defeat data-bus residue aliasing")
-comment(0xE01B, "Read back pattern 1")
-comment(0xE01F, "Pattern 1 mismatch -- end of RAM")
-comment(0xE021, "Pattern 2: &55 (0101_0101)")
-comment(0xE025, "Disturb ZP &00 again")
-comment(0xE027, "Read back pattern 2")
-comment(0xE02B, "Both patterns verified -- try next page")
+comment(0xE013, "Step up to the next candidate page", inline=True)
+comment(0xE015, "Pattern 1: &AA (1010_1010) -- half the bits set", inline=True)
+comment(0xE017, "Write &AA to (mem_ptr_lo) indirect", inline=True)
+comment(0xE019, "INC $00: read-modify-write disturbs the data bus...", inline=True)
+comment(0xE01B, "...then read the probe byte back", inline=True)
+comment(0xE01D, "Did &AA survive the disturbance?", inline=True)
+comment(0xE01F, "Mismatch -> this page isn't real RAM; back off", inline=True)
+comment(0xE021, "Pattern 2: &55 (0101_0101) -- exact complement of &AA", inline=True)
+comment(0xE023, "Write &55 to (mem_ptr_lo) indirect", inline=True)
+comment(0xE025, "INC $00 again -- anti-aliasing tripwire", inline=True)
+comment(0xE027, "Read pattern 2 back", inline=True)
+comment(0xE029, "Did &55 survive?", inline=True)
+comment(0xE02B, "Both patterns held -- real RAM, try next page", inline=True)
 
 label(0xE02D, "ram_test_done")
-comment(0xE02D, "Back off: last-probed page did not verify")
-comment(0xE02F, "Save top-of-RAM page to &82 for later use")
-comment(0xE033, "Clear &0229 (flag, purpose TBD)")
+comment(0xE02D, "Step back one: last-probed page failed, prior page was OK", inline=True)
+comment(0xE02F, "Read the highest-verified page number", inline=True)
+comment(0xE031, "Save as top_ram_page; workspace init caps buffers here", inline=True)
+
+
+# =====================================================================
+# Reset-time dual broadcast of BridgeReset
+# =====================================================================
+# Falls through from ram_test. Seeds announce_flag = 0 so the main
+# loop's idle path stays dormant until a peer triggers it, builds the
+# BridgeReset template once, transmits it on side A (carrying
+# net_num_b), then patches the single payload byte and retransmits on
+# side B (carrying net_num_a). Falls through into main_loop -- no RTS
+# because this is still the reset path, not a callable routine.
+#
+# See docs/analysis/two-broadcasts-one-template.md and
+# docs/analysis/event-driven-reannouncement.md for the protocol story.
+
+label(0xE033, "reset_announce_broadcasts")
+subroutine(0xE033, "reset_announce_broadcasts", hook=None,
+    is_entry_point=False,
+    title="Emit the boot-time BridgeReset pair on both Econet sides",
+    description="""\
+Second half of the reset handler. Clears announce_flag so the
+idle-path re-announcer starts quiescent, then builds a single
+BridgeReset template (ctrl=&80, port=&9C, payload=net_num_b) and
+transmits it twice: first on side A with net_num_b in the payload,
+then on side B after patching the payload to net_num_a. The two
+wait_adlc_?_idle calls gate each transmit on carrier-sense; either
+can escape to main_loop if the line never goes idle.
+
+Falls through to main_loop on success. A clean reset therefore
+emits exactly two frames before steady-state polling begins. See
+two-broadcasts-one-template.md for why one template suffices.""")
+
+comment(0xE033, "A = 0: clear announce_flag (idle path stays quiet initially)", inline=True)
+comment(0xE035, "Commit announce_flag = 0 to workspace", inline=True)
+comment(0xE038, "Build the BridgeReset scout template into &045A-&0460", inline=True)
+comment(0xE03B, "CSMA: wait for side A's line to go idle", inline=True)
+comment(0xE03E, "Transmit first broadcast (announcing net_num_b to side A)", inline=True)
+comment(0xE041, "Load net_num_a -- the payload byte for the B-side broadcast", inline=True)
+comment(0xE044, "Patch payload byte 0 of the template in-place", inline=True)
+comment(0xE047, "A = &04: reset mem_ptr_hi to the template's base page...", inline=True)
+comment(0xE049, "...so transmit_frame_b re-reads from &045A", inline=True)
+comment(0xE04B, "CSMA: wait for side B's line to go idle", inline=True)
+comment(0xE04E, "Transmit second broadcast (announcing net_num_a to side B)", inline=True)
 
 
 # =====================================================================
@@ -2521,10 +2574,10 @@ label(0xF2A9, "ram_test_fail_long_delay")
 comment(0xF2A9, "DEC of ROM (writes ignored); seven of them in a row...", inline=True)
 comment(0xF2AC, "...pace the LED-on interval without RAM writes", inline=True)
 comment(0xF2AF, "(all seven DECs hit the same RO address)", inline=True)
-comment(0xF2B2, "", inline=True)
-comment(0xF2B5, "", inline=True)
-comment(0xF2B8, "", inline=True)
-comment(0xF2BB, "", inline=True)
+comment(0xF2B2, "DEC reset,X again -- 4 cycles, no side effect", inline=True)
+comment(0xF2B5, "DEC reset,X again -- 4 cycles, no side effect", inline=True)
+comment(0xF2B8, "DEC reset,X again -- 4 cycles, no side effect", inline=True)
+comment(0xF2BB, "Last of the seven; together they lengthen the inner tick", inline=True)
 comment(0xF2BE, "Step X", inline=True)
 comment(0xF2BF, "Spin through X's 256 values", inline=True)
 comment(0xF2C1, "Step Y", inline=True)
@@ -2576,8 +2629,8 @@ comment(0xF2D2, "Commit CR3 = 0", inline=True)
 comment(0xF2D5, "Y = 0: outer loop counter for the dark phase", inline=True)
 comment(0xF2D7, "X = 0: inner loop counter", inline=True)
 label(0xF2D9, "self_test_fail_dark_delay")
-comment(0xF2D9, "Inner spin through X's 256 values", inline=True)
-comment(0xF2DA, "", inline=True)
+comment(0xF2D9, "DEX -- tick the inner counter", inline=True)
+comment(0xF2DA, "Inner spin through X's 256 values", inline=True)
 comment(0xF2DC, "Step Y", inline=True)
 comment(0xF2DD, "Outer spin: Y cycles give ~65K iterations of dark", inline=True)
 comment(0xF2DF, "X = &80: CR3 bit 7 set -> LED lit", inline=True)
@@ -2585,10 +2638,10 @@ comment(0xF2E1, "Commit CR3 = &80", inline=True)
 comment(0xF2E4, "Y = 0", inline=True)
 comment(0xF2E6, "X = 0", inline=True)
 label(0xF2E8, "self_test_fail_lit_delay")
-comment(0xF2E8, "Same length delay while the LED is lit", inline=True)
-comment(0xF2E9, "", inline=True)
-comment(0xF2EB, "", inline=True)
-comment(0xF2EC, "", inline=True)
+comment(0xF2E8, "DEX -- tick the inner counter", inline=True)
+comment(0xF2E9, "Inner spin through X's 256 values (LED lit)", inline=True)
+comment(0xF2EB, "Step Y", inline=True)
+comment(0xF2EC, "Outer spin: Y cycles give the same length as the dark phase", inline=True)
 comment(0xF2EE, "One pulse done; decrement the burst counter", inline=True)
 comment(0xF2F0, "Loop until we've emitted N pulses", inline=True)
 comment(0xF2F2, "A = 8: spacer count between bursts", inline=True)
@@ -2596,10 +2649,10 @@ comment(0xF2F4, "Seed the spacer loop counter", inline=True)
 comment(0xF2F6, "Y = 0", inline=True)
 comment(0xF2F8, "X = 0", inline=True)
 label(0xF2FA, "self_test_fail_spacer_delay")
-comment(0xF2FA, "Long quiet spacer between bursts", inline=True)
-comment(0xF2FB, "", inline=True)
-comment(0xF2FD, "", inline=True)
-comment(0xF2FE, "", inline=True)
+comment(0xF2FA, "DEX -- tick the inner spacer counter", inline=True)
+comment(0xF2FB, "Inner spin through X's 256 values (LED off)", inline=True)
+comment(0xF2FD, "Step Y", inline=True)
+comment(0xF2FE, "Outer spin: 8x this pair keeps the gap audibly long", inline=True)
 comment(0xF300, "Decrement spacer loop counter", inline=True)
 comment(0xF302, "Repeat eight times total", inline=True)
 comment(0xF304, "Reload the N-pulse counter with the saved error code", inline=True)
