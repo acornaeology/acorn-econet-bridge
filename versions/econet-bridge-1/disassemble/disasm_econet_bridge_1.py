@@ -428,14 +428,14 @@ comment(0xE033, "Clear &0229 (flag, purpose TBD)")
 
 label(0xE458, "build_announce_b")
 subroutine(0xE458, "build_announce_b", hook=None,
-    title="Populate outbound frame with a side-B bridge announcement",
+    title="Build a BridgeReset scout carrying net_num_b as payload",
     description="""\
 Populates the outbound frame control block at &045A-&0460 with
-an all-broadcast bridge announcement carrying the B-side network
-number as its payload. At reset time this is transmitted via
-ADLC A first (announcing "network N is reachable through me" to
-side A's stations), then tx_data0 is patched to net_num_a and it
-is re-transmitted via ADLC B.
+an all-broadcast "BridgeReset" scout (JGH's term) -- ctrl=&80,
+port=&9C, payload = net_num_b. At reset time this is transmitted
+via ADLC A first (announcing "network net_num_b is reachable
+through me" to side A's stations), then tx_data0 is patched to
+net_num_a and the same frame is re-transmitted via ADLC B.
 
   tx_dst_stn = &FF                    broadcast station
   tx_dst_net = &FF                    broadcast network
@@ -822,11 +822,17 @@ comment(0xE455, "Loop for ctr24_lo iterations total")
 
 label(0xE48D, "build_query_response")
 subroutine(0xE48D, "build_query_response", hook=None,
-    title="Build a reply-scout frame addressed back to the querier",
+    title="Build a reply template for WhatNet/IsNet query responses",
     description="""\
 A second frame-builder (sibling of build_announce_b) used by the
-bridge-query response path. Where build_announce_b writes a
-broadcast-addressed template, this one builds a unicast reply:
+bridge-query response path. Called *twice* per response: once to
+build the reply scout (ctrl=&80 + reply_port as the port), then
+after the querier's scout-ACK has been received, called again to
+rebuild the buffer as a data frame -- the caller then patches
+bytes 4 and 5 (labelled tx_ctrl and tx_port but genuinely payload
+in a data frame) with the routing answer. Where build_announce_b
+writes a broadcast-addressed template, this one builds a unicast
+reply:
 
   tx_dst_stn = rx_src_stn          station that sent the query
   tx_dst_net = 0                   local network
