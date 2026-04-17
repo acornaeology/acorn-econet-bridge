@@ -732,6 +732,99 @@ Called from five sites: &E24E, &E25A, &E336, &E351, &E3D5.
 See handshake_rx_a for the per-instruction explanation.""")
 
 
+label(0xE208, "rx_a_forward")
+subroutine(0xE208, "rx_a_forward", hook=None, is_entry_point=False,
+    title="Forward an A-side frame to B, completing the 4-way handshake",
+    description="""\
+Entry point for cross-network forwarding of frames received on
+side A. Reached from three places:
+
+  * rx_a_to_forward (&E147): the A-side frame is addressed to a
+    remote station (not a full broadcast), and we have accepted
+    it via the routing filter.
+  * rx_frame_a ctrl dispatch fall-through (&E193): the frame is
+    broadcast + port &9C but has a control byte outside the
+    recognised bridge-protocol set (&80-&83).
+  * Fall-through from rx_a_handle_81 (&E207): we've learned from
+    the announcement and appended net_num_a to the payload; now
+    propagate it onward.
+
+The routine bridges the complete Econet four-way handshake by
+alternating direct-forward, receive-on-one-side, and re-transmit:
+
+  Stage 1 (SCOUT, A -> B): the inbound scout already sits in the
+  rx_* buffer (&023C..). Round rx_len down to even, wait for B
+  to be idle, then push the bytes directly into adlc_b_tx in
+  pairs (odd-length frames send the trailing byte as a single
+  write). Terminate by writing CR2=&3F (end-of-burst).
+
+  Stage 2 (ACK1, B -> A): handshake_rx_b drains the receiver's
+  ACK from ADLC B into the &045A staging buffer. transmit_frame_a
+  forwards it to the originator.
+
+  Stage 3 (DATA, A -> B): handshake_rx_a drains the sender's
+  data frame from ADLC A into &045A. transmit_frame_b forwards
+  it to the destination.
+
+  Stage 4 (ACK2, B -> A): handshake_rx_b drains the receiver's
+  final ACK. transmit_frame_a forwards it to the originator.
+
+Each handshake_rx_? call can escape to main_loop (PLA/PLA/JMP) if
+the expected frame doesn't arrive, cleanly aborting the bridged
+conversation without further work on either side.
+
+The A-B-A transmit pattern that appears at the routine's tail is
+therefore the natural shape of a bridged four-way handshake when
+the initial scout came from side A: two frames travel A -> B
+(scout and data) and two travel B -> A (two ACKs).""")
+
+comment(0xE208, "rx_len -> even-rounded byte count for pair loop")
+comment(0xE20B, "X = original rx_len (preserved for odd-fix at end)")
+comment(0xE211, "CSMA on side B before transmitting")
+comment(0xE214, "Y = 0: rx buffer offset")
+label(0xE216, "rx_a_forward_pair_loop")
+comment(0xE216, "Wait for TDRA on B")
+comment(0xE21C, "TDRA clear -> ADLC lost sync, escape to main")
+comment(0xE21E, "Send byte Y (from rx buffer) as continuation")
+comment(0xE225, "Send byte Y+1 (pair for throughput)")
+comment(0xE22C, "Done at even length?")
+comment(0xE231, "Recover original length to check parity")
+comment(0xE232, "ROR: carry <- bit 0 (= original length was odd?)")
+comment(0xE233, "Even -> skip trailing-byte path")
+comment(0xE235, "Odd-length tail: wait for TDRA")
+comment(0xE238, "...send the final byte")
+label(0xE23E, "rx_a_forward_ack_round")
+comment(0xE23E, "CR2 = &3F: end-of-burst (scout delivered)")
+comment(0xE246, "Reset mem_ptr to &045A for the handshake staging")
+comment(0xE24E, "Stage 2: receive ACK1 on B into &045A")
+comment(0xE251, "...forward ACK1 to A")
+comment(0xE254, "Stage 3: receive DATA on A into &045A")
+comment(0xE257, "...forward DATA to B")
+comment(0xE25A, "Stage 4: receive ACK2 on B into &045A")
+comment(0xE25D, "...forward ACK2 to A")
+label(0xE260, "rx_a_forward_done")
+comment(0xE260, "Handshake complete -> back to main_loop")
+
+
+label(0xE389, "rx_b_forward")
+subroutine(0xE389, "rx_b_forward", hook=None, is_entry_point=False,
+    title="Forward a B-side frame to A, completing the 4-way handshake",
+    description="""\
+Byte-for-byte mirror of rx_a_forward (&E208) with A and B swapped
+throughout: the inbound scout is pushed via adlc_a_tx, and the
+B-A-B tail bridges the four-way handshake the other direction.
+
+Reached from rx_b_to_forward (&E2C8), from rx_frame_b's ctrl
+dispatch fall-through (&E314), and from rx_b_handle_81's
+fall-through at &E387.
+
+See rx_a_forward for the full per-stage explanation.""")
+
+label(0xE397, "rx_b_forward_pair_loop")
+label(0xE3BF, "rx_b_forward_ack_round")
+label(0xE3E1, "rx_b_forward_done")
+
+
 label(0xE1D6, "rx_a_handle_80")
 subroutine(0xE1D6, "rx_a_handle_80", hook=None, is_entry_point=False,
     title="Side-A initial bridge announcement (ctrl=&80)",

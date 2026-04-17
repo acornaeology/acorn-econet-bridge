@@ -446,7 +446,7 @@ adlc_b_tx2      = &d803
 ; Dispatched to rx_a_forward at &E208
 ; &e147 referenced 2 times by &e171, &e180
 .rx_a_to_forward
-    jmp ce208                                                         ; e147: 4c 08 e2    L..
+    jmp rx_a_forward                                                  ; e147: 4c 08 e2    L..
 
 ; Save final byte count as rx_len
 ; &e14a referenced 2 times by &e131, &e13a
@@ -500,7 +500,7 @@ adlc_b_tx2      = &d803
     beq ce19d                                                         ; e18f: f0 0c       ..
 ; &83 -> bridge query, known-station path
     cmp #&83                                                          ; e191: c9 83       ..
-    bne ce208                                                         ; e193: d0 73       .s
+    bne rx_a_forward                                                  ; e193: d0 73       .s
 ; Station Y known in reachable_via_b?
     ldy rx_query_stn                                                  ; e195: ac 49 02    .I.
     lda reachable_via_b,y                                             ; e198: b9 5a 02    .Z.
@@ -601,50 +601,117 @@ adlc_b_tx2      = &d803
     sta rx_dst_stn,y                                                  ; e202: 99 3c 02    .<.
 ; Bump the frame length by one byte
     inc rx_len                                                        ; e205: ee 28 02    .(.
+; ***************************************************************************************
+; Forward an A-side frame to B, completing the 4-way handshake
+; 
+; Entry point for cross-network forwarding of frames received on
+; side A. Reached from three places:
+; 
+;   * rx_a_to_forward (&E147): the A-side frame is addressed to a
+;     remote station (not a full broadcast), and we have accepted
+;     it via the routing filter.
+;   * rx_frame_a ctrl dispatch fall-through (&E193): the frame is
+;     broadcast + port &9C but has a control byte outside the
+;     recognised bridge-protocol set (&80-&83).
+;   * Fall-through from rx_a_handle_81 (&E207): we've learned from
+;     the announcement and appended net_num_a to the payload; now
+;     propagate it onward.
+; 
+; The routine bridges the complete Econet four-way handshake by
+; alternating direct-forward, receive-on-one-side, and re-transmit:
+; 
+;   Stage 1 (SCOUT, A -> B): the inbound scout already sits in the
+;   rx_* buffer (&023C..). Round rx_len down to even, wait for B
+;   to be idle, then push the bytes directly into adlc_b_tx in
+;   pairs (odd-length frames send the trailing byte as a single
+;   write). Terminate by writing CR2=&3F (end-of-burst).
+; 
+;   Stage 2 (ACK1, B -> A): handshake_rx_b drains the receiver's
+;   ACK from ADLC B into the &045A staging buffer. transmit_frame_a
+;   forwards it to the originator.
+; 
+;   Stage 3 (DATA, A -> B): handshake_rx_a drains the sender's
+;   data frame from ADLC A into &045A. transmit_frame_b forwards
+;   it to the destination.
+; 
+;   Stage 4 (ACK2, B -> A): handshake_rx_b drains the receiver's
+;   final ACK. transmit_frame_a forwards it to the originator.
+; 
+; Each handshake_rx_? call can escape to main_loop (PLA/PLA/JMP) if
+; the expected frame doesn't arrive, cleanly aborting the bridged
+; conversation without further work on either side.
+; 
+; The A-B-A transmit pattern that appears at the routine's tail is
+; therefore the natural shape of a bridged four-way handshake when
+; the initial scout came from side A: two frames travel A -> B
+; (scout and data) and two travel B -> A (two ACKs).
+; rx_len -> even-rounded byte count for pair loop
 ; &e208 referenced 2 times by &e147, &e193
-.ce208
+.rx_a_forward
     lda rx_len                                                        ; e208: ad 28 02    .(.
+; X = original rx_len (preserved for odd-fix at end)
     tax                                                               ; e20b: aa          .
     and #&fe                                                          ; e20c: 29 fe       ).
     sta rx_len                                                        ; e20e: 8d 28 02    .(.
+; CSMA on side B before transmitting
     jsr wait_adlc_b_idle                                              ; e211: 20 90 e6     ..
+; Y = 0: rx buffer offset
     ldy #0                                                            ; e214: a0 00       ..
+; Wait for TDRA on B
 ; &e216 referenced 1 time by &e22f
-.loop_ce216
+.rx_a_forward_pair_loop
     jsr wait_adlc_b_irq                                               ; e216: 20 ea e3     ..
     bit adlc_b_cr1                                                    ; e219: 2c 00 d8    ,..
-    bvc ce260                                                         ; e21c: 50 42       PB
+; TDRA clear -> ADLC lost sync, escape to main
+    bvc rx_a_forward_done                                             ; e21c: 50 42       PB
+; Send byte Y (from rx buffer) as continuation
     lda rx_dst_stn,y                                                  ; e21e: b9 3c 02    .<.
     sta adlc_b_tx                                                     ; e221: 8d 02 d8    ...
     iny                                                               ; e224: c8          .
+; Send byte Y+1 (pair for throughput)
     lda rx_dst_stn,y                                                  ; e225: b9 3c 02    .<.
     sta adlc_b_tx                                                     ; e228: 8d 02 d8    ...
     iny                                                               ; e22b: c8          .
+; Done at even length?
     cpy rx_len                                                        ; e22c: cc 28 02    .(.
-    bcc loop_ce216                                                    ; e22f: 90 e5       ..
+    bcc rx_a_forward_pair_loop                                        ; e22f: 90 e5       ..
+; Recover original length to check parity
     txa                                                               ; e231: 8a          .
+; ROR: carry <- bit 0 (= original length was odd?)
     ror a                                                             ; e232: 6a          j
-    bcc ce23e                                                         ; e233: 90 09       ..
+; Even -> skip trailing-byte path
+    bcc rx_a_forward_ack_round                                        ; e233: 90 09       ..
+; Odd-length tail: wait for TDRA
     jsr wait_adlc_b_irq                                               ; e235: 20 ea e3     ..
+; ...send the final byte
     lda rx_dst_stn,y                                                  ; e238: b9 3c 02    .<.
     sta adlc_b_tx                                                     ; e23b: 8d 02 d8    ...
+; CR2 = &3F: end-of-burst (scout delivered)
 ; &e23e referenced 1 time by &e233
-.ce23e
+.rx_a_forward_ack_round
     lda #&3f ; '?'                                                    ; e23e: a9 3f       .?
     sta adlc_b_cr2                                                    ; e240: 8d 01 d8    ...
     jsr wait_adlc_b_irq                                               ; e243: 20 ea e3     ..
+; Reset mem_ptr to &045A for the handshake staging
     lda #&5a ; 'Z'                                                    ; e246: a9 5a       .Z
     sta mem_ptr_lo                                                    ; e248: 85 80       ..
     lda #4                                                            ; e24a: a9 04       ..
     sta mem_ptr_hi                                                    ; e24c: 85 81       ..
+; Stage 2: receive ACK1 on B into &045A
     jsr handshake_rx_b                                                ; e24e: 20 ff e5     ..
+; ...forward ACK1 to A
     jsr transmit_frame_a                                              ; e251: 20 17 e5     ..
+; Stage 3: receive DATA on A into &045A
     jsr handshake_rx_a                                                ; e254: 20 6e e5     n.
+; ...forward DATA to B
     jsr transmit_frame_b                                              ; e257: 20 c0 e4     ..
+; Stage 4: receive ACK2 on B into &045A
     jsr handshake_rx_b                                                ; e25a: 20 ff e5     ..
+; ...forward ACK2 to A
     jsr transmit_frame_a                                              ; e25d: 20 17 e5     ..
+; Handshake complete -> back to main_loop
 ; &e260 referenced 1 time by &e21c
-.ce260
+.rx_a_forward_done
     jmp main_loop                                                     ; e260: 4c 51 e0    LQ.
 
 ; ***************************************************************************************
@@ -720,7 +787,7 @@ adlc_b_tx2      = &d803
 
 ; &e2c8 referenced 2 times by &e2f2, &e301
 .rx_b_to_forward
-    jmp ce389                                                         ; e2c8: 4c 89 e3    L..
+    jmp rx_b_forward                                                  ; e2c8: 4c 89 e3    L..
 
 ; &e2cb referenced 2 times by &e2b2, &e2bb
 .rx_frame_b_dispatch
@@ -758,7 +825,7 @@ adlc_b_tx2      = &d803
     cmp #&82                                                          ; e30e: c9 82       ..
     beq ce31e                                                         ; e310: f0 0c       ..
     cmp #&83                                                          ; e312: c9 83       ..
-    bne ce389                                                         ; e314: d0 73       .s
+    bne rx_b_forward                                                  ; e314: d0 73       .s
     ldy rx_query_stn                                                  ; e316: ac 49 02    .I.
     lda reachable_via_a,y                                             ; e319: b9 5a 03    .Z.
     beq ce354                                                         ; e31c: f0 36       .6
@@ -812,8 +879,20 @@ adlc_b_tx2      = &d803
     lda net_num_b                                                     ; e380: ad 00 d0    ...
     sta rx_dst_stn,y                                                  ; e383: 99 3c 02    .<.
     inc rx_len                                                        ; e386: ee 28 02    .(.
+; ***************************************************************************************
+; Forward a B-side frame to A, completing the 4-way handshake
+; 
+; Byte-for-byte mirror of rx_a_forward (&E208) with A and B swapped
+; throughout: the inbound scout is pushed via adlc_a_tx, and the
+; B-A-B tail bridges the four-way handshake the other direction.
+; 
+; Reached from rx_b_to_forward (&E2C8), from rx_frame_b's ctrl
+; dispatch fall-through (&E314), and from rx_b_handle_81's
+; fall-through at &E387.
+; 
+; See rx_a_forward for the full per-stage explanation.
 ; &e389 referenced 2 times by &e2c8, &e314
-.ce389
+.rx_b_forward
     lda rx_len                                                        ; e389: ad 28 02    .(.
     tax                                                               ; e38c: aa          .
     and #&fe                                                          ; e38d: 29 fe       ).
@@ -821,10 +900,10 @@ adlc_b_tx2      = &d803
     jsr wait_adlc_a_idle                                              ; e392: 20 dc e6     ..
     ldy #0                                                            ; e395: a0 00       ..
 ; &e397 referenced 1 time by &e3b0
-.loop_ce397
+.rx_b_forward_pair_loop
     jsr wait_adlc_a_irq                                               ; e397: 20 e4 e3     ..
     bit adlc_a_cr1                                                    ; e39a: 2c 00 c8    ,..
-    bvc ce3e1                                                         ; e39d: 50 42       PB
+    bvc rx_b_forward_done                                             ; e39d: 50 42       PB
     lda rx_dst_stn,y                                                  ; e39f: b9 3c 02    .<.
     sta adlc_a_tx                                                     ; e3a2: 8d 02 c8    ...
     iny                                                               ; e3a5: c8          .
@@ -832,15 +911,15 @@ adlc_b_tx2      = &d803
     sta adlc_a_tx                                                     ; e3a9: 8d 02 c8    ...
     iny                                                               ; e3ac: c8          .
     cpy rx_len                                                        ; e3ad: cc 28 02    .(.
-    bcc loop_ce397                                                    ; e3b0: 90 e5       ..
+    bcc rx_b_forward_pair_loop                                        ; e3b0: 90 e5       ..
     txa                                                               ; e3b2: 8a          .
     ror a                                                             ; e3b3: 6a          j
-    bcc ce3bf                                                         ; e3b4: 90 09       ..
+    bcc rx_b_forward_ack_round                                        ; e3b4: 90 09       ..
     jsr wait_adlc_a_irq                                               ; e3b6: 20 e4 e3     ..
     lda rx_dst_stn,y                                                  ; e3b9: b9 3c 02    .<.
     sta adlc_a_tx                                                     ; e3bc: 8d 02 c8    ...
 ; &e3bf referenced 1 time by &e3b4
-.ce3bf
+.rx_b_forward_ack_round
     lda #&3f ; '?'                                                    ; e3bf: a9 3f       .?
     sta adlc_a_cr2                                                    ; e3c1: 8d 01 c8    ...
     jsr wait_adlc_a_irq                                               ; e3c4: 20 e4 e3     ..
@@ -855,7 +934,7 @@ adlc_b_tx2      = &d803
     jsr handshake_rx_a                                                ; e3db: 20 6e e5     n.
     jsr transmit_frame_b                                              ; e3de: 20 c0 e4     ..
 ; &e3e1 referenced 1 time by &e39d
-.ce3e1
+.rx_b_forward_done
     jmp main_loop                                                     ; e3e1: 4c 51 e0    LQ.
 
 ; ***************************************************************************************
@@ -2703,8 +2782,6 @@ save pydis_start, pydis_end
 ;     adlc_b_listen:            2
 ;     adlc_b_tx2:               2
 ;     build_announce_b:         2
-;     ce208:                    2
-;     ce389:                    2
 ;     ce4cc:                    2
 ;     ce523:                    2
 ;     ce593:                    2
@@ -2720,8 +2797,10 @@ save pydis_start, pydis_end
 ;     cf2d9:                    2
 ;     cf2e8:                    2
 ;     re_announce_done:         2
+;     rx_a_forward:             2
 ;     rx_a_not_for_us:          2
 ;     rx_a_to_forward:          2
+;     rx_b_forward:             2
 ;     rx_b_not_for_us:          2
 ;     rx_b_to_forward:          2
 ;     rx_ctrl:                  2
@@ -2739,16 +2818,12 @@ save pydis_start, pydis_end
 ;     ce169:                    1
 ;     ce19d:                    1
 ;     ce1d3:                    1
-;     ce23e:                    1
-;     ce260:                    1
 ;     ce2dd:                    1
 ;     ce2ea:                    1
 ;     ce31e:                    1
 ;     ce354:                    1
 ;     ce357:                    1
 ;     ce36f:                    1
-;     ce3bf:                    1
-;     ce3e1:                    1
 ;     ce4d4:                    1
 ;     ce4d9:                    1
 ;     ce4e9:                    1
@@ -2782,9 +2857,7 @@ save pydis_start, pydis_end
 ;     cf28c:                    1
 ;     cf291:                    1
 ;     l0248:                    1
-;     loop_ce216:               1
 ;     loop_ce371:               1
-;     loop_ce397:               1
 ;     loop_ce428:               1
 ;     loop_ce44a:               1
 ;     loop_ce44d:               1
@@ -2799,9 +2872,15 @@ save pydis_start, pydis_end
 ;     ram_test_loop:            1
 ;     re_announce_rearm:        1
 ;     re_announce_side_b:       1
+;     rx_a_forward_ack_round:   1
+;     rx_a_forward_done:        1
+;     rx_a_forward_pair_loop:   1
 ;     rx_a_handle_80:           1
 ;     rx_a_handle_81:           1
 ;     rx_a_learn_loop:          1
+;     rx_b_forward_ack_round:   1
+;     rx_b_forward_done:        1
+;     rx_b_forward_pair_loop:   1
 ;     rx_frame_a:               1
 ;     rx_frame_a_drain:         1
 ;     rx_frame_a_end:           1
@@ -2821,18 +2900,12 @@ save pydis_start, pydis_end
 ;     ce169
 ;     ce19d
 ;     ce1d3
-;     ce208
-;     ce23e
-;     ce260
 ;     ce2dd
 ;     ce2ea
 ;     ce31e
 ;     ce354
 ;     ce357
 ;     ce36f
-;     ce389
-;     ce3bf
-;     ce3e1
 ;     ce4cc
 ;     ce4d4
 ;     ce4d9
@@ -2893,9 +2966,7 @@ save pydis_start, pydis_end
 ;     l0002
 ;     l0003
 ;     l0248
-;     loop_ce216
 ;     loop_ce371
-;     loop_ce397
 ;     loop_ce428
 ;     loop_ce44a
 ;     loop_ce44d
