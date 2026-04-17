@@ -55,6 +55,8 @@ Writeups of interesting details uncovered during the disassembly work.
   Architectural writeup on why the Bridge operates without a station number on either of its connected networks. Evidence from the board's two 74LS244 network-number buffers, the firmware's network-keyed routing tables, and the Installation Guide. Covers the &18 firmware marker in outbound announcements and the practical implications for anyone reading the disassembly.
 - [Bridging the four-way handshake](docs/analysis/four-way-handshake-bridging.md)
   How the Bridge forwards Econet's four-stage scout/ACK/data/ACK transactions across two segments. Documents the receive-and-stage pattern that makes rx_a_forward's puzzling A-B-A transmit tail resolve into a clean protocol implementation, and the role of escape-to-main in making mid-handshake failures safe without any per-transaction state.
+- [Event-driven re-announcement: why a solo Bridge goes silent](docs/analysis/event-driven-reannouncement.md)
+  A full-ROM audit of every write to announce_flag shows that bridge re-announcement is purely reactive: only receiving a BridgeReset from another bridge triggers a burst, and BridgeReply frames deliberately don't cascade. A bridge with no peers emits two frames in its lifetime and then stays silent forever — by design, not by bug.
 
 ## References
 

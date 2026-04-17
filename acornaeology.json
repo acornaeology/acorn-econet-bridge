@@ -46,6 +46,12 @@
             "url": "docs/analysis/four-way-handshake-bridging.md",
             "icon": "doc",
             "note": "How the Bridge forwards Econet's four-stage scout/ACK/data/ACK transactions across two segments. Documents the receive-and-stage pattern that makes rx_a_forward's puzzling A-B-A transmit tail resolve into a clean protocol implementation, and the role of escape-to-main in making mid-handshake failures safe without any per-transaction state."
+        },
+        {
+            "label": "Event-driven re-announcement: why a solo Bridge goes silent",
+            "url": "docs/analysis/event-driven-reannouncement.md",
+            "icon": "doc",
+            "note": "A full-ROM audit of every write to announce_flag shows that bridge re-announcement is purely reactive: only receiving a BridgeReset from another bridge triggers a burst, and BridgeReply frames deliberately don't cascade. A bridge with no peers emits two frames in its lifetime and then stays silent forever — by design, not by bug."
         }
     ],
     "references": [
