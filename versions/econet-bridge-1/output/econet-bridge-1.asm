@@ -1314,57 +1314,57 @@ adlc_b_tx2      = &d803
 ; &E3D2, &E3DE.
 ; &e4c0 referenced 7 times by &e04e, &e0d8, &e257, &e333, &e34e, &e3d2, &e3de
 .transmit_frame_b
-    lda #&e7                                                          ; e4c0: a9 e7       ..
-    sta adlc_b_cr2                                                    ; e4c2: 8d 01 d8    ...
-    lda #&44 ; 'D'                                                    ; e4c5: a9 44       .D
-    sta adlc_b_cr1                                                    ; e4c7: 8d 00 d8    ...
-    ldy #0                                                            ; e4ca: a0 00       ..
+    lda #&e7                                                          ; e4c0: a9 e7       ..             ; A = &E7: prime CR2 for TX (FC_TDRA, 2/1-byte, PSE)
+    sta adlc_b_cr2                                                    ; e4c2: 8d 01 d8    ...            ; Commit CR2 on ADLC B
+    lda #&44 ; 'D'                                                    ; e4c5: a9 44       .D             ; A = &44: arm CR1 for TX (TX on, RX off for now)
+    sta adlc_b_cr1                                                    ; e4c7: 8d 00 d8    ...            ; Commit CR1 on ADLC B
+    ldy #0                                                            ; e4ca: a0 00       ..             ; Y = 0: byte offset into the frame buffer
 ; &e4cc referenced 2 times by &e4ec, &e4f3
-.ce4cc
-    jsr wait_adlc_b_irq                                               ; e4cc: 20 ea e3     ..
-    bit adlc_b_cr1                                                    ; e4cf: 2c 00 d8    ,..
-    bvs ce4d9                                                         ; e4d2: 70 05       p.
+.transmit_frame_b_pair_loop
+    jsr wait_adlc_b_irq                                               ; e4cc: 20 ea e3     ..            ; Wait for ADLC B IRQ (TDRA = FIFO ready for bytes)
+    bit adlc_b_cr1                                                    ; e4cf: 2c 00 d8    ,..            ; BIT SR1 -- V flag <- bit 6 (TDRA)
+    bvs transmit_frame_b_send_pair                                    ; e4d2: 70 05       p.             ; TDRA set -> FIFO has room, send the next pair
 ; &e4d4 referenced 1 time by &e4ff
-.ce4d4
-    pla                                                               ; e4d4: 68          h
-    pla                                                               ; e4d5: 68          h
-    jmp main_loop                                                     ; e4d6: 4c 51 e0    LQ.
+.transmit_frame_b_escape
+    pla                                                               ; e4d4: 68          h              ; TDRA clear -> ADLC state bad; drop return address...
+    pla                                                               ; e4d5: 68          h              ; ...(second PLA completes the drop)
+    jmp main_loop                                                     ; e4d6: 4c 51 e0    LQ.            ; ...and escape to main_loop
 
 ; &e4d9 referenced 1 time by &e4d2
-.ce4d9
-    lda (mem_ptr_lo),y                                                ; e4d9: b1 80       ..
-    sta adlc_b_tx                                                     ; e4db: 8d 02 d8    ...
-    iny                                                               ; e4de: c8          .
-    lda (mem_ptr_lo),y                                                ; e4df: b1 80       ..
-    sta adlc_b_tx                                                     ; e4e1: 8d 02 d8    ...
-    iny                                                               ; e4e4: c8          .
-    bne ce4e9                                                         ; e4e5: d0 02       ..
-    inc mem_ptr_hi                                                    ; e4e7: e6 81       ..
+.transmit_frame_b_send_pair
+    lda (mem_ptr_lo),y                                                ; e4d9: b1 80       ..             ; Load frame byte at (mem_ptr),Y
+    sta adlc_b_tx                                                     ; e4db: 8d 02 d8    ...            ; Push to ADLC B's TX FIFO
+    iny                                                               ; e4de: c8          .              ; Advance Y within page
+    lda (mem_ptr_lo),y                                                ; e4df: b1 80       ..             ; Load the next frame byte
+    sta adlc_b_tx                                                     ; e4e1: 8d 02 d8    ...            ; Push the second byte of the pair
+    iny                                                               ; e4e4: c8          .              ; Advance Y again
+    bne transmit_frame_b_end_check                                    ; e4e5: d0 02       ..             ; Non-zero Y -> stay on current page
+    inc mem_ptr_hi                                                    ; e4e7: e6 81       ..             ; Y wrapped to zero -> bump mem_ptr to next page
 ; &e4e9 referenced 1 time by &e4e5
-.ce4e9
-    cpy tx_end_lo                                                     ; e4e9: cc 00 02    ...
-    bne ce4cc                                                         ; e4ec: d0 de       ..
-    lda mem_ptr_hi                                                    ; e4ee: a5 81       ..
-    cmp tx_end_hi                                                     ; e4f0: cd 01 02    ...
-    bcc ce4cc                                                         ; e4f3: 90 d7       ..
-    txa                                                               ; e4f5: 8a          .
-    ror a                                                             ; e4f6: 6a          j
-    bcc ce506                                                         ; e4f7: 90 0d       ..
-    jsr wait_adlc_b_irq                                               ; e4f9: 20 ea e3     ..
-    bit adlc_b_cr1                                                    ; e4fc: 2c 00 d8    ,..
-    bvc ce4d4                                                         ; e4ff: 50 d3       P.
-    lda (mem_ptr_lo),y                                                ; e501: b1 80       ..
-    sta adlc_b_tx                                                     ; e503: 8d 02 d8    ...
+.transmit_frame_b_end_check
+    cpy tx_end_lo                                                     ; e4e9: cc 00 02    ...            ; Compare Y with tx_end_lo
+    bne transmit_frame_b_pair_loop                                    ; e4ec: d0 de       ..             ; Still short of end-of-frame low byte -> more to send
+    lda mem_ptr_hi                                                    ; e4ee: a5 81       ..             ; Load current mem_ptr_hi
+    cmp tx_end_hi                                                     ; e4f0: cd 01 02    ...            ; Compare with tx_end_hi
+    bcc transmit_frame_b_pair_loop                                    ; e4f3: 90 d7       ..             ; Still on a lower page than the end -> more to send
+    txa                                                               ; e4f5: 8a          .              ; Recover X (trailing-byte flag) from before the loop
+    ror a                                                             ; e4f6: 6a          j              ; Rotate bit 0 into carry
+    bcc transmit_frame_b_finish                                       ; e4f7: 90 0d       ..             ; X was even -> no trailing byte, skip ahead
+    jsr wait_adlc_b_irq                                               ; e4f9: 20 ea e3     ..            ; X was odd -> wait for TDRA once more
+    bit adlc_b_cr1                                                    ; e4fc: 2c 00 d8    ,..            ; BIT SR1 to test TDRA again
+    bvc transmit_frame_b_escape                                       ; e4ff: 50 d3       P.             ; TDRA clear -> escape (mirror of &E4D4)
+    lda (mem_ptr_lo),y                                                ; e501: b1 80       ..             ; Load the extra trailing byte
+    sta adlc_b_tx                                                     ; e503: 8d 02 d8    ...            ; Push trailing byte to TX FIFO
 ; &e506 referenced 1 time by &e4f7
-.ce506
-    lda #&3f ; '?'                                                    ; e506: a9 3f       .?
-    sta adlc_b_cr2                                                    ; e508: 8d 01 d8    ...
-    jsr wait_adlc_b_irq                                               ; e50b: 20 ea e3     ..
-    lda #&5a ; 'Z'                                                    ; e50e: a9 5a       .Z
-    sta mem_ptr_lo                                                    ; e510: 85 80       ..
-    lda #4                                                            ; e512: a9 04       ..
-    sta mem_ptr_hi                                                    ; e514: 85 81       ..
-    rts                                                               ; e516: 60          `
+.transmit_frame_b_finish
+    lda #&3f ; '?'                                                    ; e506: a9 3f       .?             ; A = &3F: signal end-of-burst via CR2
+    sta adlc_b_cr2                                                    ; e508: 8d 01 d8    ...            ; Commit CR2 -- ADLC flushes and flags frame-complete
+    jsr wait_adlc_b_irq                                               ; e50b: 20 ea e3     ..            ; Wait for the frame-complete IRQ
+    lda #&5a ; 'Z'                                                    ; e50e: a9 5a       .Z             ; A = &5A: reset mem_ptr_lo to &045A base
+    sta mem_ptr_lo                                                    ; e510: 85 80       ..             ; Store mem_ptr_lo
+    lda #4                                                            ; e512: a9 04       ..             ; A = 4: reset mem_ptr_hi to page &04
+    sta mem_ptr_hi                                                    ; e514: 85 81       ..             ; Store mem_ptr_hi -- pointer ready for next builder
+    rts                                                               ; e516: 60          `              ; Return; the frame has left ADLC B
 
 ; ***************************************************************************************
 ; Send the frame at mem_ptr out through ADLC A's TX FIFO
@@ -1396,76 +1396,59 @@ adlc_b_tx2      = &d803
 ; 
 ; Called from seven sites: reset (&E03E), &E0AD, &E1B2, &E1CD, &E251,
 ; &E25D, &E3D8.
-; CR2 = &E7: prime for TX (FC_TDRA, 2-byte, PSE+extras)
 ; &e517 referenced 7 times by &e03e, &e0ad, &e1b2, &e1cd, &e251, &e25d, &e3d8
 .transmit_frame_a
-    lda #&e7                                                          ; e517: a9 e7       ..
-    sta adlc_a_cr2                                                    ; e519: 8d 01 c8    ...
-; CR1 = &44: arm TX interrupts
-    lda #&44 ; 'D'                                                    ; e51c: a9 44       .D
-    sta adlc_a_cr1                                                    ; e51e: 8d 00 c8    ...
-; Y = 0 (buffer offset into frame)
-    ldy #0                                                            ; e521: a0 00       ..
-; Wait for ADLC A to flag TDRA
+    lda #&e7                                                          ; e517: a9 e7       ..             ; A = &E7: prime CR2 for TX (FC_TDRA, 2/1-byte, PSE)
+    sta adlc_a_cr2                                                    ; e519: 8d 01 c8    ...            ; Commit CR2 on ADLC A
+    lda #&44 ; 'D'                                                    ; e51c: a9 44       .D             ; A = &44: arm CR1 for TX (TX on, RX off for now)
+    sta adlc_a_cr1                                                    ; e51e: 8d 00 c8    ...            ; Commit CR1 on ADLC A
+    ldy #0                                                            ; e521: a0 00       ..             ; Y = 0: byte offset into the frame buffer
 ; &e523 referenced 2 times by &e543, &e54a
-.ce523
-    jsr wait_adlc_a_irq                                               ; e523: 20 e4 e3     ..
-; Test SR1 V-flag (TDRA bit 6)
-    bit adlc_a_cr1                                                    ; e526: 2c 00 c8    ,..
-; V set -> room in FIFO, send next pair
-    bvs ce530                                                         ; e529: 70 05       p.
-; V clear: abandon frame and escape to main loop
+.transmit_frame_a_pair_loop
+    jsr wait_adlc_a_irq                                               ; e523: 20 e4 e3     ..            ; Wait for ADLC A IRQ (TDRA = FIFO ready for bytes)
+    bit adlc_a_cr1                                                    ; e526: 2c 00 c8    ,..            ; BIT SR1 -- V flag <- bit 6 (TDRA)
+    bvs transmit_frame_a_send_pair                                    ; e529: 70 05       p.             ; TDRA set -> FIFO has room, send the next pair
 ; &e52b referenced 1 time by &e556
-.ce52b
-    pla                                                               ; e52b: 68          h
-    pla                                                               ; e52c: 68          h
-    jmp main_loop                                                     ; e52d: 4c 51 e0    LQ.
+.transmit_frame_a_escape
+    pla                                                               ; e52b: 68          h              ; TDRA clear -> ADLC state bad; drop return address...
+    pla                                                               ; e52c: 68          h              ; ...(second PLA completes the drop)
+    jmp main_loop                                                     ; e52d: 4c 51 e0    LQ.            ; ...and escape to main_loop
 
-; Load and send frame byte Y
 ; &e530 referenced 1 time by &e529
-.ce530
-    lda (mem_ptr_lo),y                                                ; e530: b1 80       ..
-    sta adlc_a_tx                                                     ; e532: 8d 02 c8    ...
-    iny                                                               ; e535: c8          .
-; Load and send frame byte Y+1
-    lda (mem_ptr_lo),y                                                ; e536: b1 80       ..
-    sta adlc_a_tx                                                     ; e538: 8d 02 c8    ...
-    iny                                                               ; e53b: c8          .
-; Y wrapped: bump mem_ptr_hi
-    bne ce540                                                         ; e53c: d0 02       ..
-    inc mem_ptr_hi                                                    ; e53e: e6 81       ..
-; Terminate once Y == tx_end_lo and hi == tx_end_hi
+.transmit_frame_a_send_pair
+    lda (mem_ptr_lo),y                                                ; e530: b1 80       ..             ; Load frame byte at (mem_ptr),Y
+    sta adlc_a_tx                                                     ; e532: 8d 02 c8    ...            ; Push to ADLC A's TX FIFO
+    iny                                                               ; e535: c8          .              ; Advance Y within page
+    lda (mem_ptr_lo),y                                                ; e536: b1 80       ..             ; Load the next frame byte
+    sta adlc_a_tx                                                     ; e538: 8d 02 c8    ...            ; Push the second byte of the pair
+    iny                                                               ; e53b: c8          .              ; Advance Y again
+    bne transmit_frame_a_end_check                                    ; e53c: d0 02       ..             ; Non-zero Y -> stay on current page
+    inc mem_ptr_hi                                                    ; e53e: e6 81       ..             ; Y wrapped to zero -> bump mem_ptr to next page
 ; &e540 referenced 1 time by &e53c
-.ce540
-    cpy tx_end_lo                                                     ; e540: cc 00 02    ...
-    bne ce523                                                         ; e543: d0 de       ..
-    lda mem_ptr_hi                                                    ; e545: a5 81       ..
-    cmp tx_end_hi                                                     ; e547: cd 01 02    ...
-    bcc ce523                                                         ; e54a: 90 d7       ..
-; X!=0: send one more trailing byte (X bit 0 only)
-    txa                                                               ; e54c: 8a          .
-    ror a                                                             ; e54d: 6a          j
-    bcc ce55d                                                         ; e54e: 90 0d       ..
-; Wait for TDRA before trailing byte
-    jsr wait_adlc_a_irq                                               ; e550: 20 e4 e3     ..
-    bit adlc_a_cr1                                                    ; e553: 2c 00 c8    ,..
-; V clear -> escape (mirror of &E52B)
-    bvc ce52b                                                         ; e556: 50 d3       P.
-; Send trailing byte (tx_data0 in announce frames)
-    lda (mem_ptr_lo),y                                                ; e558: b1 80       ..
-    sta adlc_a_tx                                                     ; e55a: 8d 02 c8    ...
-; CR2 = &3F: signal end of burst, wait for completion
+.transmit_frame_a_end_check
+    cpy tx_end_lo                                                     ; e540: cc 00 02    ...            ; Compare Y with tx_end_lo
+    bne transmit_frame_a_pair_loop                                    ; e543: d0 de       ..             ; Still short of end-of-frame low byte -> more to send
+    lda mem_ptr_hi                                                    ; e545: a5 81       ..             ; Load current mem_ptr_hi
+    cmp tx_end_hi                                                     ; e547: cd 01 02    ...            ; Compare with tx_end_hi
+    bcc transmit_frame_a_pair_loop                                    ; e54a: 90 d7       ..             ; Still on a lower page than the end -> more to send
+    txa                                                               ; e54c: 8a          .              ; Recover X (trailing-byte flag) from before the loop
+    ror a                                                             ; e54d: 6a          j              ; Rotate bit 0 into carry
+    bcc transmit_frame_a_finish                                       ; e54e: 90 0d       ..             ; X was even -> no trailing byte, skip ahead
+    jsr wait_adlc_a_irq                                               ; e550: 20 e4 e3     ..            ; X was odd -> wait for TDRA once more
+    bit adlc_a_cr1                                                    ; e553: 2c 00 c8    ,..            ; BIT SR1 to test TDRA again
+    bvc transmit_frame_a_escape                                       ; e556: 50 d3       P.             ; TDRA clear -> escape (mirror of &E52B)
+    lda (mem_ptr_lo),y                                                ; e558: b1 80       ..             ; Load the extra trailing byte (tx_data0 in announce frames)
+    sta adlc_a_tx                                                     ; e55a: 8d 02 c8    ...            ; Push trailing byte to TX FIFO
 ; &e55d referenced 1 time by &e54e
-.ce55d
-    lda #&3f ; '?'                                                    ; e55d: a9 3f       .?
-    sta adlc_a_cr2                                                    ; e55f: 8d 01 c8    ...
-    jsr wait_adlc_a_irq                                               ; e562: 20 e4 e3     ..
-; Reset mem_ptr to &045A for next builder
-    lda #&5a ; 'Z'                                                    ; e565: a9 5a       .Z
-    sta mem_ptr_lo                                                    ; e567: 85 80       ..
-    lda #4                                                            ; e569: a9 04       ..
-    sta mem_ptr_hi                                                    ; e56b: 85 81       ..
-    rts                                                               ; e56d: 60          `
+.transmit_frame_a_finish
+    lda #&3f ; '?'                                                    ; e55d: a9 3f       .?             ; A = &3F: signal end-of-burst via CR2
+    sta adlc_a_cr2                                                    ; e55f: 8d 01 c8    ...            ; Commit CR2 -- ADLC flushes and flags frame-complete
+    jsr wait_adlc_a_irq                                               ; e562: 20 e4 e3     ..            ; Wait for the frame-complete IRQ
+    lda #&5a ; 'Z'                                                    ; e565: a9 5a       .Z             ; A = &5A: reset mem_ptr_lo to &045A base
+    sta mem_ptr_lo                                                    ; e567: 85 80       ..             ; Store mem_ptr_lo
+    lda #4                                                            ; e569: a9 04       ..             ; A = 4: reset mem_ptr_hi to page &04
+    sta mem_ptr_hi                                                    ; e56b: 85 81       ..             ; Store mem_ptr_hi -- pointer ready for next builder
+    rts                                                               ; e56d: 60          `              ; Return; the frame has left ADLC A
 
 ; ***************************************************************************************
 ; Receive a handshake frame on ADLC A and stage it for forward
@@ -3001,8 +2984,6 @@ save pydis_start, pydis_end
 ;     adlc_b_listen:                 2
 ;     adlc_b_tx2:                    2
 ;     build_announce_b:              2
-;     ce4cc:                         2
-;     ce523:                         2
 ;     ce593:                         2
 ;     ce624:                         2
 ;     ram_test_fail_long_delay:      2
@@ -3027,6 +3008,8 @@ save pydis_start, pydis_end
 ;     self_test_ram_pattern_loop:    2
 ;     self_test_rom_checksum_loop:   2
 ;     stagger_delay:                 2
+;     transmit_frame_a_pair_loop:    2
+;     transmit_frame_b_pair_loop:    2
 ;     tx_src_stn:                    2
 ;     adlc_a_full_reset:             1
 ;     adlc_b_full_reset:             1
@@ -3036,14 +3019,6 @@ save pydis_start, pydis_end
 ;     ce2dd:                         1
 ;     ce2ea:                         1
 ;     ce354:                         1
-;     ce4d4:                         1
-;     ce4d9:                         1
-;     ce4e9:                         1
-;     ce506:                         1
-;     ce52b:                         1
-;     ce530:                         1
-;     ce540:                         1
-;     ce55d:                         1
 ;     ce5b6:                         1
 ;     ce5cf:                         1
 ;     ce5e1:                         1
@@ -3106,6 +3081,14 @@ save pydis_start, pydis_end
 ;     stagger_delay_inner:           1
 ;     stagger_delay_outer:           1
 ;     stagger_delay_prelude:         1
+;     transmit_frame_a_end_check:    1
+;     transmit_frame_a_escape:       1
+;     transmit_frame_a_finish:       1
+;     transmit_frame_a_send_pair:    1
+;     transmit_frame_b_end_check:    1
+;     transmit_frame_b_escape:       1
+;     transmit_frame_b_finish:       1
+;     transmit_frame_b_send_pair:    1
 ;     wait_adlc_a_idle_ready:        1
 ;     wait_adlc_a_idle_tick:         1
 ;     wait_adlc_b_idle_ready:        1
@@ -3118,16 +3101,6 @@ save pydis_start, pydis_end
 ;     ce2dd
 ;     ce2ea
 ;     ce354
-;     ce4cc
-;     ce4d4
-;     ce4d9
-;     ce4e9
-;     ce506
-;     ce523
-;     ce52b
-;     ce530
-;     ce540
-;     ce55d
 ;     ce593
 ;     ce5b1
 ;     ce5b6
