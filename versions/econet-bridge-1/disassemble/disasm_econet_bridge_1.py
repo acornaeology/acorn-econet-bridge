@@ -93,6 +93,20 @@ byte(0xFFF0)
 comment(0xFFF0, "Checksum-tuning byte: balances the ROM sum to &55")
 label(0xFFF0, "rom_checksum_adjust")
 
+# &FF padding regions in the ROM tail. Declaring them as fills rather
+# than letting them default to auto-byte classification collapses
+# thousands of equb lines into three FOR loops in the beebasm output,
+# while still round-tripping to byte-identical bytes at assembly time.
+#   &E728-&EFFF  (2264 bytes) after wait_adlc_a_idle, before the
+#                self-test ROM begins at &F000.
+#   &F30B-&FFEF  (3301 bytes) after self_test_fail_spacer_delay's
+#                JMP, before rom_checksum_adjust at &FFF0.
+#   &FFF1-&FFF9  (9 bytes)    between rom_checksum_adjust and the
+#                three hardware vectors at &FFFA-&FFFF.
+fill(0xE728, 2264)
+fill(0xF30B, 3301)
+fill(0xFFF1, 9)
+
 # Hardware vector data declarations
 word(0xFFFA)
 if 0xE000 <= _nmi_addr <= 0xFFF9:
