@@ -2146,11 +2146,11 @@ adlc_b_tx2      = &d803
     sta l0001                                                         ; f033: 85 01       ..             ; Write pattern to scratch byte &01
     sta l0002                                                         ; f035: 85 02       ..             ; Write pattern to scratch byte &02
     cmp l0000                                                         ; f037: c5 00       ..             ; Check &00 still reads as pattern
-    bne cf09d                                                         ; f039: d0 62       .b             ; Mismatch -> ram_test_fail (distinct blink pattern)
+    bne self_test_ram_fail_jump                                       ; f039: d0 62       .b             ; Mismatch -> ram_test_fail (distinct blink pattern)
     cmp l0001                                                         ; f03b: c5 01       ..             ; Check &01 still reads as pattern
-    bne cf09d                                                         ; f03d: d0 5e       .^             ; Mismatch -> ram_test_fail
+    bne self_test_ram_fail_jump                                       ; f03d: d0 5e       .^             ; Mismatch -> ram_test_fail
     cmp l0002                                                         ; f03f: c5 02       ..             ; Check &02 still reads as pattern
-    bne cf09d                                                         ; f041: d0 5a       .Z             ; Mismatch -> ram_test_fail
+    bne self_test_ram_fail_jump                                       ; f041: d0 5a       .Z             ; Mismatch -> ram_test_fail
     cmp #&aa                                                          ; f043: c9 aa       ..             ; Was the pattern &AA? then both halves passed
     beq self_test_rom_checksum                                        ; f045: f0 05       ..             ; Yes -> continue to ROM checksum
     lda #&aa                                                          ; f047: a9 aa       ..             ; Second test pattern = &AA (1010_1010)
@@ -2204,35 +2204,35 @@ adlc_b_tx2      = &d803
 ; use the normal blink-code loop which needs RAM workspace).
 ; &f070 referenced 1 time by &f069
 .self_test_ram_pattern
-    lda #0                                                            ; f070: a9 00       ..
-    sta l0000                                                         ; f072: 85 00       ..
-    lda #0                                                            ; f074: a9 00       ..
-    sta l0001                                                         ; f076: 85 01       ..
-    lda #&20 ; ' '                                                    ; f078: a9 20       .
-    sta l0002                                                         ; f07a: 85 02       ..
-    ldy #4                                                            ; f07c: a0 04       ..
+    lda #0                                                            ; f070: a9 00       ..             ; A = 0: low byte of the RAM-test indirect pointer
+    sta l0000                                                         ; f072: 85 00       ..             ; Store pointer_lo
+    lda #0                                                            ; f074: a9 00       ..             ; A = 0: high byte -- start scanning at RAM base
+    sta l0001                                                         ; f076: 85 01       ..             ; Store pointer_hi
+    lda #&20 ; ' '                                                    ; f078: a9 20       .              ; A = &20: 32 pages to cover (the full 8 KiB)
+    sta l0002                                                         ; f07a: 85 02       ..             ; Store page counter
+    ldy #4                                                            ; f07c: a0 04       ..             ; Y = 4: skip &0000-&0003 (self-test scratch)
 ; &f07e referenced 2 times by &f093, &f099
-.cf07e
-    lda #&55 ; 'U'                                                    ; f07e: a9 55       .U
-    sta (l0000),y                                                     ; f080: 91 00       ..
-    lda (l0000),y                                                     ; f082: b1 00       ..
-    cmp #&55 ; 'U'                                                    ; f084: c9 55       .U
-    bne cf09d                                                         ; f086: d0 15       ..
-    lda #&aa                                                          ; f088: a9 aa       ..
-    sta (l0000),y                                                     ; f08a: 91 00       ..
-    lda (l0000),y                                                     ; f08c: b1 00       ..
-    cmp #&aa                                                          ; f08e: c9 aa       ..
-    bne cf09d                                                         ; f090: d0 0b       ..
-    iny                                                               ; f092: c8          .
-    bne cf07e                                                         ; f093: d0 e9       ..
-    inc l0001                                                         ; f095: e6 01       ..
-    dec l0002                                                         ; f097: c6 02       ..
-    bne cf07e                                                         ; f099: d0 e3       ..
-    beq self_test_ram_incr                                            ; f09b: f0 03       ..             ; ALWAYS branch
+.self_test_ram_pattern_loop
+    lda #&55 ; 'U'                                                    ; f07e: a9 55       .U             ; First pattern = &55 (alternating 1-0 nibbles)
+    sta (l0000),y                                                     ; f080: 91 00       ..             ; Write pattern to the current RAM byte
+    lda (l0000),y                                                     ; f082: b1 00       ..             ; Read the same byte back
+    cmp #&55 ; 'U'                                                    ; f084: c9 55       .U             ; Verify the cell held the written pattern
+    bne self_test_ram_fail_jump                                       ; f086: d0 15       ..             ; Mismatch -> ram_test_fail (unreliable storage)
+    lda #&aa                                                          ; f088: a9 aa       ..             ; Second pattern = &AA (the bitwise complement)
+    sta (l0000),y                                                     ; f08a: 91 00       ..             ; Write complement to catch stuck-bit faults
+    lda (l0000),y                                                     ; f08c: b1 00       ..             ; Read it back
+    cmp #&aa                                                          ; f08e: c9 aa       ..             ; Verify
+    bne self_test_ram_fail_jump                                       ; f090: d0 0b       ..             ; Mismatch -> ram_test_fail
+    iny                                                               ; f092: c8          .              ; Advance to next byte within the page
+    bne self_test_ram_pattern_loop                                    ; f093: d0 e9       ..             ; Loop 256 times through the current page
+    inc l0001                                                         ; f095: e6 01       ..             ; Advance to the next page
+    dec l0002                                                         ; f097: c6 02       ..             ; One page done; decrement the remaining-page count
+    bne self_test_ram_pattern_loop                                    ; f099: d0 e3       ..             ; Continue until all 32 pages verified
+    beq self_test_ram_incr                                            ; f09b: f0 03       ..             ; All 8 KiB good -- fall through to the incrementing test
 
 ; &f09d referenced 6 times by &f039, &f03d, &f041, &f086, &f090, &f0c9
-.cf09d
-    jmp ram_test_fail                                                 ; f09d: 4c 8c f2    L..
+.self_test_ram_fail_jump
+    jmp ram_test_fail                                                 ; f09d: 4c 8c f2    L..            ; Any RAM check mismatch lands here; forward to blinker
 
 ; ***************************************************************************************
 ; RAM incrementing-pattern test: fill with X, read back
@@ -2251,41 +2251,41 @@ adlc_b_tx2      = &d803
 ; On mismatch, jumps to ram_test_fail at &F28C.
 ; &f0a0 referenced 1 time by &f09b
 .self_test_ram_incr
-    lda #0                                                            ; f0a0: a9 00       ..
-    sta l0001                                                         ; f0a2: 85 01       ..
-    lda #&20 ; ' '                                                    ; f0a4: a9 20       .
-    sta l0002                                                         ; f0a6: 85 02       ..
-    ldy #4                                                            ; f0a8: a0 04       ..
-    ldx #0                                                            ; f0aa: a2 00       ..
+    lda #0                                                            ; f0a0: a9 00       ..             ; A = 0: low byte of the pointer stays zero
+    sta l0001                                                         ; f0a2: 85 01       ..             ; Reset pointer_hi to RAM base for the fill phase
+    lda #&20 ; ' '                                                    ; f0a4: a9 20       .              ; A = &20: full 32-page coverage again
+    sta l0002                                                         ; f0a6: 85 02       ..             ; Store the page counter
+    ldy #4                                                            ; f0a8: a0 04       ..             ; Y = 4: skip the self-test scratch bytes
+    ldx #0                                                            ; f0aa: a2 00       ..             ; X = 0: seed the fill value
 ; &f0ac referenced 2 times by &f0b1, &f0b8
-.cf0ac
-    txa                                                               ; f0ac: 8a          .
-    sta (l0000),y                                                     ; f0ad: 91 00       ..
-    inx                                                               ; f0af: e8          .
-    iny                                                               ; f0b0: c8          .
-    bne cf0ac                                                         ; f0b1: d0 f9       ..
-    inc l0001                                                         ; f0b3: e6 01       ..
-    inx                                                               ; f0b5: e8          .
-    dec l0002                                                         ; f0b6: c6 02       ..
-    bne cf0ac                                                         ; f0b8: d0 f2       ..
-    lda #0                                                            ; f0ba: a9 00       ..
-    sta l0001                                                         ; f0bc: 85 01       ..
-    lda #&20 ; ' '                                                    ; f0be: a9 20       .
-    sta l0002                                                         ; f0c0: 85 02       ..
-    ldy #4                                                            ; f0c2: a0 04       ..
-    ldx #0                                                            ; f0c4: a2 00       ..
+.self_test_ram_incr_fill
+    txa                                                               ; f0ac: 8a          .              ; A = X: the current fill value
+    sta (l0000),y                                                     ; f0ad: 91 00       ..             ; Write it to RAM via the indirect pointer
+    inx                                                               ; f0af: e8          .              ; Increment fill value (wraps naturally at 256)
+    iny                                                               ; f0b0: c8          .              ; Advance to next byte in the page
+    bne self_test_ram_incr_fill                                       ; f0b1: d0 f9       ..             ; Loop 256 times through the page
+    inc l0001                                                         ; f0b3: e6 01       ..             ; Advance to next page
+    inx                                                               ; f0b5: e8          .              ; Bump fill value by one extra per page -- different offset
+    dec l0002                                                         ; f0b6: c6 02       ..             ; Decrement page counter
+    bne self_test_ram_incr_fill                                       ; f0b8: d0 f2       ..             ; Continue filling all 32 pages
+    lda #0                                                            ; f0ba: a9 00       ..             ; Fill done; now reset state for the verify phase
+    sta l0001                                                         ; f0bc: 85 01       ..             ; pointer_hi back to RAM base
+    lda #&20 ; ' '                                                    ; f0be: a9 20       .              ; A = &20: 32 pages again
+    sta l0002                                                         ; f0c0: 85 02       ..             ; Store page counter
+    ldy #4                                                            ; f0c2: a0 04       ..             ; Y = 4: skip scratch bytes
+    ldx #0                                                            ; f0c4: a2 00       ..             ; X = 0: expected value follows the same sequence
 ; &f0c6 referenced 2 times by &f0cd, &f0d4
-.cf0c6
-    txa                                                               ; f0c6: 8a          .
-    cmp (l0000),y                                                     ; f0c7: d1 00       ..
-    bne cf09d                                                         ; f0c9: d0 d2       ..
-    inx                                                               ; f0cb: e8          .
-    iny                                                               ; f0cc: c8          .
-    bne cf0c6                                                         ; f0cd: d0 f7       ..
-    inc l0001                                                         ; f0cf: e6 01       ..
-    inx                                                               ; f0d1: e8          .
-    dec l0002                                                         ; f0d2: c6 02       ..
-    bne cf0c6                                                         ; f0d4: d0 f0       ..
+.self_test_ram_incr_verify
+    txa                                                               ; f0c6: 8a          .              ; A = X: expected byte value
+    cmp (l0000),y                                                     ; f0c7: d1 00       ..             ; Compare with what we actually wrote and read back
+    bne self_test_ram_fail_jump                                       ; f0c9: d0 d2       ..             ; Mismatch -> ram_test_fail (via &F09D)
+    inx                                                               ; f0cb: e8          .              ; Step expected value
+    iny                                                               ; f0cc: c8          .              ; Step byte offset
+    bne self_test_ram_incr_verify                                     ; f0cd: d0 f7       ..             ; Loop through the page
+    inc l0001                                                         ; f0cf: e6 01       ..             ; Advance to next page
+    inx                                                               ; f0d1: e8          .              ; Bump offset between pages (match fill pattern)
+    dec l0002                                                         ; f0d2: c6 02       ..             ; One page verified; decrement
+    bne self_test_ram_incr_verify                                     ; f0d4: d0 f0       ..             ; Continue through all 32 pages; falls through on success
 ; ***************************************************************************************
 ; Verify both ADLCs' register state after reset
 ; 
@@ -2298,33 +2298,33 @@ adlc_b_tx2      = &d803
 ;   Code 3 (at &F107): ADLC A register-state mismatch
 ;   Code 4 (at &F102): ADLC B register-state mismatch
 .self_test_adlc_state
-    lda #&10                                                          ; f0d6: a9 10       ..
-    bit adlc_a_cr1                                                    ; f0d8: 2c 00 c8    ,..
-    beq cf105                                                         ; f0db: f0 28       .(
-    lda #4                                                            ; f0dd: a9 04       ..
-    bit adlc_a_cr2                                                    ; f0df: 2c 01 c8    ,..
-    beq cf105                                                         ; f0e2: f0 21       .!
-    lda #&20 ; ' '                                                    ; f0e4: a9 20       .
-    bit adlc_a_cr2                                                    ; f0e6: 2c 01 c8    ,..
-    bne cf105                                                         ; f0e9: d0 1a       ..
-    lda #&10                                                          ; f0eb: a9 10       ..
-    bit adlc_b_cr1                                                    ; f0ed: 2c 00 d8    ,..
-    beq cf100                                                         ; f0f0: f0 0e       ..
-    lda #4                                                            ; f0f2: a9 04       ..
-    bit adlc_b_cr2                                                    ; f0f4: 2c 01 d8    ,..
-    beq cf100                                                         ; f0f7: f0 07       ..
-    lda #&20 ; ' '                                                    ; f0f9: a9 20       .
-    bit adlc_b_cr2                                                    ; f0fb: 2c 01 d8    ,..
-    beq self_test_loopback_a_to_b                                     ; f0fe: f0 0a       ..
+    lda #&10                                                          ; f0d6: a9 10       ..             ; Mask bit 4 (CTS bit of SR1): expect 1 after reset
+    bit adlc_a_cr1                                                    ; f0d8: 2c 00 c8    ,..            ; Test on ADLC A
+    beq self_test_fail_adlc_a                                         ; f0db: f0 28       .(             ; CTS clear -> ADLC A misconfigured (fail code 3)
+    lda #4                                                            ; f0dd: a9 04       ..             ; Mask bit 2 (OVRN bit of SR2): expect 1 (idle, no OVRN)
+    bit adlc_a_cr2                                                    ; f0df: 2c 01 c8    ,..            ; Test on ADLC A
+    beq self_test_fail_adlc_a                                         ; f0e2: f0 21       .!             ; Bit clear -> unexpected state, fail
+    lda #&20 ; ' '                                                    ; f0e4: a9 20       .              ; Mask bit 5 (DCD of SR2): expect 0 (no carrier)
+    bit adlc_a_cr2                                                    ; f0e6: 2c 01 c8    ,..            ; Test on ADLC A
+    bne self_test_fail_adlc_a                                         ; f0e9: d0 1a       ..             ; Bit set -> unexpected carrier; fail code 3
+    lda #&10                                                          ; f0eb: a9 10       ..             ; Same CTS check for ADLC B
+    bit adlc_b_cr1                                                    ; f0ed: 2c 00 d8    ,..            ; Test on ADLC B
+    beq self_test_fail_adlc_b                                         ; f0f0: f0 0e       ..             ; Clear -> fail code 4
+    lda #4                                                            ; f0f2: a9 04       ..             ; Same OVRN check for ADLC B
+    bit adlc_b_cr2                                                    ; f0f4: 2c 01 d8    ,..            ; Test on ADLC B
+    beq self_test_fail_adlc_b                                         ; f0f7: f0 07       ..             ; Clear -> fail code 4
+    lda #&20 ; ' '                                                    ; f0f9: a9 20       .              ; Same DCD check for ADLC B
+    bit adlc_b_cr2                                                    ; f0fb: 2c 01 d8    ,..            ; Test on ADLC B
+    beq self_test_loopback_a_to_b                                     ; f0fe: f0 0a       ..             ; Clear -> all checks passed, proceed to loopback test
 ; &f100 referenced 2 times by &f0f0, &f0f7
-.cf100
-    lda #4                                                            ; f100: a9 04       ..
-    jmp self_test_fail                                                ; f102: 4c c7 f2    L..
+.self_test_fail_adlc_b
+    lda #4                                                            ; f100: a9 04       ..             ; Fail code 4: ADLC B register state wrong
+    jmp self_test_fail                                                ; f102: 4c c7 f2    L..            ; Jump to countable-blink failure handler
 
 ; &f105 referenced 3 times by &f0db, &f0e2, &f0e9
-.cf105
-    lda #3                                                            ; f105: a9 03       ..
-    jmp self_test_fail                                                ; f107: 4c c7 f2    L..
+.self_test_fail_adlc_a
+    lda #3                                                            ; f105: a9 03       ..             ; Fail code 3: ADLC A register state wrong
+    jmp self_test_fail                                                ; f107: 4c c7 f2    L..            ; Jump to countable-blink failure handler
 
 ; ***************************************************************************************
 ; Loopback test: transmit on ADLC A, receive on ADLC B
@@ -2596,38 +2596,38 @@ adlc_b_tx2      = &d803
 ; produced by self_test_fail with codes 2-8.
 ; &f28c referenced 1 time by &f09d
 .ram_test_fail
-    ldx #1                                                            ; f28c: a2 01       ..
-    stx adlc_a_cr1                                                    ; f28e: 8e 00 c8    ...
+    ldx #1                                                            ; f28c: a2 01       ..             ; CR1 = 1: enable AC so cr2 writes hit CR3
+    stx adlc_a_cr1                                                    ; f28e: 8e 00 c8    ...            ; Commit CR1 on ADLC A
 ; &f291 referenced 1 time by &f2c4
-.cf291
-    ldx #0                                                            ; f291: a2 00       ..
-    stx adlc_a_cr2                                                    ; f293: 8e 01 c8    ...
-    ldx #0                                                            ; f296: a2 00       ..
-    ldy #0                                                            ; f298: a0 00       ..
+.ram_test_fail_loop
+    ldx #0                                                            ; f291: a2 00       ..             ; CR3 = 0 -> LED off on ADLC B (LOC/DTR pin high)
+    stx adlc_a_cr2                                                    ; f293: 8e 01 c8    ...            ; Commit CR3
+    ldx #0                                                            ; f296: a2 00       ..             ; X = 0: inner delay counter
+    ldy #0                                                            ; f298: a0 00       ..             ; Y = 0: outer delay counter
 ; &f29a referenced 2 times by &f29b, &f29e
-.cf29a
-    dex                                                               ; f29a: ca          .
-    bne cf29a                                                         ; f29b: d0 fd       ..
-    dey                                                               ; f29d: 88          .
-    bne cf29a                                                         ; f29e: d0 fa       ..
-    ldx #&80                                                          ; f2a0: a2 80       ..
-    stx adlc_a_cr2                                                    ; f2a2: 8e 01 c8    ...
-    ldy #0                                                            ; f2a5: a0 00       ..
-    ldx #0                                                            ; f2a7: a2 00       ..
+.ram_test_fail_short_delay
+    dex                                                               ; f29a: ca          .              ; Pure-register busy-wait (no RAM access)
+    bne ram_test_fail_short_delay                                     ; f29b: d0 fd       ..             ; Spin through X's 256 values
+    dey                                                               ; f29d: 88          .              ; Bump Y
+    bne ram_test_fail_short_delay                                     ; f29e: d0 fa       ..             ; Spin through Y's 256 values
+    ldx #&80                                                          ; f2a0: a2 80       ..             ; CR3 = &80 -> LED on (LOC/DTR pin driven low)
+    stx adlc_a_cr2                                                    ; f2a2: 8e 01 c8    ...            ; Commit CR3
+    ldy #0                                                            ; f2a5: a0 00       ..             ; Y = 0 for the longer delay phase
+    ldx #0                                                            ; f2a7: a2 00       ..             ; X = 0
 ; &f2a9 referenced 2 times by &f2bf, &f2c2
-.cf2a9
-    dec reset,x                                                       ; f2a9: de 00 e0    ...
-    dec reset,x                                                       ; f2ac: de 00 e0    ...
-    dec reset,x                                                       ; f2af: de 00 e0    ...
-    dec reset,x                                                       ; f2b2: de 00 e0    ...
-    dec reset,x                                                       ; f2b5: de 00 e0    ...
-    dec reset,x                                                       ; f2b8: de 00 e0    ...
-    dec reset,x                                                       ; f2bb: de 00 e0    ...
-    dex                                                               ; f2be: ca          .
-    bne cf2a9                                                         ; f2bf: d0 e8       ..
-    dey                                                               ; f2c1: 88          .
-    bne cf2a9                                                         ; f2c2: d0 e5       ..
-    jmp cf291                                                         ; f2c4: 4c 91 f2    L..
+.ram_test_fail_long_delay
+    dec reset,x                                                       ; f2a9: de 00 e0    ...            ; DEC of ROM (writes ignored); seven of them in a row...
+    dec reset,x                                                       ; f2ac: de 00 e0    ...            ; ...pace the LED-on interval without RAM writes
+    dec reset,x                                                       ; f2af: de 00 e0    ...            ; (all seven DECs hit the same RO address)
+    dec reset,x                                                       ; f2b2: de 00 e0    ...            ;
+    dec reset,x                                                       ; f2b5: de 00 e0    ...            ;
+    dec reset,x                                                       ; f2b8: de 00 e0    ...            ;
+    dec reset,x                                                       ; f2bb: de 00 e0    ...            ;
+    dex                                                               ; f2be: ca          .              ; Step X
+    bne ram_test_fail_long_delay                                      ; f2bf: d0 e8       ..             ; Spin through X's 256 values
+    dey                                                               ; f2c1: 88          .              ; Step Y
+    bne ram_test_fail_long_delay                                      ; f2c2: d0 e5       ..             ; Spin through Y's 256 values
+    jmp ram_test_fail_loop                                            ; f2c4: 4c 91 f2    L..            ; Loop forever; LED alternates at an uncountable pace
 
 ; ***************************************************************************************
 ; Self-test failure — signal error code via the LED
@@ -2663,49 +2663,49 @@ adlc_b_tx2      = &d803
 ; operator counts pulses to identify the failed test.
 ; &f2c7 referenced 7 times by &f06d, &f102, &f107, &f153, &f1f4, &f255, &f261
 .self_test_fail
-    sta l0000                                                         ; f2c7: 85 00       ..
-    sta l0001                                                         ; f2c9: 85 01       ..
-    ldx #1                                                            ; f2cb: a2 01       ..
-    stx adlc_a_cr1                                                    ; f2cd: 8e 00 c8    ...
+    sta l0000                                                         ; f2c7: 85 00       ..             ; Save error code to &00 (the restart value)
+    sta l0001                                                         ; f2c9: 85 01       ..             ; ...and to &01 (the per-burst countdown)
+    ldx #1                                                            ; f2cb: a2 01       ..             ; X = 1: enable AC on ADLC A
+    stx adlc_a_cr1                                                    ; f2cd: 8e 00 c8    ...            ; Commit CR1 so cr2 writes hit CR3 from here on
 ; &f2d0 referenced 2 times by &f2f0, &f308
-.cf2d0
-    ldx #0                                                            ; f2d0: a2 00       ..
-    stx adlc_a_cr2                                                    ; f2d2: 8e 01 c8    ...
-    ldy #0                                                            ; f2d5: a0 00       ..
-    ldx #0                                                            ; f2d7: a2 00       ..
+.self_test_fail_pulse
+    ldx #0                                                            ; f2d0: a2 00       ..             ; X = 0: CR3 off -> LED dark
+    stx adlc_a_cr2                                                    ; f2d2: 8e 01 c8    ...            ; Commit CR3 = 0
+    ldy #0                                                            ; f2d5: a0 00       ..             ; Y = 0: outer loop counter for the dark phase
+    ldx #0                                                            ; f2d7: a2 00       ..             ; X = 0: inner loop counter
 ; &f2d9 referenced 2 times by &f2da, &f2dd
-.cf2d9
-    dex                                                               ; f2d9: ca          .
-    bne cf2d9                                                         ; f2da: d0 fd       ..
-    dey                                                               ; f2dc: 88          .
-    bne cf2d9                                                         ; f2dd: d0 fa       ..
-    ldx #&80                                                          ; f2df: a2 80       ..
-    stx adlc_a_cr2                                                    ; f2e1: 8e 01 c8    ...
-    ldy #0                                                            ; f2e4: a0 00       ..
-    ldx #0                                                            ; f2e6: a2 00       ..
+.self_test_fail_dark_delay
+    dex                                                               ; f2d9: ca          .              ; Inner spin through X's 256 values
+    bne self_test_fail_dark_delay                                     ; f2da: d0 fd       ..             ;
+    dey                                                               ; f2dc: 88          .              ; Step Y
+    bne self_test_fail_dark_delay                                     ; f2dd: d0 fa       ..             ; Outer spin: Y cycles give ~65K iterations of dark
+    ldx #&80                                                          ; f2df: a2 80       ..             ; X = &80: CR3 bit 7 set -> LED lit
+    stx adlc_a_cr2                                                    ; f2e1: 8e 01 c8    ...            ; Commit CR3 = &80
+    ldy #0                                                            ; f2e4: a0 00       ..             ; Y = 0
+    ldx #0                                                            ; f2e6: a2 00       ..             ; X = 0
 ; &f2e8 referenced 2 times by &f2e9, &f2ec
-.cf2e8
-    dex                                                               ; f2e8: ca          .
-    bne cf2e8                                                         ; f2e9: d0 fd       ..
-    dey                                                               ; f2eb: 88          .
-    bne cf2e8                                                         ; f2ec: d0 fa       ..
-    dec l0001                                                         ; f2ee: c6 01       ..
-    bne cf2d0                                                         ; f2f0: d0 de       ..
-    lda #8                                                            ; f2f2: a9 08       ..
-    sta l0001                                                         ; f2f4: 85 01       ..
-    ldy #0                                                            ; f2f6: a0 00       ..
-    ldx #0                                                            ; f2f8: a2 00       ..
+.self_test_fail_lit_delay
+    dex                                                               ; f2e8: ca          .              ; Same length delay while the LED is lit
+    bne self_test_fail_lit_delay                                      ; f2e9: d0 fd       ..             ;
+    dey                                                               ; f2eb: 88          .              ;
+    bne self_test_fail_lit_delay                                      ; f2ec: d0 fa       ..             ;
+    dec l0001                                                         ; f2ee: c6 01       ..             ; One pulse done; decrement the burst counter
+    bne self_test_fail_pulse                                          ; f2f0: d0 de       ..             ; Loop until we've emitted N pulses
+    lda #8                                                            ; f2f2: a9 08       ..             ; A = 8: spacer count between bursts
+    sta l0001                                                         ; f2f4: 85 01       ..             ; Seed the spacer loop counter
+    ldy #0                                                            ; f2f6: a0 00       ..             ; Y = 0
+    ldx #0                                                            ; f2f8: a2 00       ..             ; X = 0
 ; &f2fa referenced 3 times by &f2fb, &f2fe, &f302
-.cf2fa
-    dex                                                               ; f2fa: ca          .
-    bne cf2fa                                                         ; f2fb: d0 fd       ..
-    dey                                                               ; f2fd: 88          .
-    bne cf2fa                                                         ; f2fe: d0 fa       ..
-    dec l0001                                                         ; f300: c6 01       ..
-    bne cf2fa                                                         ; f302: d0 f6       ..
-    lda l0000                                                         ; f304: a5 00       ..
-    sta l0001                                                         ; f306: 85 01       ..
-    jmp cf2d0                                                         ; f308: 4c d0 f2    L..
+.self_test_fail_spacer_delay
+    dex                                                               ; f2fa: ca          .              ; Long quiet spacer between bursts
+    bne self_test_fail_spacer_delay                                   ; f2fb: d0 fd       ..             ;
+    dey                                                               ; f2fd: 88          .              ;
+    bne self_test_fail_spacer_delay                                   ; f2fe: d0 fa       ..             ;
+    dec l0001                                                         ; f300: c6 01       ..             ; Decrement spacer loop counter
+    bne self_test_fail_spacer_delay                                   ; f302: d0 f6       ..             ; Repeat eight times total
+    lda l0000                                                         ; f304: a5 00       ..             ; Reload the N-pulse counter with the saved error code
+    sta l0001                                                         ; f306: 85 01       ..             ; Store into &01 for the next burst
+    jmp self_test_fail_pulse                                          ; f308: 4c d0 f2    L..            ; Jump back to start another N-pulse burst forever
 
     equb &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff   ; f30b: ff ff ff... ...
     equb &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff, &ff   ; f317: ff ff ff... ...
@@ -3030,7 +3030,7 @@ save pydis_start, pydis_end
 ;     transmit_frame_a:              7
 ;     transmit_frame_b:              7
 ;     announce_flag:                 6
-;     cf09d:                         6
+;     self_test_ram_fail_jump:       6
 ;     tx_end_hi:                     6
 ;     tx_end_lo:                     6
 ;     ce5b1:                         5
@@ -3055,10 +3055,10 @@ save pydis_start, pydis_end
 ;     wait_adlc_b_idle:              4
 ;     ce6a2:                         3
 ;     ce6ee:                         3
-;     cf105:                         3
-;     cf2fa:                         3
 ;     init_reachable_nets:           3
 ;     l0003:                         3
+;     self_test_fail_adlc_a:         3
+;     self_test_fail_spacer_delay:   3
 ;     top_ram_page:                  3
 ;     tx_data0:                      3
 ;     adlc_a_listen:                 2
@@ -3070,15 +3070,8 @@ save pydis_start, pydis_end
 ;     ce523:                         2
 ;     ce593:                         2
 ;     ce624:                         2
-;     cf07e:                         2
-;     cf0ac:                         2
-;     cf0c6:                         2
-;     cf100:                         2
-;     cf29a:                         2
-;     cf2a9:                         2
-;     cf2d0:                         2
-;     cf2d9:                         2
-;     cf2e8:                         2
+;     ram_test_fail_long_delay:      2
+;     ram_test_fail_short_delay:     2
 ;     re_announce_done:              2
 ;     rx_a_forward:                  2
 ;     rx_a_not_for_us:               2
@@ -3090,6 +3083,13 @@ save pydis_start, pydis_end
 ;     rx_frame_a_dispatch:           2
 ;     rx_frame_b_dispatch:           2
 ;     rx_port:                       2
+;     self_test_fail_adlc_b:         2
+;     self_test_fail_dark_delay:     2
+;     self_test_fail_lit_delay:      2
+;     self_test_fail_pulse:          2
+;     self_test_ram_incr_fill:       2
+;     self_test_ram_incr_verify:     2
+;     self_test_ram_pattern_loop:    2
 ;     self_test_rom_checksum_loop:   2
 ;     stagger_delay:                 2
 ;     tx_src_stn:                    2
@@ -3128,7 +3128,6 @@ save pydis_start, pydis_end
 ;     cf15c:                         1
 ;     cf1f7:                         1
 ;     cf1fd:                         1
-;     cf291:                         1
 ;     init_reachable_nets_clear:     1
 ;     loop_cf125:                    1
 ;     loop_cf189:                    1
@@ -3137,6 +3136,7 @@ save pydis_start, pydis_end
 ;     main_loop_idle:                1
 ;     ram_test_done:                 1
 ;     ram_test_fail:                 1
+;     ram_test_fail_loop:            1
 ;     ram_test_loop:                 1
 ;     re_announce_rearm:             1
 ;     re_announce_side_b:            1
@@ -3214,25 +3214,12 @@ save pydis_start, pydis_end
 ;     ce6ee
 ;     ce70b
 ;     ce71f
-;     cf07e
-;     cf09d
-;     cf0ac
-;     cf0c6
-;     cf100
-;     cf105
 ;     cf151
 ;     cf156
 ;     cf15c
 ;     cf1f2
 ;     cf1f7
 ;     cf1fd
-;     cf291
-;     cf29a
-;     cf2a9
-;     cf2d0
-;     cf2d9
-;     cf2e8
-;     cf2fa
 ;     l0000
 ;     l0001
 ;     l0002
