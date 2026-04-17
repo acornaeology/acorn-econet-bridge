@@ -242,33 +242,37 @@ adlc_b_tx2      = &d803
 ; Still ticking, back to poll
     bne main_loop_poll                                                ; e096: d0 e1       ..
 ; ***************************************************************************************
-; Periodic re-announcement of the bridge on one side
+; Emit one BridgeReply in an in-progress response burst
 ; 
-; Reached from the idle path once the 16-bit announce_tmr has
-; ticked down to zero. Rebuilds the announcement frame via
-; build_announce_b (same template used at reset), then patches
-; tx_ctrl to &81 — the &80 value written by build_announce_b is
-; the initial/first-broadcast control byte, while &81 is the
-; re-announce variant. The receiving stations can presumably
-; distinguish first-seen-bridge from follow-up announcements by
-; this single bit.
+; Reached from main_loop_idle once the 16-bit announce_tmr has
+; ticked down to zero *and* announce_flag is non-zero. Both
+; conditions are only met after rx_?_handle_80 has set the flag in
+; response to a BridgeReset received from another bridge. This
+; routine is the per-tick action of that response burst -- it is
+; NOT a self-scheduled periodic announcement.
+; 
+; Rebuilds the outbound template via build_announce_b and patches
+; tx_ctrl from &80 (the BridgeReset value the builder writes) to
+; &81 (BridgeReply), distinguishing the follow-up announcements
+; from the initial one that triggered the burst.
 ; 
 ; Which side to transmit on is selected by announce_flag bit 7:
 ; 
 ;   bit 7 clear (flag = 1..&7F)  ->  transmit via ADLC A (side A)
-;   bit 7 set   (flag = &80..FF) ->  transmit via ADLC B (side B,
-;                                    after patching tx_data0 with
+;   bit 7 set   (flag = &80..FF) ->  transmit via ADLC B, after
+;                                    patching tx_data0 with
 ;                                    net_num_a, mirroring the
-;                                    reset-time dual-broadcast)
+;                                    reset-time dual-broadcast.
 ; 
-; Each visit decrements announce_count. If it hits zero, announce_
-; flag is cleared and periodic re-announce stops (re_announce_done).
-; Otherwise the timer is re-armed to &8000 and control returns to
-; main_loop (re_announce_rearm).
+; Each invocation decrements announce_count. When it hits zero,
+; announce_flag is cleared (re_announce_done); the burst is
+; complete and the idle path goes quiet until another BridgeReset
+; arrives. Otherwise the timer is re-armed to &8000 and control
+; returns to main_loop (re_announce_rearm).
 ; 
 ; Before transmitting on one side, the routine resets the OTHER
-; ADLC's TX path (CR1 = &C2) — this prevents the opposite side from
-; accidentally transmitting a collision during our operation.
+; ADLC's TX path (CR1 = &C2) to prevent the opposite side from
+; inadvertently transmitting a colliding frame while we're busy.
 ; Rebuild the frame template (dst=FF, ctrl=&80, ...)
 .re_announce
     jsr build_announce_b                                              ; e098: 20 58 e4     X.
@@ -631,6 +635,13 @@ adlc_b_tx2      = &d803
 ;   3. Fall through to rx_a_handle_81 (the same payload-processing
 ;      loop runs for both BridgeReset and BridgeReply) to mark the
 ;      sender's known networks as reachable-via-A.
+; 
+; This is one of only two places in the ROM that sets announce_flag
+; non-zero (the other is the mirror rx_b_handle_80). Receiving a
+; BridgeReply (ctrl=&81) does not trigger the burst; only receiving
+; a BridgeReset does. A solo bridge therefore stays silent after
+; its boot-time BridgeReset pair, because nothing comes back to
+; trigger a response. See the event-driven-reannouncement writeup.
 ; Forget learned routes (topology change)
 ; &e1d6 referenced 1 time by &e18b
 .rx_a_handle_80
@@ -974,6 +985,9 @@ adlc_b_tx2      = &d803
 ; from net_num_a (mirror of A-side seeding from net_num_b), set
 ; announce_count = 10 and announce_flag = &80 (bit 7 set = next
 ; outbound on side B). Falls through to rx_b_handle_81.
+; 
+; The other of the two places in the ROM that sets announce_flag
+; non-zero; all other writes to that byte clear it.
 ; &e357 referenced 1 time by &e30c
 .rx_b_handle_80
     jsr init_reachable_nets                                           ; e357: 20 24 e4     $.

@@ -286,17 +286,38 @@ label(0x0248, "rx_query_port") # byte 12: port for response frame
 label(0x0249, "rx_query_net")  # byte 13: network number (ctrl=&83)
 label(0x0228, "rx_len")       # bytes received (written at end of drain)
 
-# Periodic re-announcement state, used by the main Bridge loop. The
-# main loop polls both ADLCs for IRQs; in the idle path it tests
-# announce_flag, and if set decrements announce_tmr_lo/hi. When the
-# timer expires, it rebuilds and retransmits the bridge announce-
-# ment, bumps announce_count, and clears announce_flag when the
-# count runs out. Provisional names — refine as the full re-announce
-# flow is analysed.
-label(0x0229, "announce_flag")
+# Event-driven re-announcement state. The Bridge does NOT re-
+# announce on a periodic self-triggered timer — it only advertises
+# itself (BridgeReply/ctrl=&81 frames) in response to hearing a
+# BridgeReset (ctrl=&80) from another bridge. The entire state
+# machine is therefore quiescent unless a peer has just reset.
+#
+# The flow is:
+#
+#   rx_?_handle_80   sets announce_flag to &40 (side A selected)
+#                    or &80 (side B), announce_count to 10, and
+#                    announce_tmr_lo/hi to net_num_?:00 (staggered
+#                    from our own network number).
+#
+#   main_loop_idle   decrements the 16-bit timer on every idle
+#                    iteration; when it reaches zero, re_announce
+#                    runs.
+#
+#   re_announce      emits one BridgeReply, decrements
+#                    announce_count, and re-arms the timer to
+#                    &8000 for the next cycle.
+#
+#   re_announce_done fires when announce_count hits zero. Clears
+#                    announce_flag; the idle path stops noticing
+#                    until another BridgeReset arrives.
+#
+# A solo bridge with no peers is silent after its boot-time pair
+# of BridgeReset scouts — there's nothing to trigger the flag.
+# See docs/analysis/event-driven-reannouncement.md.
+label(0x0229, "announce_flag")      # set by rx_?_handle_80 only
 label(0x022A, "announce_tmr_lo")
 label(0x022B, "announce_tmr_hi")
-label(0x022C, "announce_count")
+label(0x022C, "announce_count")     # initialised to 10 (= ten BridgeReplies)
 
 # Outbound-frame control block at &045A-&0460. Populated by the
 # frame-builder subroutines, then consumed by transmit_frame_a (via
@@ -672,7 +693,10 @@ Mirror of rx_a_handle_80 (&E1D6): wipe reachable_via_* via
 init_reachable_nets, seed the re-announce timer's high byte
 from net_num_a (mirror of A-side seeding from net_num_b), set
 announce_count = 10 and announce_flag = &80 (bit 7 set = next
-outbound on side B). Falls through to rx_b_handle_81.""")
+outbound on side B). Falls through to rx_b_handle_81.
+
+The other of the two places in the ROM that sets announce_flag
+non-zero; all other writes to that byte clear it.""")
 
 label(0xE36F, "rx_b_handle_81")
 subroutine(0xE36F, "rx_b_handle_81", hook=None, is_entry_point=False,
@@ -1076,7 +1100,14 @@ topology, likely because it has itself just come up. We:
 
   3. Fall through to rx_a_handle_81 (the same payload-processing
      loop runs for both BridgeReset and BridgeReply) to mark the
-     sender's known networks as reachable-via-A.""")
+     sender's known networks as reachable-via-A.
+
+This is one of only two places in the ROM that sets announce_flag
+non-zero (the other is the mirror rx_b_handle_80). Receiving a
+BridgeReply (ctrl=&81) does not trigger the burst; only receiving
+a BridgeReset does. A solo bridge therefore stays silent after
+its boot-time BridgeReset pair, because nothing comes back to
+trigger a response. See the event-driven-reannouncement writeup.""")
 
 comment(0xE1D6, "Forget learned routes (topology change)")
 comment(0xE1D9, "Seed timer high byte from our B-side net number")
@@ -1143,33 +1174,37 @@ comment(0xE096, "Still ticking, back to poll")
 
 label(0xE098, "re_announce")
 subroutine(0xE098, "re_announce", hook=None, is_entry_point=False,
-    title="Periodic re-announcement of the bridge on one side",
+    title="Emit one BridgeReply in an in-progress response burst",
     description="""\
-Reached from the idle path once the 16-bit announce_tmr has
-ticked down to zero. Rebuilds the announcement frame via
-build_announce_b (same template used at reset), then patches
-tx_ctrl to &81 — the &80 value written by build_announce_b is
-the initial/first-broadcast control byte, while &81 is the
-re-announce variant. The receiving stations can presumably
-distinguish first-seen-bridge from follow-up announcements by
-this single bit.
+Reached from main_loop_idle once the 16-bit announce_tmr has
+ticked down to zero *and* announce_flag is non-zero. Both
+conditions are only met after rx_?_handle_80 has set the flag in
+response to a BridgeReset received from another bridge. This
+routine is the per-tick action of that response burst -- it is
+NOT a self-scheduled periodic announcement.
+
+Rebuilds the outbound template via build_announce_b and patches
+tx_ctrl from &80 (the BridgeReset value the builder writes) to
+&81 (BridgeReply), distinguishing the follow-up announcements
+from the initial one that triggered the burst.
 
 Which side to transmit on is selected by announce_flag bit 7:
 
   bit 7 clear (flag = 1..&7F)  ->  transmit via ADLC A (side A)
-  bit 7 set   (flag = &80..FF) ->  transmit via ADLC B (side B,
-                                   after patching tx_data0 with
+  bit 7 set   (flag = &80..FF) ->  transmit via ADLC B, after
+                                   patching tx_data0 with
                                    net_num_a, mirroring the
-                                   reset-time dual-broadcast)
+                                   reset-time dual-broadcast.
 
-Each visit decrements announce_count. If it hits zero, announce_
-flag is cleared and periodic re-announce stops (re_announce_done).
-Otherwise the timer is re-armed to &8000 and control returns to
-main_loop (re_announce_rearm).
+Each invocation decrements announce_count. When it hits zero,
+announce_flag is cleared (re_announce_done); the burst is
+complete and the idle path goes quiet until another BridgeReset
+arrives. Otherwise the timer is re-armed to &8000 and control
+returns to main_loop (re_announce_rearm).
 
 Before transmitting on one side, the routine resets the OTHER
-ADLC's TX path (CR1 = &C2) — this prevents the opposite side from
-accidentally transmitting a collision during our operation.""")
+ADLC's TX path (CR1 = &C2) to prevent the opposite side from
+inadvertently transmitting a colliding frame while we're busy.""")
 
 comment(0xE098, "Rebuild the frame template (dst=FF, ctrl=&80, ...)")
 comment(0xE09B, "Patch ctrl = &81 (re-announce variant)")
