@@ -1,0 +1,274 @@
+{
+  "primary": {
+    "rom": "econet-bridge-1",
+    "load_addr": "0xE000"
+  },
+  "scan": {
+    "min_len_instructions": 8,
+    "reject_trivial_distinct_below": 3,
+    "references_included": [
+      "anfs-4.08.53",
+      "anfs-4.18",
+      "nfs-3.34",
+      "nfs-3.34B",
+      "nfs-3.35D",
+      "nfs-3.35K",
+      "nfs-3.40",
+      "nfs-3.60",
+      "nfs-3.62",
+      "nfs-3.65",
+      "tube-6502-client-1.10",
+      "adfs-1.30",
+      "mos-1.20"
+    ],
+    "last_refreshed": "2026-04-17"
+  },
+  "regions": [
+    {
+      "primary_address": "0xE120",
+      "primary_instructions": 10,
+      "primary_bytes": 25,
+      "name": null,
+      "notes": "Matches code in ANFS and NFS 3.60+ that is variously labelled `scout_complete` (NFS 3.60/3.62) and `accept_scout_net` (NFS 3.35D). The shared fragment may be an Econet frame-handling pattern rather than a verbatim routine. Worth revisiting once the Bridge's frame processing is annotated.",
+      "peers": [
+        {
+          "rom": "anfs-4.08.53",
+          "address": "0x812C",
+          "instructions": 10,
+          "bytes": 25
+        },
+        {
+          "rom": "anfs-4.18",
+          "address": "0x8137",
+          "instructions": 10,
+          "bytes": 25
+        },
+        {
+          "rom": "nfs-3.60",
+          "address": "0x9738",
+          "instructions": 10,
+          "bytes": 25
+        },
+        {
+          "rom": "nfs-3.62",
+          "address": "0x9738",
+          "instructions": 10,
+          "bytes": 25
+        },
+        {
+          "rom": "nfs-3.65",
+          "address": "0x9758",
+          "instructions": 10,
+          "bytes": 25
+        }
+      ]
+    },
+    {
+      "primary_address": "0xE2A1",
+      "primary_instructions": 8,
+      "primary_bytes": 19,
+      "name": null,
+      "notes": "NFS 3.60+ annotates the peer as `CR1=&00: disable all interrupts`; NFS 3.34 annotates the same opcode sequence as `C=1: past max handles, done`. The 8-instruction match likely reflects a common `LDA #0 / STA cr1 / ...` ADLC-shutdown pattern rather than a shared routine. Confirm once the Bridge routine at &E2A1 is analysed.",
+      "peers": [
+        {
+          "rom": "anfs-4.08.53",
+          "address": "0x82B9",
+          "instructions": 8,
+          "bytes": 19
+        },
+        {
+          "rom": "anfs-4.18",
+          "address": "0x82C4",
+          "instructions": 8,
+          "bytes": 19
+        },
+        {
+          "rom": "nfs-3.60",
+          "address": "0x98C3",
+          "instructions": 8,
+          "bytes": 19
+        },
+        {
+          "rom": "nfs-3.62",
+          "address": "0x98C3",
+          "instructions": 8,
+          "bytes": 19
+        },
+        {
+          "rom": "nfs-3.65",
+          "address": "0x98E5",
+          "instructions": 8,
+          "bytes": 19
+        }
+      ]
+    },
+    {
+      "primary_address": "0xE3EF",
+      "primary_instructions": 13,
+      "primary_bytes": 29,
+      "name": "adlc_a_full_reset (alternate alignment)",
+      "notes": "Same routine as &E3F0 — the Bridge subroutine actually starts at &E3F0 (called from the reset vector at &E005). The matcher picks an alignment one byte earlier for these peers because the RTS at &E3EF happens to match the preceding byte in those NFS versions. See &E3F0 for the port of NFS's `adlc_full_reset` description.",
+      "peers": [
+        {
+          "rom": "anfs-4.08.53",
+          "address": "0x895E",
+          "instructions": 12,
+          "bytes": 27
+        },
+        {
+          "rom": "anfs-4.18",
+          "address": "0x8968",
+          "instructions": 12,
+          "bytes": 27
+        },
+        {
+          "rom": "nfs-3.34",
+          "address": "0x96DB",
+          "instructions": 13,
+          "bytes": 29
+        },
+        {
+          "rom": "nfs-3.34B",
+          "address": "0x96DB",
+          "instructions": 13,
+          "bytes": 29
+        },
+        {
+          "rom": "nfs-3.60",
+          "address": "0x9F3C",
+          "instructions": 12,
+          "bytes": 27
+        },
+        {
+          "rom": "nfs-3.62",
+          "address": "0x9F3C",
+          "instructions": 12,
+          "bytes": 27
+        },
+        {
+          "rom": "nfs-3.65",
+          "address": "0x9F6F",
+          "instructions": 12,
+          "bytes": 27
+        }
+      ]
+    },
+    {
+      "primary_address": "0xE3F0",
+      "primary_instructions": 12,
+      "primary_bytes": 28,
+      "name": "adlc_a_full_reset",
+      "notes": "Aborts all ADLC A activity and returns it to idle RX listen mode: CR1=&C1 (reset TX+RX, AC=1), CR4=&1E (8-bit RX, abort extend, NRZ), CR3=&00 (normal, NRZ). Falls through to `adlc_a_listen` at &E3FF. Ported from NFS 3.34's `adlc_full_reset` at &96DC (same byte sequence). The ADLC B mirror at &E40A is not itself detected by the matcher because no peer ROM has an identical second-ADLC routine.",
+      "peers": [
+        {
+          "rom": "nfs-3.35D",
+          "address": "0x96E6",
+          "instructions": 12,
+          "bytes": 28
+        },
+        {
+          "rom": "nfs-3.35K",
+          "address": "0x96E6",
+          "instructions": 12,
+          "bytes": 28
+        }
+      ]
+    },
+    {
+      "primary_address": "0xE47A",
+      "primary_instructions": 8,
+      "primary_bytes": 18,
+      "name": null,
+      "notes": "Small 8-instruction match against an unrelated-looking region of ADFS 1.30 (only inline comment there is `Dead data: &0A`). Probably coincidental opcode-pattern overlap rather than deliberate code reuse. Flag if Bridge analysis shows this is part of a meaningful routine.",
+      "peers": [
+        {
+          "rom": "adfs-1.30",
+          "address": "0x88E5",
+          "instructions": 8,
+          "bytes": 18
+        }
+      ]
+    },
+    {
+      "primary_address": "0xE5B3",
+      "primary_instructions": 10,
+      "primary_bytes": 25,
+      "name": null,
+      "notes": "Matches NFS 3.34-3.35K only (not ANFS or later NFS). NFS peer at &976E has an inline comment `SR2 = 0 -- RTI, wait for next NMI` indicating ADLC status-polling code inside the NMI handler. On the Bridge the equivalent is polled rather than NMI-driven (see wait_adlc_*_irq), so the Bridge routine may be a polled version of the same idea.",
+      "peers": [
+        {
+          "rom": "nfs-3.34",
+          "address": "0x976E",
+          "instructions": 10,
+          "bytes": 25
+        },
+        {
+          "rom": "nfs-3.34B",
+          "address": "0x976E",
+          "instructions": 10,
+          "bytes": 25
+        },
+        {
+          "rom": "nfs-3.35D",
+          "address": "0x9778",
+          "instructions": 10,
+          "bytes": 25
+        },
+        {
+          "rom": "nfs-3.35K",
+          "address": "0x9778",
+          "instructions": 10,
+          "bytes": 25
+        }
+      ]
+    },
+    {
+      "primary_address": "0xE644",
+      "primary_instructions": 9,
+      "primary_bytes": 22,
+      "name": null,
+      "notes": "Peer in NFS 3.34-3.35K is labelled `data_rx_tube_error` (Tube data-frame error). The Bridge has no Tube, so this is either coincidental opcode overlap on an error-path pattern, or the Bridge has an analogous RX-error handler that shares ADLC-reset prologue. Inspect during annotation of &E644.",
+      "peers": [
+        {
+          "rom": "nfs-3.34",
+          "address": "0x9930",
+          "instructions": 9,
+          "bytes": 22
+        },
+        {
+          "rom": "nfs-3.34B",
+          "address": "0x9930",
+          "instructions": 9,
+          "bytes": 22
+        },
+        {
+          "rom": "nfs-3.35D",
+          "address": "0x993A",
+          "instructions": 9,
+          "bytes": 22
+        },
+        {
+          "rom": "nfs-3.35K",
+          "address": "0x993A",
+          "instructions": 9,
+          "bytes": 22
+        }
+      ]
+    },
+    {
+      "primary_address": "0xF112",
+      "primary_instructions": 8,
+      "primary_bytes": 19,
+      "name": null,
+      "notes": "Tiny 8-instruction match against ADFS 1.30 (peer annotation is just `Restore Y`). Almost certainly a coincidental match on a generic register-save/restore epilogue.",
+      "peers": [
+        {
+          "rom": "adfs-1.30",
+          "address": "0x8C30",
+          "instructions": 8,
+          "bytes": 19
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+# Acorn Econet Bridge
+
+[![Verify disassembly](https://github.com/acornaeology/acorn-econet-bridge/actions/workflows/verify.yml/badge.svg)](https://github.com/acornaeology/acorn-econet-bridge/actions/workflows/verify.yml)
+
+The Acorn Econet Bridge is a standalone 6502-based device that joins two Econet networks, forwarding traffic between them while isolating local traffic to each side. The bridge firmware lives in an 8 KB ROM at &E000-&FFFF and implements the bridge protocols that allow file servers, printer servers, and station clients on different Econet segments to communicate.
+
+This repository contains annotated disassemblies of the Acorn Econet Bridge ROM, produced by reverse-engineering the original 6502 machine code. Each disassembly includes named labels, comments explaining the logic, and cross-references between subroutines.
+
+## Versions
+
+- **Acorn Econet Bridge 1**
+  - [Formatted disassembly on acornaeology.uk](https://acornaeology.uk/acorn-econet-bridge/1.html)
+  - [Disassembly source on GitHub](https://github.com/acornaeology/acorn-econet-bridge/blob/master/versions/econet-bridge-1/output/econet-bridge-1.asm)
+  - [Acorn Econet Bridge in The BBC Micro ROM Library](https://tobylobster.github.io/rom_library/?md5=d5328f517902a4d2659e302acfc0882f)
+
+## How it works
+
+The disassembly is produced by a Python script that drives a custom version of [py8dis](https://github.com/acornaeology/py8dis), a programmable disassembler for 6502 binaries. The script feeds the original ROM image to py8dis along with annotations — entry points, labels, constants, and comments — to produce readable assembly output.
+
+The output is verified by reassembling with [beebasm](https://github.com/stardot/beebasm) and comparing the result byte-for-byte against the original ROM. This round-trip verification runs automatically in CI on every push.
+
+## Disassembling locally
+
+Requires [uv](https://docs.astral.sh/uv/) and [beebasm](https://github.com/stardot/beebasm) (v1.10+).
+
+```sh
+uv sync
+uv run acorn-econet-bridge-disasm-tool disassemble 1
+uv run acorn-econet-bridge-disasm-tool verify 1
+```
+
+## (Re-)Assembling locally
+
+To assemble the `.asm` file back into a ROM image using [beebasm](https://github.com/stardot/beebasm):
+
+```sh
+beebasm -i versions/econet-bridge-1/output/econet-bridge-1.asm -o econet-bridge-1.rom
+```
+
+## Analyses
+
+Writeups of interesting details uncovered during the disassembly work.
+
+- [Anti-aliasing in the Econet Bridge's RAM test](docs/analysis/ram-test-anti-aliasing.md)
+  A close reading of the thirteen-instruction routine at &E00B that sizes the Bridge's RAM. The INC $00 instructions between each write and read are a layered defence against three distinct failure modes.
+
+## References
+
+- [Econet Installation Guide (0482,009 Issue 1, 27 September 1988) (PDF)](https://www.theoddys.com/acorn/acorn_system_filing_systems/econet/documentation/Econet%20Installation%20Guide%200482%2C009%20Issue%201%2027%20September%201988.pdf)
+  Acorn's official Econet installation guide. Chapter 3 covers the Bridge. A local copy is kept in docs/.
+- [The Replica Acorn Econet Bridge project](https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/replica_acorn_econet_bridge.html)
+  A modern reproduction of the Acorn Econet Bridge, with useful photographs and build notes.
+- [Replica Econet Bridge Schematic (PDF)](https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/Replica%20Econet%20Bridge%20Schematic.pdf)
+  Schematic for the replica board, closely matching the original Acorn design.
+- [Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF)](docs/econet_bridge_Ian_Stocks.pdf)
+  Schematic reverse-engineered from an original Acorn board. Local copy in docs/; originally shared in the Stardot forum thread below.
+- [Stardot Forums: Econet Bridge schematic thread](https://stardot.org.uk/forums/viewtopic.php?t=12324)
+  Discussion of Ian Stocks's reverse-engineered schematic and Bridge hardware details.
+- [Stardot Forums: discussion of the Acorn Econet Bridge ROM](https://stardot.org.uk/forums/viewtopic.php?t=8696)
+  Thread discussing the Bridge ROM's behaviour and internals.
+- [Rick Murray's notes on the Acorn Econet Bridge](https://heyrick.eu/econet/bridge/acorn.html)
+  Overview of the Acorn Econet Bridge hardware, firmware behaviour, and configuration.
+- [Beebmaster: The Acorn Bridge](https://www.beebmaster.co.uk/Econet/AcornBridge.html)
+  Beebmaster's page on the Acorn Bridge, with photographs, configuration notes, and operational details.
+- [J.G. Harston's mdfs.net Econet Bridge archive](https://mdfs.net/System/ROMs/Econet/Bridge/)
+  Directory listing for the Acorn Econet Bridge on mdfs.net. As of writing, the BRIDGE.S disassembly link on the page does not resolve.
+
+## Credits
+
+- [py8dis](https://github.com/acornaeology/py8dis) by [SteveF](https://github.com/ZornsLemma), forked for use with acornaeology
+- [beebasm](https://github.com/stardot/beebasm) by Rich Mayfield and contributors
+- [The BBC Micro ROM Library](https://tobylobster.github.io/rom_library/) by tobylobster
+
+## License
+
+The annotations and disassembly scripts in this repository are released under the [MIT License](LICENSE). The original ROM images remain the property of their respective copyright holders.

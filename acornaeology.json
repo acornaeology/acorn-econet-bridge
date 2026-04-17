@@ -1,0 +1,71 @@
+{
+    "slug": "acorn-econet-bridge",
+    "name": "Acorn Econet Bridge",
+    "description": "The Acorn Econet Bridge is a standalone 6502-based device that joins two Econet networks, forwarding traffic between them while isolating local traffic to each side. The bridge firmware lives in an 8 KB ROM at &E000-&FFFF and implements the bridge protocols that allow file servers, printer servers, and station clients on different Econet segments to communicate.",
+    "glossary": "GLOSSARY.md",
+    "versions": ["1"],
+    "analyses": [
+        {
+            "label": "Anti-aliasing in the Econet Bridge's RAM test",
+            "url": "docs/analysis/ram-test-anti-aliasing.md",
+            "icon": "doc",
+            "note": "A close reading of the thirteen-instruction routine at &E00B that sizes the Bridge's RAM. The INC $00 instructions between each write and read are a layered defence against three distinct failure modes."
+        }
+    ],
+    "references": [
+        {
+            "label": "Econet Installation Guide (0482,009 Issue 1, 27 September 1988) (PDF)",
+            "url": "https://www.theoddys.com/acorn/acorn_system_filing_systems/econet/documentation/Econet%20Installation%20Guide%200482%2C009%20Issue%201%2027%20September%201988.pdf",
+            "icon": "doc",
+            "note": "Acorn's official Econet installation guide. Chapter 3 covers the Bridge. A local copy is kept in docs/."
+        },
+        {
+            "label": "The Replica Acorn Econet Bridge project",
+            "url": "https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/replica_acorn_econet_bridge.html",
+            "icon": "ref",
+            "note": "A modern reproduction of the Acorn Econet Bridge, with useful photographs and build notes."
+        },
+        {
+            "label": "Replica Econet Bridge Schematic (PDF)",
+            "url": "https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/Replica%20Econet%20Bridge%20Schematic.pdf",
+            "icon": "doc",
+            "note": "Schematic for the replica board, closely matching the original Acorn design."
+        },
+        {
+            "label": "Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF)",
+            "url": "docs/econet_bridge_Ian_Stocks.pdf",
+            "icon": "doc",
+            "note": "Schematic reverse-engineered from an original Acorn board. Local copy in docs/; originally shared in the Stardot forum thread below."
+        },
+        {
+            "label": "Stardot Forums: Econet Bridge schematic thread",
+            "url": "https://stardot.org.uk/forums/viewtopic.php?t=12324",
+            "icon": "chat",
+            "note": "Discussion of Ian Stocks's reverse-engineered schematic and Bridge hardware details."
+        },
+        {
+            "label": "Stardot Forums: discussion of the Acorn Econet Bridge ROM",
+            "url": "https://stardot.org.uk/forums/viewtopic.php?t=8696",
+            "icon": "chat",
+            "note": "Thread discussing the Bridge ROM's behaviour and internals."
+        },
+        {
+            "label": "Rick Murray's notes on the Acorn Econet Bridge",
+            "url": "https://heyrick.eu/econet/bridge/acorn.html",
+            "icon": "ref",
+            "note": "Overview of the Acorn Econet Bridge hardware, firmware behaviour, and configuration."
+        },
+        {
+            "label": "Beebmaster: The Acorn Bridge",
+            "url": "https://www.beebmaster.co.uk/Econet/AcornBridge.html",
+            "icon": "ref",
+            "note": "Beebmaster's page on the Acorn Bridge, with photographs, configuration notes, and operational details."
+        },
+        {
+            "label": "J.G. Harston's mdfs.net Econet Bridge archive",
+            "url": "https://mdfs.net/System/ROMs/Econet/Bridge/",
+            "icon": "ref",
+            "note": "Directory listing for the Acorn Econet Bridge on mdfs.net. As of writing, the BRIDGE.S disassembly link on the page does not resolve."
+        }
+    ]
+}
