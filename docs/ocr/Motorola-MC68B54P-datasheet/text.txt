@@ -1,0 +1,1990 @@
+(i) moroROLA
+
+|
+
+ADVANCED DATA-LINK CONTROLLER (ADLC)
+
+The MC6854 ADLC performs the complex MPU/data communication
+link function for the “Advanced Data Communication Control Pro-
+cedure’ (ADCCP), High-Level Data-Link Control (HDLC) and Syn-
+chronous Data-Link Control (SDLC) standards. The ADLC provides key
+interface requirements with improved software efficiency. The ADLC is
+designed to provide the data communications interface for both primary
+and secondary Stations tn stand-alone, polling, and loop configurations.
+
+@ M6800 Compatible
+
+@ Protocol Features
+e Automatic Flag Detection and Synchronization
+e Zero Insertion and Deletion
+e Extendable Address, Control and Logical Control Fields (Optional)
+¢ Variable Word Length Information Field — 5, 6-, 7-, or 8-Bits
+e Automatic Frame Check Sequence Generation and Check
+e Abort Detection and Transmision
+¢ Idle Detection and Transmission
+
+@® Loop Mode Operation
+
+@ Loop Back Self-Test Mode
+
+® NRZ/NRZI Modes
+
+® Quad Data Buffers for Each Rx and Tx
+@ Prioritized Status Register {(Optiona!)
+
+® MODEM/DMA/Loop Interface
+
+MC6854
+(1.0 FAHZ}
+
+MC68A54
+
+(1.5 Miliz)
+
+MCGBBB4
+
+(N-CHANNEL, SILICON GATE)
+
+ADVANCED DATA-LINK
+CONTROLLER
+
+MAXIMUM RATINGS
+
+Rating Symbol Value Unit
+Supply Voltage Vcc |-0.3to +7.0
+Input Voltage _ Vin -0.3 to +7.0 V
+Operating Temperature Range (Ty to Ty)
+MC6854, MC68A54, MC68B54 TA 0 to 70 ae,
+MC6854C, MC68A54C — 40 to 85
+
+—65 to +150 oC
+
+| Storage Temperature Range
+
+THERMAL CHRACTERISTICS
+
+Characteristic
+Thermal Resistance
+
+Plastic
+
+Ceramic
+Cerdip
+
+This device contains circuitry to protect the inputs against damage due to high
+Static voltages or electric fields; however, it is advised that normal precautions
+be taken to avoid application of any voltage higher than maximum rated voltages
+to this high-impedance circuit. Reliability of operation is enhanced if unused in-
+puts are tied to an appropriate jogic voltage level (e.g., either Vgs or Vcc).
+
+el
+
+L SUFFIX
+CERAMIC PACKAGE
+
+CASE 719
+
+P SUFFIX
+PLASTIC PACKAGE
+CASE 710
+
+S SUFFIX
+— CERDIP PACKAGE
+=. CASE 733
+
+4-550
+
+MC6854° MC68A54° MC68B54
+
+FIGURE 1 — ADLC GENERAL BLOCK DIAGRAM
+
+| ___R b g os
+Control | | Control ] | Control : -
+Register | | Register Register _—_ — £
+£3 | sa ip Select _—
+- | | - - < poco
+
+| Recewe | a
+[| Data ¥ -
+rm | FIFO —
+
+arene 7
+
+tas) er
+
+wl a Receiver ewe RxD
+2
+
+| ) 3 t ~
+
+| :
+Data | LP Status FCS Check — 5,
+Bus | : | — —
+
+Interface !
+
+Data ) =
+Bus ( \ .
+DO-D? atl bp.
+
+= Status os
+po |
+- F
+—P FCS Generator -— _ —
+Transmits 7 ¥
+
+| oe : |
+| ; _
+Register ! Zero
+{3 ees Transmitter | a TxD
+| — T ~ a — — J Fx
+
+| Control =, _— : —< cts
+| Register Control — - z DTR
+#1 RTS
+
+i — < RESET
+
+~
+
+r
+|
+
+Ct)
+
+“,
+
+Ves Pin 4 IRQ 4+—
+Voc Pin 14 TOSR ¢ 7
+ROSR ¢—
+
+POWER CONSIDERATIONS
+
+The average chip-junction temperature, Tj, in °C can be obtained from:
+Tj=TA+(Ppe6 sa} al
+Where:
+TAsxAmbient Temperature, °C
+é )A Package Thermal Resistance, Junction-to-Ambient, °C/W
+PD=PINT + PPORT
+PINT=Iicc x Vcc, Watts — Chip Internal Power
+PportT# Port Power Dissipation, Watts — User Determined
+
+For most applications PepoRT<Pin7T and can be neglected. PePORT may become significant if the device is configured to
+drive Darlington bases or sink LED loads.
+
+An approximate relationship between Pp and Ty (if PPORT is neglected) is:
+
+Po=K+(T y+ 273°C) (2)
+Solving equations 1 and 2 for K gives:
+K=Pp*(Ta+273°C} +8) A® Pp* (3)
+
+Where K is a constant pertaining to the particular part. K can be determined from equation 3 by measuring Pp fat equilibrium)
+fora known TA. Using this value of K the values of Pp and Ty can be obtained by solving equations (1) and (2) iteratively tor any
+value of TA.
+
+4661 -,
+
+MC6854° MC68A54e MC68B54
+
+DC ELECTRICAL CHARACTERISTICS (Vec=5.0 Vde +5%, Vss=0, Ta=T| to Ty unless otherwise noted)
+
+Characteristic Symbol Min Unit
+
+Input Low Valtage Vic | - |] - |[V¥ss+08 7 V_
+Input Leakage Current (Vin =0 to 5.25 V) ~All inputs Except DO-D7 | olin ff  — $10 f 25 | pA:
+Three-State (Off-State) Input Current DO-D? 7 10 A
+
+(Vin = 0.4 to 2.4 V, Vcc=5.25 V} id F
+
+“DC Output High Voltage ——COC—stsi‘“‘ —————
+
+(li oad = ~- 205 pA) 00-D7 VOH V¥ss+2.4 — V
+
+(Vi ogad= — 100 pAl All Others ¥ssg+2.4 —
+DC Output Low Voltage (Load = 1.6 mA) “Vor | — | — |Vsst04]7V
+Output Leakage Current (Off State) (VQy = 2.4 V) IRO loz a SS pA
+internal Power Dissipation (measured at Ta = T } —_— PINT | = | 880 | mW |
+
+Capacitance : = l
+(Vin =0, Ta = 25°C, f= 1.0 MHz) DO-D7) Cin 12.5
+
+All Other Inputs
+
+TRO cC 5.0
+All Others out 10
+
+AC ELECTRICAL CHARACTERISTICS (Vcc =5.0 V 45%, Vgs=0, TA=TE to Ty unless otherwise noted)
+
+| a cymbal |_MCs854_| McBBAS4 | Mcé8B54
+——— om Min | Max | Min | Max | Min | Max
+
+Unit
+
+Clock Pulse Width, Low (RxC, TxC) PWc_ | 700| — | 450] — | 280] —-
+Clock Pulse Width, High {RxC, TxC) PWeH — | 450] — | 280
+serial Clock Frequency (RxC, TxC) - : isc ~ ~ MHz
+Receive Data Setup Time a tRDsSU | 190 100 ns
+Receive Data Hold Time . ST OS
+Request-to-Send Delay Time | tats | — | 680 460 340 [ ns
+Clock-to-Data Delay for Transmitter | trop | — | 300 250
+Flag Detect Delay Time tro. | — | 680 | — | 460] -— | 40] ns
+Ste bone Tm ‘ora = [ea | | 400 | 3a
+Loop On-Line Control Delay Time ttoc | — | 680] — | 460 [/ — | MO] ns |
+RDSR Delay Time trosr | — | 540] — { 400] — | 340] ns
+TOSR Delay Time = es
+interrupt Request Release Time 12] — |} 09] — | 07] gs |
+RESET Pulse Width 0.65} — [040[ — [zs
+input Rise and Fail Times (Except Enable) (0.8 V to 2.0 V} / ot. te | — fp tor] -— J iov} — | 10°] gs
+“1.0 xs or 10% of the pulse width, whichever is smaller
+FIGURE 2 — BUS TIMING TEST LOADS
+Load A Load B
+(D0-D7 RTS, TxD, RDSR, TOSR 9.0 V (TRG Only! 5.0 V
+FLAG DET, LOC/DTR)
+Ry = 2.5 kQ 3 kQ
+Test Point bigememeratl Test Point ©
+or Equiv.
+AR 100 pF
+MMD7000
+or Equiv.
+oo
+
+C= 130 pF for DO-D?
+= 30 pF for others
+
+R= 11.7 kQ2 for DO-D7
+= 24 kf) for others
+
+4-552
+MC6854*° MC68A54* MC68B54
+
+FIGURE 3 RECEIVER DATA SETUP/HOLD, FLAG DETECT AND LOOP ON-LINE CONTROL DELAY TIMING
+
+@—$§$— PWeoH
+
+Rx —s
+—- PWeL
+RxD Same i ; —= i
+
+—— tRDH - >
+4
+
+FIGURE 4 — TRANSMIT DATA OUTPUT DELAY AND REQUEST-TO-SEND DELAY TIMING
+
+TxD
+»-
+‘TOO an
+ATS
+——taTs
+
+FIGURE 5 — TDSR/RDSR DELAYS, IRQ RELEASE DELAY, RTS AND OTR DELAY TIMING
+
+: ¢ a es
+
+RTS
+DTR Se oe  .. el. es,
+toTA
+IRQ
+tiR
+ROSA
+— TROSA zs —_
+'TDSA
+
+Note: Timing measurements are referenced to and from a low voltage of 0.8 volts and a high voltage of 2.0 volts, unless otherwise noted.
+
+4-553
+MC6854*° MC68A54e MC68B54
+
+BUS TIMING CHARACTERISTICS (See Notes 1 and 2}
+
+ident. = | mcess4 | mcesass | mceses4 |.
+Characteristics 2 oa “Min | Max | Min | Max Unit
+___1_ [Cycle Time tcyo_ | 1.0| 10 Jos7] 10 [05] 10 | us
+| 2‘ [Pulse Width, E Low __| PWer | 430 | 9500 | 280 | 9500] 210 | 9500] ns
+
+(3 [Pulse Width, © High _PWeH | 450 | 9500 | 280 | 9500] 220 | 9500] ns _
+| i 2 Clock Rise and Fall Time Poth tf of | - | | - [|] os |
+| 9 | Address Hold Time tAH 10 eee oe
+i] Address Setup Time Before E a eet
+p14 Chip Select Setup Time Before tcs | 80 f —~ | ~ | — | 40] - J ns
+| 15 +=} Chip Select Hold Time tcH | 10} — | 10 ai, eee
+| 18 =‘ | Read Data Hold Time | tDHR | 20 [| 100° 20 | 100 | 20 | 100] ns |
+| 21 [Write Data Hold Time toHw | 10 [ — | 10 ed ee
+— a Output Data Delay Time (DDR et te ee
+31 [Input Data Setup Time tosw | 5) — | 807 - ~ |
+
+FIGURE 6 — BUS TIMING
+
+——__--—-.9~
+
+R/W, Address
+(Non-Muxed}
+
+4)
+RAOQOK NYE
+©ippual
+oS } |
+<>
+
+Read Data MPU Read Data Non-Muxed
+Non-Muxed a
+<2)
+
+Write Data : MPU Vrrite Data Non-Muxed
+Muxed :
+
+Notes:
+1, Voltage levels are V; <0.4 V, Vu =2.4 V, unless othewise specified.
+2. Measurement points shown are 0.8 V and 2.0 V, unless otherwise specified.
+
+4-554.
+MC6854e MC68A54* MC68B54
+
+FRAME FORMAT
+
+The ADLC transmits and receives data (information or
+control) in a format called a frame. All frames start with an
+opening flag (F) and end with a closing flag (F). Between the
+
+opening flag and closing flag, a frame contains an address
+field, control field, information field (optional) and frame
+check sequence field.
+
+FIGURE 7 — DATA FORMAT OF A FRAME
+
+-_— A Frame ee —~
+= | ' I a
+01111110 8 Bits 8 Bits SBis | $Variadle 16 Bit 01111110
+Per Byte Per Byte Per Byte | Length
+| | (5-8) —
+(Opening) Address® Control Logical Control Frame Check (Closing)
+Flag Field Field Sub-Field (Option) Sequence Field Flag
+
+“Extendable (Optional)
+
+i
+
+Flag (F) — The flag is the unique binary pattern
+(01111116). It provides the frame boundary and a reference
+for the position of each field of the frame.
+
+The ADLC transmitter generates a flag pattern internally
+and the opening flag and closing flags are appended to a
+frame automatically. Two successive frames can share one
+flag for a closing flag of the first frame and for the opening
+flag of the next frame, if the “FF’/'F’ control bit in the con-
+trol register is reset.
+
+The receiver searches for a flag on a bit-by-bit basis and
+recognizes a flag at any time. The receiver establishes the
+frame synchronization with every flag. The flags mark the
+frame boundary and reference for each field but they are not
+transferred to the Rx FIFO. The detection of a flag is tn-
+dicated by the Flag Detect output and by a status bit in the
+Status register.
+
+Order of Bit Transmission — Address, control and infor-
+mation field bytes are transferred between the MPU and the
+ADLC in parallel by means of the data bus. The bit on DO
+(data bus bit 0, pin 22} is serially transmitted first, and the
+first serially received bit is transferred to the MPU on DO. The
+FCS field is transmitted and received MSB first.
+
+Address (A) Field — The 8 bits following the opening flag
+are the address {A) field. The A-field can be extendable if the
+Auto-Address Extend Mode is selected in control register #3.
+In the Address Extend Mode, the first bit {bit 0) in every ad-
+dress octet becomes the extend contro! bit. When the bit is
+"O", the ADLC assumes another address octet will follow,
+and when the bit is ‘’1°’, the address extension is terminated.
+A *’null” address (all ‘’0's’’) does not extend. In the receiver,
+the Address Present status bit distinguishes the address field
+from other fields. When an address byte is availabie to be
+read in the receive FIFO register, the Address Present status
+bit is set and causes an interrupt (if enabled). The Address
+Present bit is set for every address octet when the Address
+Extend Mode is used.
+
+Information Fieid
+{Optional}
+
+_
+
+Control (C) Fieid — The 8 bits following the address field is
+the control (link control) field. When the Extended Control
+Field bit in control register #3 is selected, the C-field is ex-
+tended to 16 bits.
+
+Information (1) Field — The I-field follows the C-field and
+precedes the FCS field. The |-field contains “data” to be
+transferred but is not always necessarily contained in every
+frame. The word length of the |-field can be selected from 5
+to 8 bits per byte by control bits in control register #4. The
+-field will continue until it is terminated by the FCS and clos-
+ing flag. The receiver has the capability to handle a ‘‘partial’’
+last byte. The last information byte can be any word length
+between 1 and 8 bits. If the last byte in the I-field is less than
+the selected word !ength, the receiver will right justify the
+received bits, fill the remaining bits of the receiver shift
+register with zeros, and transfer a full byte to the Rx FIFO.
+Regardless of selected byte length, the ADLC will transfer 8
+bits of data to the data bus. Unused bits for word lengths of
+5, 6, and 7 will be zeroed.
+
+Logical Control (LC) Field — When the Logical Control
+Field Select bit, in control register #3, is selected the ADLC
+separates the J-field into two sub-fields. The first sub-field is
+the Logical Controi field and the following sub-field is the
+“data” portion of the |-field. The logical control field is 8 bits
+and follows the C-field, which is extendable by octets, if it is
+selected. The last bit (bit 7) is the extend contro! bit, and if it
+isa‘’l’’, the LC-field is extended one octet.
+
+NOTE
+
+Hereafter the word “Information field’ or ‘‘f-field’’ is
+used as the data portion of the information field, and
+excludes the jogical control field. This is done in order
+to keep the consistency of the meaning of “Informa-
+tion field’ as specified in SOLC, HDLC, and ADCCP
+Standards.
+
+4-555
+
+MC6854e MC68A54e MC68B54
+
+Frame Check Sequence (FCS) Field — The 16 bits
+preceding the closing flag ts the FCS field. The FCS is the
+“cyclic redundancy check character {CRCC)."" The
+polynomial x16 + x12 + x5 + 1 is used both for the transmitter
+and receiver. Both the transmitter and receiver polynomial
+registers are initialized to all “1's” prior to calculation of the
+FCS. The transmitter calculates the FCS on all bits of the ad-
+dress, control, logical control (if selected), and information
+fields, and transmits the complement of the resulting re-
+mainder as FCS. The receiver performs the similar computa-
+tion on all bits of the address, control, logical control (if
+selected), information, and received FCS fields and com-
+pares the result to FOB8 (Hexadecimal). When the result
+matches FOB8, the Frame Valid status bit is set in the status
+register. If the result does not match, the Error status bit is
+set. The FCS generation, transmission, and checking are
+performed automatically by the ADLC transmitter and
+receiver. The FCS field is not transferred to the Rx FIFO.
+
+Invalid Frame — Any valid frarnes should have at least the
+A-field, C-field, and FCS field between the opening flag and
+the closing flag. When invalid frames are received, the ADLC
+handles them as follows:
+
+1. A short frame which has less than 25 bits between
+
+flags — the ADLC ignores the short frame and its
+
+reception is not reported to the MPU.
+
+. A frame less than 32 bits between the fiags, or a frame
+32 bits or more with an extended A-field or C-field that
+is not completed. — This frame is transferred into the
+Rx FIFO. The FCS/IF Error status bit indicates the
+reception of the invalid frame at the end of the frame.
+Aborted Frame — The frame which is aborted by
+receiving an abort or DCD failure is also an invalid
+frame. Refer to ‘Abort’ and “DCD status bit’’.
+
+Zero Insertion and Zero Deletion — The Zero insertion and
+deletion, which allows the content of the frame to be
+transparent, are performed by the ADLC automatically. A
+binary 0 is inserted by the transmitter after any succession of
+five ‘'1's” within a frame (A, C, LC, I, and FCS field). The
+receiver deletes a binary 0 that follows successive five con-
+tinuous 1's’ within a frame.
+
+Abort — The function of prematurely terminating a data
+link is called ‘“‘abort.’’ The transmitter aborts a frame by
+sending at least eight consecutive “1's” immediately after
+the Tx Abort contro} bit in contro! register #4 is set to a “1”.
+(Tx FIFO is also cleared by the Tx Abort control bit at the
+same time.) The abort can be extended up to (at least) 16
+consecutive ''1's”, if the Abort Extend control bit in the con-
+trol register #4 is set when an abort is sent. This feature is
+useful to force mark idle transmission. Reception of seven or
+more consecutive “1's” is interpreted as an abort by the
+receiver. The receiver responds to a received abort as
+follows: .
+
+1. An abort in an “out of frame’ condition — an abort
+during the idle or time fill has no meaning. The abort
+reception is indicated in the status register as long as
+the abort condition continues; but neither an interrupt
+nor a stored condition occurs. The abort indication
+disappears after 15 or more consecutive °‘’1’s” are
+received (Received Idle status is set.)
+
+An abort ‘in frame” after less than 26 bits are received
+after an opening flag — under this condition, any field
+
+4-556
+
+of the aborted frame has not transferred to the MPU
+yet. The ADLC clears the aborted frame data in the
+FiFO and clears flag synchronization. Neither an tnter-
+rupt nor a stored status occurs. The status indication
+is the same as (1) above.
+
+An abort “in frame” after 26 bits or more are received
+after an opening flag — under this condition, some
+fields of the aborted frame might have been transfer-
+red onto the data bus. The abort status is stored in the
+receiver status register and the data of the aborted
+frame in the ADLC is cleared. The synchronization Is
+also cleared.
+
+Idie and Time Fill — When the transmitter is in an “‘out of
+frame’ condition (the transmitter is not transmitting a
+frame), itis tn an idie state. Either a series of contiguous flags
+{time fill} or a mark idie (consecutive ‘’1's” on a bit-by-bit
+basis) is selected for the transmission in an idle state by the
+Flaqg/Mark Idle control bit. When the receiver receives 15 or
+more consecutive “‘1's"’, the Receive Idle status bit is set and
+causes an interrupt. The flags and mark idle are not transfer-
+red to the Rx FIFO.
+
+OPERATION
+
+INITIALIZATION
+
+During a power-on sequence, the ADLC is reset via the
+RESET input and internally latched in a reset condition to
+prevent erroneous output transitions. The four control
+registers must be programmed prior to the release of the
+reset condition, The release of the reset condition is perform-
+ed via software by writing a “’0” into the Rx RS control bit
+(receiver) and/or Tx RS control bit (transmitter). The release
+of the reset condition must be done after the RESET input
+has gone high.
+
+At any time during operation, writing a “1” into the Rx RS
+control bit or Tx RS contro! bit causes the reset condition of
+the receiver or the transmitter.
+
+TRANSMITTER OPERATION
+
+The Tx FIFO register cannot be pre-loaded when the
+transmitter is in a reset state. After the reset release, the
+Flag/Mark Idle control bit selects either the mark idle state
+(inactive idle) or the Flag “time fill’ (active idle} state. This
+active or inactive mark idle state will continue until data ts
+loaded into the Tx FIFO.
+
+The availability of the Tx FIFO is indicated by the TORA
+Status bit under the control of the 2-Byte/1-Byte control bit.
+TDRA Status is inhibited by the Tx RS bit or CTS input being
+high. When the 1-Byte mode is selected, one byte of the
+FIFO is available for data transfer when TDRA goes high.
+When the 2-Byte mode is selected, two successive bytes can
+be transferred when TDRA goes high.
+
+The first byte (Address field) should be written into the Tx
+FIFO at the “Frame Continue’ address. Then the transmis-
+sion of a frame automatically starts. If the transmitter is in a
+mark idle state, the transfer of an address causes an opening
+flag within two or three transmitter clock cycles. !f the
+transmitter has been in a time fill State, the current time fill
+flag being transmitted is assumed as an opening flag and the
+address field will follow it.
+
+MC6854e MC68A54eMC68B54
+
+FIGURE 8a — ADLC TRANSMITTER STATE DIAGRAM
+({Cibj refers to control register bit)
+
+TX Reset
+
+FIFO Empty
+Data Being Transmitted:
+
+F= flag
+
+A= address
+
+C= (link) control
+
+LC = Jogical control {optional}
+
+l= jnformation
+FCS = frame check sequence
+ABT= abort a Flag idle {(C2b2 & 1)
+
+Cn or
+
+2F Interframe (C4b0 = 1) _
+
+FIFO Empty &Mark Idie
+
+C4b2 C4b6 Abort extend (1 Byte)
+
+Cabi C3b2
+
+Extend Address
+Abort or
+
+Not last byte
+Abort or Underrun
+
+Not last byta
+
+only if C3b0 = 1
+
+C361 Extend Control
+Extend Logical Control (1 Byte only)
+
+4-597
+MC6854e MC68A54e MC68B54
+
+FIGURE 8b — ADLC RECEIVER STATE DIAGRAM
+
+Rx Reset
+More
+Date
+
+F isd
+
+& off
+Extend
+
+*Out-of-frame Abort (No 1AQ)
+
+A frame continues as long as data is written into the Tx
+FIFO at the “Frame Continue” address. The ADLC internaily
+keeps track of the field sequence in the frame. The frame for-
+mat is described in the “FRAME FORMAT” section.
+
+The frame is terminated by one of two methods. Fhe most
+efficient way to terminate the frames from a software stand-
+point is to write the last data character into the Transmit
+FIFO “Frame Terminate’ address (RS1, RSO=11)} rather
+than the Transmit FIFO “Frame Continue’ address (RS,
+RSO= 10). An alternate method is to follow the fast write of
+data in the Tx FIFO “Frame Continue” address with the set-
+ting of the Transmit Last Data contro! bit. Either method
+
+Set Frame Status
+(Error or Valid)
+
+of
+Frama Flag
+
+More Than
+24 Bits of Data
+
+Abort or
+Cybs
+
+C3b2
+Address Extend
+
+C364
+Control
+Extend
+
+causes the last character to be transmitted and the FCS field
+to automatically be appended along with a closing flag. Data
+for a new frame can be loaded into the Tx FIFO immediately
+after the old frame data, if TDRA is high. The closing Flag
+can serve as the opening Flag of the next frame or separate
+opening and closing Flags may be transmitted. lf a new
+frame is not ready to be transmitted, the ADLC will
+automatically transmit the Active (Flag) or inactive (Mark)
+Idle condition.
+
+lf the Tx FIFO becomes empty at any time during frame
+transmission (the FIFO has no data to transfer into transmit-
+ter shift register during transmission of the last half of the
+
+4-558
+MC6854° MC68A54°e MC68B54
+
+next to last bit of a word), an underrun will occur and the
+transmitter automatically terminates the frame by transmit-
+ting an abort. The underrun state is indicated by the Tx
+Underrun status bit.
+
+Any time the Tx ABORT Control bit is set, the transmitter
+immediately aborts the frame (transmits at least 8 con-
+secutive “'1's'') and clears the Tx FIFO. If the Abort Extend
+Control! bit is set at the time, an idle {at least 16 consecutive
+1's") is transmitted. An abort or idle in an “out of frame”
+condition can be useful to gain 8 or 16 bits of delay. (For an
+example, see “Programming Considerations.”’}
+
+The CTS (Clear-to-Send) input and RTS (Request-to-
+Send} output are provided for a MODEM or other hardware
+interface.
+
+The TDRA/FC status bit (when selected to be Frame
+Complete Status) can cause an interrupt upon frame com-
+pletion (i.e., a flag or abort completion).
+
+Details regarding the inputs and outputs, status bits, con-
+trol bits, and FIFO operation are described in their respective
+sections.
+
+RECEIVER OPERATION
+
+Data and a pre-synchronized clock are provided to the
+ADLC receiver section by means of the Receive Data (RxD)
+and Receive Clock (RxC} inputs. The data is a continuous
+stream of binary bits with the characteristic that a maximum
+of five ‘1's’ can occur in succession unless Abort, Flag, or
+Idling condition occurs. The receiver continuously {on a bit-
+by-bit basis} searches for Flags and Aborts.
+
+When a flag is detected, the receiver establishes frame
+synchronization to the flag timing. if a series of flags is
+received, the receiver resynchronizes to each flag.
+
+lf the frame is terminated before the internal buffer time
+expires (the frame data is Jess than 25 bits after an opening
+flag), the frame is simply ignored. Noise on the data input
+(RxD) during time fill can cause this kind of invalid frame.
+
+The received serial data enters a 32-bit shift register (clock-
+ed by RxC) before it is transferred into the Rx Data FIFO.
+synchronization is established when a Flag is detected in the
+first eight locations of the shift register. Once synchroniza-
+tion has been achieved, data is clocked through to the Jast
+byte location of the shift register where it ts transferred byte-
+per-byte into the Rx Data FIFO. The Rx Data FIFO is clocked
+by E to cause received data to move through the FIFO to the
+last empty register location. The Receiver Data Available
+Status bit (RDA) indicates when data is present in the last
+register (Register #3) for the 1-Byte Transfer Mode. The
+2-Byte Transfer Mode causes the RDA status bit to indicate
+data is available when the Jast two FIFO register locations
+(Registers #2 and #3) are full. if the data Character present in
+the FIFO is an address octet, the status register will exhibit
+an Address Present status condition. Data being available in
+the Rx Data FiFO causes an interrupt to be initiated {assum-
+ing the receiver interrupt is enabied, RIE="1"'}. The MPU
+will read the ADLC Status Register as a result of the interrupt
+or in its turn in a polling sequence. RDA or Address Present
+will indicate that receiver data is available and the MPU
+shouid subsequently read the Rx Data FIFO register. The in-
+terrupt and status Dit will then be reset automatically. If more
+than one character had been received and was resident in the
+Rx Data FIFO, subsequent E clocks will cause the FIFO to
+update and the RDA status bit and interrupt will again be
+SET. In the 2-Byte Transter Mode both data bytes may be
+
+4-559
+
+read on consecutive E cycles. Address Present provides for 1
+byte transfers only.
+
+The sequence of sach field in the received frame is
+automatically handled by the ADLC. The frame format is
+described in the “FRAME FORMAT” section.
+
+When a closing flag is received, the frame is terminated.
+The 16 bits preceding the closing flag are regarded as the
+FCS and are not transferred to the MPU. Whatever data is
+present in the most-significant byte portion of the receiver
+buffer register it is right justified and transferred to the Rx
+FIFO. The frame boundary pointer, which is explained in the
+“Rx FIFO REGISTER” section, is set simultaneously in the
+Rx FIFO. The frame boundary pointer sets the Frame Valid
+Status bit (when the frame was completed with no error) or
+the FCS/IF Error Status bit {when the frame was completed
+with error) when the last byte of the frame appears at the last
+location of the Rx FIFO. As long as the Frame Valid or
+FCS/iF Error status bit is set, the data transfer from the
+second location of the Rx FIFO to the last location of the Rx
+FIFO is inhibited.
+
+Any time the Frame Discontinue control bit is set, the
+ADLC discards the current frame data tn the ADLC without
+dropping flag synchronization. This feature can be ussd to
+ignore a frame which is addressed to another station.
+
+The reception of an abort or idie is explained in the
+“FRAME FORMAT” section. The details regarding the in-
+puts, outputs, status bits, control bits, and Rx FIFO opera-
+tion are described in their respective sections.
+
+LOOP MODE OPERATION
+
+The ADLC in the loop mode, not only performs the
+transmission and receiving of data frames in the manner
+previously described, but also has additional features for
+gaining and relinquishing foop control. in Figure 9a, a con-
+figuration is shown which depicts loop mode operation. The
+system configuration shows a primary Station and several
+secondary Stations. The loop is always under control of the
+primary Station.. When the primary wants to receive data, it
+transmits a Poll sequence and allows frame transmission to
+secondary stations on the loop. Each secondary is in series
+and adds one bit of delay to the loop. Secondary A in the
+figure receives data from the primary via its Rx Data Input,
+delays the data 1 bit, and transmits it to secondary B via its
+Tx Data Output. Secondaries B, C, and D operate in a similar
+manner. Therefore, data passes through each secondary and
+Is received back by the primary controller.
+
+Certain protocol rules must be followed in the manner by
+which the secondary station places itself on-loop {connects
+its transmitter output to the loop), goes active on the loop
+(starts transmitting its own station’s data on the loop}, and
+goes off the loop (disconnects its transmitter output). Other-
+wise loop data to other stations down loop would be in-
+terfered. The data stream always flows the same way and
+the order in which secondary terminals are serviced is deter-
+mined by the hardware configuration. The primary controller
+times the delay through the loop. Should it exceed n+ 1 bit
+times, where n is the number of secondary terminals on the
+loop, it will indicate a loop failure. Control is transferred to a
+secondary by transmitting a “’Go Ahead” signal following the
+closing Fiag of a polling frame (request for a response from
+the secondary) from the primary station. The ‘Go Ahead”
+from the primary is a ‘’O" and seven “1's” followed by mark
+
+MC6854° MC68A54e MC68B54
+
+FIGURE 9a — TYPICAL LOOP CONFIGURATION
+
+‘Poll Frame” + “Secondary
+Station Frames” + “°4111%411%...”
+
+Primary
+Controller
+{Non-loop)
+
+“Poll Frame” + “01111111...”
+
+Secondary Stations (A,B,C,D)
+Operate in Loop Mode
+
+FIGURE 9b — EXAMPLE OF EXTERNAL LOOP LOGIC
+
+ADLC OS
+
+RxD L
+
+< UP-Loop Data
+
+TxB
+
+> Oown Loop Data
+
+idling. The primary can abort its response request by inter-
+rupting its idle with flags. The secondary should immediately
+stop transmission and return control back to the primary.
+When the secondary completes its frame, a closing flag is
+transmitted followed by ali ‘1's’. The primary detects the
+final 01111117...4°Go Ahead” to the primary) and control is
+given back to the primary. Note that, if a down-loop secon-
+dary (e.g., station D) needs to insert information following
+an up-loop station (e.g., station A), the go ahead to station
+D is the last “‘O” of the closing flag from station A followed
+by" lie’.
+
+The ADLC in the primary station should operate in a non-
+loop fuli-duplex mode. The ADLC in the secondaries should
+operate in a loop mode, monitoring up-loop data on its
+receiver data input. The ADLC can recognize the necessary
+sequences in the data stream to automatically go on/off the
+loop and to insert its own station data. The procedure is the
+following and is summarized in Table 1.
+
+(1) Ga On-Loop — When the ADLC powers up, the ter-
+minal station will be off line. The first task is to become an
+active terminal on the loop. The ADLC must be connected to
+a Loop Link via an external switch as shown in Figure Qa.
+After a hardware reset, the ADLC LOC/DTR Output will be
+in the high state and the up-loop receive data repeated
+
+4-560
+
+Loc q >
+
+SS a ll SO ee
+
+Lon — cote — @
+
+through gate A to the down Loop stations. Any Up-Loop
+transmission will be received by the ADLC. The Loop
+Mode/Non-Loop Mode Control bit (bit 5 in Control Register
+3) must be set to place the ADLC in the Loop Mode. The
+ADLC now monitors its Rx Data input for a string of seven
+consecutive ‘1's’ which will allow a station to go on line.
+The Loop operation may be monitored by use of the Loop
+Status bitin Status Register 1. After power up and reset, this
+bit is a zero. When seven consecutive ‘'i’s” are received by
+the ADLC the LOC/DTR output wil) go to a low level, disabl-
+ing gate A (refer to Figure 9b}, enabling gate B and connec-
+ting the ADLC Tx Data output to the down Loop stations.
+
+‘The up Loop data is now repeated to the down Loop stations
+
+via the ADLC. A 1-bit delay is inserted in the data fin NRZI
+mode, there will be a 2-bit delay} as it circulates through the
+ADLC. The ADLC is now on-line and the Loop Status bit in
+status Register 1 will be at a one.
+
+(2) Go Active after Poll — The receiver section will monitor
+the up-link data for a general or addressed poll command
+and the Tx FIFO should be loaded with data so that when the
+go ahead sequence of a zero followed by seven ‘'1’s’
+(01111111---) is detected, transmission can be initiated im-
+mediately. When the polling frame is detected, the Go-
+Active-On-Po!!l control bit must be set (bit 6 in Control
+MC6854e MC68A54° MC68B54
+
+TABLE 1 — SUMMARY OF LOGP MODE OPERATION
+r T —_ ; - = = _ }
+STATE RX SECTION TX SECTION LOOP )
+STATUS BIT
+“ ; )
+OFF-LOOP | Rx section receives data from loop and searches inactive he
+for 7 *‘1’s’* (when On-Loop Control bit set) to go 1) NRZ MODE. Tx data output is maintained
+: ON-LOOP., “nigh” {mark).
+2} NAZ! MODE. Tx data output reflects the Ax
+data input state delayed by one
+bit time. {Not normally con-
+nected to loop.) The NRZI1 data]
+is internally Gecoded to provide
+error-tree transitions to On-Loop
+mode.
+—_ + _ ——
+ON-LOOP : 1) When Go-Active on poll bit is set, Rx section Inactive qe’
+| searches for 011111411 pattern (the EOP or ‘Go 1)NRZMODE. Tx data output refiects Ax data
+| Ahead’) to become the active terminal on the Input state delayed one bit time.
+| {oop. 2) NRZI MODE. Tx data output reflects Rx data
+| 2) When On-Loop control bit is reset, Rx section input state delayed 2 bit times.
+searches for 8 °‘t's’’ to go OF F-Loop. |
+ACTIVE Rx section searches for flag (an interrupt from the Tx data originates within ADLC until Go Active on "or
+loop controller) at Rx data input. Received flag Poll bit is reset and s flag or Abort is completed. |
+causes FD output to go low. IRO is generated if Then returns to ON-Loop state,
+| RIE and FDSE contro! bits are set.
+— }
+
+Register 3). A maximum of seven bit times are available to
+set this control bit after the closing flag of the poll. When the
+Go-Ahead is detected by the receiver, the ADLC will
+automatically change the seventh one to a zero so that the
+repeated sequence out gate B in Figure 9b is now an opening
+flag sequence (011111110). Transmission now continues
+from the Tx FIFO with data (address, control, etc.} as
+previously described. When the ADLC has gone active-on-
+poll, the Loop Status bit in Status Register 1 wiil go to a
+zero. The receiver searches for a flag, which indicates that
+the primary station is interrupting the current operation.
+
+(3) Go Inactive when On-Loop — The Go-Active-On-Poll
+control bit may be RESET at any tyme during transmission.
+When the frame is complete (the closing Flag or abort is
+transmitted), the Loop is automatically released and the sta-
+tion reverts back to being just a 1-bit delay in the Loop,
+repeating up-link data. If the Go-Active-On-Poll control bit is
+not reset by software and the final frame is transmitted
+(Flag/Mark idle bit=Q), then the transmitter will mark idle
+and will not release the loop to up-loop data. A Tx Abort
+command would have to be used in this case in order to go
+inactive when on the loop. Also, if the Tx FIFO was not
+preloaded with data (address, control, etc.) prior to chang-
+ing the Go Ahead Character” to a Flag, the ADLC will either
+transmit flags (active idle character) until data is loaded
+(when Flag/Mark Idle Contro! bit is high) or will go into an
+underrun condition and transmit an Abort (when Flag/ Mark
+Idle control bit is low). When an abort is transmitted, the Go-
+Active-on-Poll contro! bit is reset automatically and the
+ADLC reverts to its repeating mode, (TxD=delayed RxD).
+When the ADLC transmitter lets go of the loop, the Loop
+Status bit will return to a °*'1’’, indicating normal on-loop
+retransmission of up-loop data.
+
+4-561
+
+(4) Go Off-Loop — The ADLC can drop off the Loop {go
+off-line) similar to the way it went on-line. When the Loop
+On-Line control bit is reset the ADLC receiver section looks
+for eight successive “1’s"’ before allowing the LOC/DTR out-
+put to return high (the inactive state}. Gate A in Figure Qb
+will be enabled and gate B disabled allowing the loop to
+maintain continuity without disturbance. The Loop Status
+bit will show an off-line condition Wagical zero).
+
+SIGNAL DESCRIPTIONS
+
+All inputs of ADLC are high-impedance and TTL-
+compatible level inputs. All outputs of the ADLC are com-
+patible with standard TTL. Interrupt Request (IRQ),
+however, iS an open-drain output (no internal pullup).
+
+INTERFACE FOR MPU
+
+Bidirectional Data Bus (D0-D7}) — These data bus 1/0
+ports allow the data transfer between ADLC and system bus.
+The data bus drivers are three-state devices that remain in
+the high-impedance (off) state except when the MPU per-
+forms an ADLC read operation.
+
+Enable Clock (E) — £ activates the address inputs (CS,
+RSQ, and RS1} and R/W input and enables the data transfer
+on the data bus. E also moves data through the Tx FIFO and
+
+Rx FIFO. E should be a free-running clock such as the
+MC6800 MPU system ‘clock.
+
+Chip Select (CS) — An ADLC read or write operation is
+enabled only when the CS input is low and the E clock input
+is high. (E*CS).
+
+MC6854* MC68A54e MC68B54
+
+Register Selects (RSO, RS1) — When the Register Select
+inputs are enabled by (E*CS), they select internal registers in
+conjunction with the Read/Write input and Address Control
+
+bit (control register 1, bit 0). Register addressing is defined in
+Table 2.
+
+Read/Write Control Line (R/W) — The R/W input con-
+trols the direction of data flow on the data bus when it is
+enabled by (E*CS). When R/W is high, the [/O Buffer acts
+aS an output driver and as an input buffer when tow. It also
+
+selects the Read Only and Write Only registers within the
+ADLC.
+
+Reset Input (RESET) — The RESET input provides a
+means of resetting the ADLC from a hardware source. tn the
+“low state,” the RESET input causes the following:
+
+“Rx Reset and Tx Reset are SET causing both the Receiv-
+er and Transmitter sections to be held in a reset condi-
+tion.
+
+"Resets the following contro} bits: Transmit Abort, RTS,
+Loop Mode, and Loop On-Line/DTR.
+
+*Clears all stored status condition of the status registers.
+
+"Outputs: RTS and LOC/DTR go high. TxD goes to the
+mark state (‘’1’s”’ are transmitted).
+
+When RESET returns “high” (the inactive state) the
+transmitter and receiver sections will remain in the reset state
+until Tx Reset and Rx Reset are cleared via the data bus
+under software control. The Control Register bits affected by
+RESET cannot be changed when RESET is “low.”
+
+Interrupt Request Output (IRQ} — {RO will be low if an in-
+terrupt situation exists and the appropriate interrupt enable
+has been set. The interrupt remains as long as the cause for
+the interrupt is present and the enable is set. IRQ will be low
+
+as long as the IRQ status bit is set and is high if the IRQ
+
+Status bit 1s not set.
+CLOCK AND DATA OF TRANSMITTER AND RECEIVER
+
+Transmitter Clock Input (TxC) — The transmitter shifts
+data on the negative transition of the TxC clock input. When
+the Loop Mode or Test Mode is selected, TxC should be the
+same frequency and phase as the RxC clock. The data rate of
+the transmitter should not exceed the E frequency.
+
+Receiver Clock Input (RxC} — The receiver samples the
+data on the positive transition of the RxG clock. RxC should
+be synchronized with receive data externally.
+
+Transmit Data Output (TxD) — The serial data from the
+transmitter is coded in NRZ or NRZI (Zero Complement) data
+format.
+
+Receiver Data Input (RxD) — The serial data to be re-
+ceived by the ADLC can be coded in NRZ or NRZI (Zero
+Complement} data format. The data rate of the receiver
+should not exceed the E frequency. !f a partial byte reception
+is possible at the end of a frame, the maximum data rate of
+the receiver is indicated by the following relationship:
+
+‘
+2teE + 300 ns
+where te is the period of E.
+
+fRxCs
+
+4-562
+
+PERIPHERAL/MODEM CONTROL
+
+Request-to-Send Output (RTS) — The Request-to-Send
+output is controlled by the Request-to-Send control bit in
+conjunction with the state of the transmitter section. When
+the RTS bit goes high, the RTS S output is forced low. When
+the RTS bit returns low, the RTS output remains low until
+the end of the frame and there is no further data in the Tx
+FIFO for a new frame. The positive transition of RTS occurs
+after the completion of a Flag, an Abort, or when the RTS
+control bit is reset during a mark idling state. When the
+RESET input is low, the RTS output goes high.
+
+Clear-to-Send Input (CTS) — The CTS input provides a
+real-time inhibit to the TDRA status bit and its associated in-
+terrupt. The positive transition of CTS is stored within the
+ADLC to ensure its occurrence will be acknowledged by the
+system. The stored CTS information and its associated IRO
+(if enabled) are cleared by writing a ‘1’ in the Clear Tx
+Status bit or in the Transmitter Reset bit.
+
+Data-Carrier-Detect Iinupt {DCD} — The DCO input pro-
+vides a real-time inhibit to the receiver section. A high level
+on the DCD input resets and inhibits the receiver register,
+but data in the Rx FIFO from a previous frame is not disturb-
+ed. The positive transition of DCD is stored within the ADLC
+to ensure that its occurrence will be acknowledged by the
+system. The stored DCD information and its associated IRQ
+(if enabled) are cleared by means of the Clear Rx Status Con-
+trol bit or by the Rx Reset bit.
+
+_Loop On-Line Control/Data Terminal Ready - Output
+(LOC/DTR) — The LOG/OTR output serves as a DTR out-
+put in the non-loop mode or as a Loop Control output in the
+loop mode. When LOC/DTRA output performs the DTR func-
+tion, it is turned on and off by means of the LOC/DTR con-
+trol bit. When the LOC/DTR control bit is high the DTR out-
+put will be low. In the loop mode the LOC/DTR output pro-
+vides the means of controlling the external joop interface
+hardware to go On-line or Off-line. When the LOC/DTR con-
+trol bit is SET and the loop has “‘idled” for 7 bit times or more
+(RxD =01111111...), the LOC/DBTR output will go low (on-
+line). The RESET input being low will cause the LOC/DTR
+output to be high.
+
+Fiag Detect Output (FD) — An output to indicate the
+reception of a flag and initiate an external time-out counter
+for the loop mode operation. The FD output goes low for 1
+bit time beginning at the last bit of the flag character, as
+sampled by the receiver clock (RxC).
+
+DMA INTERFACE
+
+Receiver Data Service Request Output (RDSR) — The
+RDSR Output is provided primarily for use in DMA Mode
+operation and indicates (when high) that the Rx FIFO re-
+quests service (RSDR output reflects the RDA status bit
+regardiess of the state of the RDSR mode control bit in
+CR1). if the prioritized Status Mode is selected, RDSR will
+be inhibited when any other receiver status conditions are
+present. RDSR goes low when the Rx FIFO is read.
+MC6854e VM C68A54*MC68B54
+
+Transmitter Data Service Request Output (TDSR) — The
+TOSR Output is provided for DMA mode operation and in-
+dicates (when high) that the Tx FIFO request service
+regardiess of the state of the TODSR Mode Control bit in CR1.
+TDSR goes low when the Tx FIFO is loaded. TDSR is in-
+hibited by: the Tx RS control bit being SET, RESET being
+low, or CTS being high. If the prioritized status mode is us-
+ed, 1x Underrun also inhibits TDSR. TDSR reflects the
+TDRA status bit except in the FC mode. In the FC mode the
+TDSR line is inhibited.
+
+ADLC REGISTERS
+
+Eight registers in the ADLC can be accessed by means of
+the MPU data and address buses. The registers are defined
+as read-only or write-only according to the direction of infor-
+mation flow. The addresses of these registers are defined in
+Table 2. The transitter FIFO register can be accessed by two
+different addresses, the “Frame Terminate’ address and the
+“Frame Continue” address. (The function of these addresses
+are discussed in the FIFO section.}
+
+TABLE 2 — REGISTER ADDRESSING
+
+Address
+Control Bit
+
+Write Control Register #2 2} o | of 1. 0
+Write Control Register #3 ote 1 1
+x
+
+Write Transmit FIFO @)
+{Frame Continue) |
+— dae 0 ee eee
+Write Transmit FIFO 0 1 1 0
+
+(Frame Terminate}
+
+Write Control Register #4 , oO | 7 he 1
+Read Status Register #1 4d lo | oOo} x
+Read Status Register #2 tf of t. Xx
+
+x
+
+Read Receiver FIFO SEE OE c=
+
+RECEIVER DATA FIRST-IN FIRST-OUT REGISTER
+
+Rx FIFO — The Rx FIFO consists of three 8-bit registers
+which are used for the buffer storage of received data. Data
+bytes are always transferred from a full register to an adja-
+cent empty register; and both phases of the E tnput clock are
+
+4-563
+
+used for the data transfer. Each register has pointer bits
+which point the frame boundary. When these pointers ap-
+pear at the last FIFO location, they update the Address Pre-
+sent, Frame Valid, or FCS/IF Error status bits.
+
+The RDA-status bit indicates the state of the Rx FIFO.
+When RDA status bit is ’1'’, the Rx FIFO is ready to be read.
+The RDA status is controlled by the 2-Byte/1-Byte control
+bit. When overrun occurs, the data in the first byte of the Rx
+FIFO are not longer valid.
+
+Both the Rx Reset bit and RESET input clear the Rx FIFO.
+Abort (“in Frame’’) and a high level on the DCD input also
+clears the Rx FIFO, but the last bytes of the previous frame,
+which are separated by the frame boundary pointer, are not
+disturbed.
+
+TRANSMITTER DATA FIRST-IN FIRST-OUT REGISTER
+
+Tx FIFO — The Tx FIFO consists of three 8-bit registers
+which are used for buffer storage of data to be transmitted.
+Data is always transferred from a full register to an empty aca-
+jacent register; the transfer occurs on both phases of the E
+input clock. The Tx FIFO can be addressed by two different
+register addresses, the “Frame Continue” address and the
+“Frame Terminate” address. Each register has pointer bits
+which point to the frame boundary. When a data byte is writ-
+ten at the ‘Frame Continue” address, the pointer of the first
+FIFO register is set. When a data byte is written at the
+‘Frame Terminate’ address, the pointer of the first FIFO
+register is reset. Rx RS control bit or Tx Abort control bit
+resets all pointers. The pointer will shift through the FIFO.
+When a positive transition is detected at the third location of
+FIFO, the transmitter initiates a frame with an open flag.
+When the negative transition is detected at the third location
+of FIFO, the transmitter closes a frame, appending the FCS
+and closing Flag to the fast byte.
+
+The Tx last control bit can be used instead of using the
+‘Frame Terminate” address. When the Tx last control bit is
+set with a 1", the logic searches the jast byte Jocation in the
+FIFO and resets the pointer in the FIFO register.
+
+The status of Tx FIFO is indicated by the TDRA status bit.
+When TDRA ts ''1"’, the Tx FIFO is available for loading data.
+The TDRA status is controlled by the 2-Byte/1-Byte contro!
+bit. The Tx FIFO is reset by both Tx Reset and RESET input.
+During this reset condition or when CTS input is high, the
+TDRA status bit is suppressed and data loading is inhibited.
+
+MC6854e MC68A54e MC68B54
+
+ADLC INTERNAL REGISTER STRUCTURE
+
+| RS1 RSO=60 RS1 RSO = 01 RS1 RSO = 10 RS1 RSO= 11 |
+Receiver Data
+Bit +] Status Register #1 Status Register #2 Register —_
+| 0 RDA Address Present Bit O
+5 1 | Status #2 Frame Valid Bit 1
+2 Read Request
+ir 2 Loop Inactive Idle Recerved | Bit 2
+| = 3 | Flag Detected Abort Received | Bit 3
+O (When Enabled) | Same as R51, RSO= 10
+8 4 |cTs FCS Error Bit 4
+| «& 5 | Tx Underrun DCD Bit 5
+6 | TORA/Frame Rx Overrun Bit 6
+Complete
+7 | IRO Present | RDA (Receiver Data Available) Bit 7
+
+| | 7 | Transmitter Transmitter | 7
+—EE : - Data Data | =
+| Control Register +7 Control Register #2] Control Register #3 | (Continue Data) (Last Data) Control Register #4
+| Bit + {C4bg = 0) (C4bg = 1} (C71bg * 0) (C4bg = 1)
+0 Address Control {AC}] Prioritized Status | Logical Control Bit O Double Fiag/Single |
+Enable Field Select Flag Interframe
+vt | Control
+b+
+& T Receiver Interrupt 2 Byte/1 Byte 1 Extended Control Bit 1 Bit 7 Word Length Select
+| 3 Enable (RIE) Transfer Fieid Select Transmit #1
+> 2 Transmitter interrupt; Flag/Mark Idle Auto, Address Bit 2 Bit 2 Word Length Select
+5 Enable (TiE} Extension Mode Transmit #2
+o | 3 RDSR Mode (DMA) | Frame Complete/ 01/11 idle Bit 3 Bit 3 ! Word Length Select
+= | TDRA Select | | Receive #1
+4 | TOSR Mode {DMA) Transmit Last Data | Flag Detected Bit 4 Bit 4 Word Length Select
+| Status Enabte Receive #2
+5 Rx Frame | CLR Rx Status : Loop/Non-Loop Mode Bit S Bit 5 Transmit Abort
+Discontinue |
+6 | Rx RESET CLR Tx Status | Go Active on Poll/Test Bit 6 Bit 6 Abort Extend
+7 Tx RESET -| RTS Controt Loop On-Line Bit 7 Bit 7? NRZUNRZ
+Control DTR
+
+4-564
+MC6854e MC68A54e MC68B54
+
+CONTROL REGISTERS
+
+CONTROL REGISTER 1 (CR1)
+
+RS1 RSO R/W AC TxRS |  RxRS
+0 0 0 xX
+
+Discontinue | TDSR| RDSR Tie | Rte
+
+AC
+
+Mode | Viode
+
+bO — Address Control (AC) — AC provides another RS
+(Register Select) signal iriternally. The AC bit is used in con-
+junction with RSO, RS1, and R/W inputs to select particular
+registers, as shown in Table 2.
+
+b1 — Receiver Interrupt Enable (RIE) — ARIE
+enables/ disables the interrupt request caused by the receiver
+section. 1...enable, 0...disabtle.
+
+b2 — Transmitter interrupt Eanble (TIE) -— TIE
+enables/disables the interrupt request caused by the
+transmitter. 1...enabie, 0...disable.
+
+b3 — Receiver Data Service Request Mode (RDSR
+MODE) ~ The RDSR MODE bit provides the capability of
+operation with a bus system in the DMA mode when used in
+conjunction with the prioritized status mode. When RDSR
+MODE is Set, an interrupt request caused by RDA status is
+inhibited, and the ADLC does not request data transfer via
+the IRQ output.
+
+b4 — Transmitter Data Service Request Mode (TDSA
+MODE) — The TDSR MODE bit provides the capability of
+operation with a bus system in the DMA mode when used in
+conjunction with the prioritized status mode. When TDSR
+MODE is set, an interrupt request caused by TDRA status Is
+inhibited, and the ADLC does not request a data transfer via
+the IRQ output.
+
+b5 — Rx Frame Discontinue (DISCONTINUE) — When
+the DISCONTINUE bit is set, the currently received frame is
+ignored and the ADLC discards the data of the current
+frame. The DISCONTINUE bit only discontinues the current-
+ly received frame and has no affect on subsequent frames,
+even if a following frame has entered the receiver section
+The DISCONTINUE bit is automatically reset when the !ast
+byte of the frame is discarded. When the ignored frame is
+aborted by receiving an Abort or DCD failure, the DISCON-
+TINUE bit ts also reset.
+
+b6 — Receiver Reset {Rx RS) — When the Rx RS bit is
+"1"" the receiver section stays in the reset condition. All
+reciever sections, including the Rx FIFO register and the
+receiver status bits in both status registers, are reset. (During
+reset, the stored DCD status is reset but the DCD status bit
+follows the DCD input.) Rx RS is set by forcing a low level on
+the RESET input or by writing a “1” into the bit from the
+data bus. Rx RS must be reset by writing a ‘‘O" from the data
+bus after RESET has gone high.
+
+b?7 — Transmitter Reset (Tx RS) — When the Tx RS bit is
+"7"" the transmitter section stays in the reset condition and
+transmits marks (‘'i's’’). All transmitter sections, including
+the Tx FIFO and the transmitter status bits, are reset (FIFO
+cannot be loaded). During reset, the stored CTS status is
+reset but the CTS status bit follows the CTS input. Tx RS is
+set by forcing a low level on the RESET input or by writing a
+"1" from the data bus. It must be reset by writing a ‘'O” after
+RESET has gone high.
+
+4-565
+
+MC6854e MC68A54* MC68B54
+
+SS a ial >
+
+CONTROL REGISTER 2 (CR2)
+= a
+7 6 5 4 3 } 2 1 6)
+| a sr : , oe
+RS1 RSO R/W AC RTS CLR CLR Tx FC/TDRA F/M 2/1 PSE
+0 1 O 0 TxST RxST Last |] Select idle Byte
+= i , L a ‘a i.
+
+b0 — Prioritized Status Enable (PSE) — When the PSE bit
+is SET, the status bits in both status registers are prioritized
+as defined in the Status Register section. When PSE is low,
+the status bits indicate current status without bit suppression
+by other status bits. The exception to this rule is the CTS
+Status bit which always supresses the TDRA status.
+
+b1 — 2-Byte/1-Byte Transfer (2/1 Byte) — When the 2/1
+Byte bit is RESET the TORA and RDA status bits then will in-
+dicate the availability of their respective data FIFO registers
+for a single-byte data transfer. Similarly, if 2/1 Byte is set,
+the TDRA and RDA status bit indicate when two bytes of
+data can be moved without a second status read.
+
+b2 — Flag/ Mark Idle Select {F/M Idle} — The F/M Idle bit
+selects Flag characters or bit-by-bit Mark Idle for the time fill
+or the idle state of the transmitter. When Mark ‘die is
+selected, Go-Ahead code can be generated for loop opera-
+tion in conjunction with the 01/11 Idle control bit (C3b9).
+1...Flag time fill, 0...Mark Idle.
+
+b3 — Frame Completea/TDRA Select (FC/TDRA
+Select) — The FC/TDRA Select bit selects TDRA status or
+FC status for the TDRA/FC status bit indication. 1...FC
+status, 0... TDRA status.
+
+b4 — Transmit Last Data (Tx Last} — Tx Last bit provides
+another method to terminate a frame. This dit should be set
+
+4-566
+
+after loading the last data byte and before the Tx FIFO emp-
+ties. When the Tx Last bit is set, the ADLC assumes the byte
+is the last byte and terminates the frame by appending CRCC
+and a closing Flag. This contro} bit is useful for DMA opera-
+tion. Tx Last bit automatically returns to the *’O” state.
+
+bS5 — Clear Receiver Status (CLR Rx ST) — Whena‘'1” is
+written into the CLR Rx ST bit, a reset signal is generated for
+the receiver status bits in status registers #1 and #2 (except
+AP and RDA bits). The reset signal is enabled only for the
+bits which have been present during the last “‘read status”
+operation. The CLR Rx ST bit automatically returns to the
+“OQ” state.
+
+b6 — Clear Transmitter Status (CLR Tx ST) — When a
+1" is written into CLR Tx ST bit, a reset signal is generated
+for the transmitter status bits in status register #1 (except
+TDRA). The reset signal is enabled for the bits which have
+been present during the last ‘read status’’ operation. The
+CLR Tx ST bit automatically returns to the “’O” state.
+
+b7 — Request-to-Send Control (RTS) — The RTS bit,
+when high, causes the RTS output to be low (the active
+State). When the RTS bit returns low and data is being
+transmitted, the RTS output remains low unti! the last
+character of the frame (the closing Flag or Abort} has been
+completed and the Tx FIFO is empty. if the transmitter ts idl-
+ing when the RTS bit returns low, the RTS output will go
+high (the inactive state) within two bit times.
+
+MC6854e MC68A54e MC68B54
+
+— - ~ — a aE ay
+CONTROL REGISTER 3 (CR3)
+T 5 [ a,
+: |
+— T | ait Pa | a — 7 2
+RSi RSO R/W AC LOC/ GAP/ Loop | FDSE 01/11 Ax | CEX | LCF |
+0 1 0 1 | DTR TST Idle
+L | —_— | L
+
+bO — Logical Control Field Select (LCF) — The LCF select
+bit causes the first byte(s) of data belonging to the informa-
+tion field to remain 8-bit characters until the logical control
+field is complete. The logical control field (when selected) is
+an automatically extendable field which is extended when bit
+7 of a logical control character is a ‘'1.’° When the LCF Select
+bit is reset the ADLC assumes no logical control field is pre-
+sent for either the transmit or received data channels. When
+the logical control field is terminated, the word length of the
+information data is then defined by WLS 4 and WLS9.
+
+b1 — Extended Control Field Select (Cex) — When the
+Cex bit is a ‘1, the contro! field is extended and asusmed to
+
+be 16 bits. When Cex is 0’, the control field is assumed to
+be 8 bits.
+
+b2 — Auto/Address Extend Mode (Agx} — The Ag x bit
+when “‘low”’ allows full 8 bits of the address octet to be uttiliz-
+ed for addressing because address extension is inhibited.
+When the Agy bit is “high,” bit 0 of address octet equal to
+“O” causes the Address field to be extended by one octet.
+The exception to this automatic address field extension is
+when the first address octet is ail ‘O’s” {the Null Address).
+
+b3 — 01/11 Idle (01/11 tdle) — The 01/11 Idle Control bit
+determines whether the inactive (Mark) idie condition begins
+with a “’0" or not. If the 01/11 Idie Control is SET, the closing
+flag (or Abort) will be followed by a 011111...pattern. This is
+required of the controller for the “Go Ahead” character in
+the Loop Mode. When 01/11 is RESET, the idling condition
+will be all “1's”.
+
+b4 — Flag Detect Status Enable (FDSE) — The FDSE bit
+enables the FD status bit in Status Register #1 to indicate the
+occurrence of a received Flag character. The status indica-
+tion will be accompanied by an interrupt if RIE is SET. Flag
+
+detection will cause the Flag Detect output to go low for 1 bit
+time regardless of the state of FDSE.
+
+b5 — LOOP/NON-LOOP Mode (LOOP) — When the
+LOOP bit is set, loop mode operation is selected and the
+GAP/TST contro! bit, LOC/DTR controi bit and LOC/DTR
+Output are selected to perform the loop contro} functions.
+When LOOP is reset, the ADLC operates in the point-to-
+point data communications meade.
+
+b6 — Go Active On Poll/Test (GAP/TST) — /n the Loop
+Mode — The GAP/TST bit is used to respond to the poll se-
+quence and to begin transmission. When GAP/TST is set,
+the receiver searches for the “Go Ahead” (or End of Poll,
+EOP). The receiver Go ahead” is converted to an opening
+Flag and the ADLC starts its own transmission. When
+GAP/TST is reset during the transmission, the end of the
+frarne (the completion of Flag or Abort) causes the termina-
+tion of the “‘go-active-on-poll” operation and the Rx Data to
+Tx Data link is re-established. The ADLC then returns to the
+“loop-on-line’’ state.
+
+In the Non-Loop Mode — The GAP/TST bit is used for
+self-test purposes. If GAP/ TST bit is set, the TxD output is
+connected to the RxD input internally, and provides a “‘loop-
+back” feature. For normal operation, the GAP/TST bit
+should be reset.
+
+b7 — Loop On-Line Controi//DTR Control (LOC/DTR) —
+in the Loop Mode — The LOC/DTR bit is used to go on-line
+or to go off-line. When LOC/DTR is set, the ADLC goes to
+the on-line state after 7 consecutive “1's” occur at the RxD
+input. When LOC/DTR is reset, the ADLC goes to the “‘off-
+line’’ state after eight consecutive “1's” occur at the RxD in-
+put.
+
+In the Non-Loop Mode — The LOC/DTR bit directly con-
+trols the Loop On-Line/DTR output state. 1...DTR output
+goes to tow level, 0...DTR output goes to high level.
+
+4-567
+
+MC6854e MC68A54e MC68B54
+
+- i i enti et a oo
+
+CONTROL REGISTER 4 (CR4)
+
+i - - —
+
+7 6
+
+4 | 3 2 | 1 0
+
+7 +
+| RSt RSO R/W AC TNRZUNRZ ABTEX
+1 1 Oo 1
+
+ABT [ Rx 7 : TX
+
+ae
+
+WLS2 WLS} | WLS WLS;
+
+a a
+- = = L—  — i as
+
+b0 ~— Double Flag/Single Fiag iInterframe Contro!}
+(CREOS“F’) — The “FF’/"“F’ Control bit determines
+whether the transmitter will transmit separate closing and
+opening Flags when frames are transmitted successively.
+When the “FF'’/"F” control bit is low, the closing flag of the
+first frame will serve as the opening flag of the second frame.
+When the bit is high, independent opening and closing flags
+will be transmitted.
+
+b1, b2 — Transmitter Word Length Selact (Tx WLS1 and
+WLS2) — Tx WLS1 and WLS2 are used to select the word
+length of the transmitter information field. The encoding for-
+mat is shown in fable 3.
+
+b3, b4 — Receiver Word Length Select (Rx WLS1 and
+WLS2) — Rx WLS1 and WLS2 are used to select the word
+length of the receiver information field. The encoding format
+is shown in Table 3.
+
+TABLE 3 — I-FIELD CHARACTER LENGTH SELECT
+| _ WLS WLS2 \-Field Character Length
+
+Taig
+
+0 QO 5 bits
+1 -_ . 6 bits 7
+0 } 7 bits
+a 1 | ; 8 bits
+
+b5 — Transmit Abort (ABT} — The ABT bit causes an
+Abort (at least 8 bits of “1” in succession) to be transmitted.
+The Abort is initiated and the Tx FIFO is cleared when the
+contral bit goes high. Once Abort begins, the Tx Abort con-
+trol bit assumes the low state.
+
+—_t | —t |
+
+bS — Abort Extend (ABTex} — If ABTEx is set, the abort
+code initiated by ABT is extended up to at teast 16 bits of
+consecutive “1's”, the mark Idle State.
+
+b7 ~— NRZ!I (Zero Complement)/NRZ Select
+(NRZI/NRZ) — NRZi/NRZ bit selects the transmit/receive
+data format to be NRZI or NRZ in both Loop Mode or Non-
+Loop mode operation. When the NRZI Mode is selected, a
+
+4-568
+
+1-bit delay is added to the transmitted data (TxD} to allow for
+NRZI encoding. 1...NRZI, 0...NRZ.
+
+NOTE
+NRZ! coding — The serial data remains in the same
+State to send a binary “1° and switches to the op-
+posite state to send a binary “0”.
+
+STATUS REGISTER
+
+The Status Register #1 is the main status register. The IRQ
+bit indicates whether the ADLC requests service or not. The
+S2RQ bit indicates whether any bits in status register #2 re-
+quest any service. TORA and RDA, because they are most
+often used, are located in bit positions that are more conve-
+nient to test. RDA reflects the state of the RDA bit in status
+register #2.
+
+The Status Register #2 provides the detailed status infor-
+mation contained in the S2RQ bit and these bits reflect
+receiver status. The FD bit is the only receiver status which is
+not indicated in status register #2.
+
+The prioritized status mode provides maximum efficiency
+in searching the status bits and indicates only the most im-
+portant action required to service the ADLC. The priority
+trees of both status registers are provided in Figure 10.
+
+Reading the status register is a non-destructive process.
+The method of clearing status depends upon the bit’s func-
+tion and is discussed for each bit in the register.
+
+FIGURE 10 — STATUS REGISTER PRIORITY TREE (PSE = 1)
+
+SR #1
+— (Tx) (Rx) SR#2 (Rx)
+Priority ,- CTS FD ERR, FV. OCO,
+/ + al OVRN, Rx ABT
+f TXU S2RQ
+‘\ + J Rx idle
+TDRA/FC ROA {
+¥ AP
+i
+RDA
+
+*Prioritized even when PSE = 0
+NOTE: Status bit above will inhibit one below it.
+MC6854e MC68A54e MC68B54
+
+STATUS REGISTER 1 (SR1}
+
+7 6 5 4 3 2 1 0
+—— . a =
+RS1 RSO R/W AC IRO TDRA/FC TXU CTS FD LOOP | S2RQ | RDA.
+0 0 1 x
+
+bO — Receiver Data Available (RDA) — The RDA Status
+bit reflects the state of the RDA status bit in status register
+#2. It provides the means of achieving data transfers of
+received data in the full Duplex Mode without having to read
+both status registers.
+
+bi — Status Register #2 Read Request (SZ2RQ) — All the
+Status bits (stored conditions) of status register #2 (except
+RDA bit) are logically ORed and indicated by the S2RQ
+Status bit. Therefore, S2RQ indicates that status register #2
+needs to be read. When S2RQ is *’0”, it is not necessary to
+read status register #2. The bit is cleared when the ap-
+propriate bits in status register #2 are cleared or when Rx
+Reset is used.
+
+b2 — Loop Status (LOOP) — The LOOP status bit is used
+to monitor the loop operation of the ADLC. This bit does not
+cause an IRQ. When Non-Loop Mode is selected, LOOP bit
+stays “0”. When Loop Mode is selected, the LOOP status bit
+goes to "1" during “On-Loop” condition. When ADLC is in
+an “Off-Loop” condition or '’Go-Active-On-Poll’’ condition,
+the LOOP status bit is a ‘’0’’.
+
+b3 — Flag Detected (FD) — The FD Status bit indicates
+that a flag has been received if the Flag Detect Enable control
+bit has been set. The bit goes high at the last bit of the Flag
+Character received (when the Flag Detect Output goes. low)
+and is stored until cleared by Clear Rx Status or Rx Reset.
+
+b4 — Clear-to-Send (CTS) — The CTS input positive tran-
+sition is stored in the status register and causes an IRQ (if
+Enabled}. The stored CTS condition and its |RQ are cleared
+by Clear Tx Status control bit or Tx Reset bit. After the
+
+stored status Is reset, the CTS status bit reflects the state of
+the CTS input.
+
+4-569
+
+b5 — Transmitter Underrun (TxU) — When the transmit-
+ter runs out of data during a frame transmission, an underrun
+occurs and the frame is automatically terminated by
+transmitting an Abort. The underrun condition is indicated
+by the TxU status bit. TxU can be cleared by means of the
+Clear Tx Status Control bit or by Tx Reset.
+
+b6 — Transmitter Data Register Available/Frame Com-
+plete (TDRA/FC) — The TDRA Status bit serves two pur-
+poses depending upon the state of the: Frame Com-
+plete/TDRA Select control bit. When this bit serves as a
+TORA status bit, it indicates that data (to be transmitted)
+can be loaded into the Tx Data FIFO register. The first
+register (Register #1) of the Tx Data FIFO being empty
+(TDRA=“"'1") will be indicated by the TDRA Status bit in the
+‘4-Byte Transfer Mode.” The first two registers (Registers
+#1 and #2) must be empty for TDRA to be high when in the
+“2-Byte Transfer Mode.” TDRA is inhibited by Tx Reset, or
+CTS being high.
+
+When the Frame Complete Mode of operation is selected,
+the TORA/FC status bit goes high when an abort is transmit-
+ted or when a flag is transmitted with no data in the Tx FIFO.
+The bit remains high until cleared by resetting the TDRA/FC
+control bit or setting the Tx Reset bit.
+
+b7 — Interrpt Request (IRQ) — The Interrupt Request
+Status bit indicates when the IRQ output is in the active state
+(IRQ Output= 0"). The IRQ status bit is subject to the same
+interrupt enables (RIE, TIE) as the IRQ output, i.e., with both
+transmitter and receiver interrupts enabled, the {RQ status
+bit is a logical ORed indication of Status Register 1 status
+bits. The IRQ bit only reflects the set status bits which have
+interrupts enabled. The IRQ status bit simplifies status in-
+quiries for polling systems by providing single bit indication
+of service requests.
+
+MC6854¢ MC68A54° MC68B54
+
+="
+STATUS REGISTER 2 {SR2)
+ee - ‘
+5 | 4 ». ee tol 0
+RS1 RSO R/W AC DCD ERR Rx Rx FV AP
+0 1 1 Xx ABT Idle
+
+bQ — Address Present (AP) — The AP status bit provides
+the frame boundary and indicates an Address octet is
+available in the Rx Data FIFO register. In the Extended Ad-
+dressing Mode, the AP bit continues to indicate addresses
+until the Address field is compiete. The Address present
+Status bit is cleared by reading data or by Rx Reset.
+
+bi — Frame Valid (FV) — The FV status bit provides the
+frame boundary indication to the MPU and also indicates
+that a frame is complete with no error. The FV status bit is
+set when the last data byte of a frame is transferred into the
+last location of the Rx FIFO (available to be read by MPU}.
+Once FV status is set, the ADLC stops further data transfer
+into the last location of the Rx FIFO (in order to prevent the
+mixing of two frames) until the status bit is cleared by the
+Clear Rx Status bit or Rx Reset.
+
+b2 — Inactive Idie Received (Rx idle} — The Rx Idle status
+bit indicates that a minimum of 15 consecutive ‘’1's’”’ have
+been received. The event is stored within the status register
+and can cause an interrupt. The interrupt and stored condi-
+tion are cleared by the Clear Rx Status Control bit. The
+Status bit is the Logical OR of the receiver idling detector
+(which continues to reflect idling until a ‘’0” is received) and
+the stored inactive idle condition.
+
+b3 — Abort Received (RxABT} — The RxA8T Status bit
+indicates that seven or more consecutive ‘’1's’’ have been
+received. Abort has no meaning under out-of-frame condi-
+tions; therefore, no interrupt nor storing of the status will oc-
+cur unless a Flag has been detected prior to the Abort. An
+Abort Received when-“'in frame’ is stored in the status
+register and causes an !RQ. The status bit is the logical OR of
+the stored conditions and the Rx Abort detect logic, which is
+cleared after 15 consecutive “‘1’s’’ have occurred. The stored
+
+4-570
+
+Abort condition is cleared by the Clear Rx Status Control bit
+or Rx Reset.
+
+b4 Frame Check Sequence/Invalid Frame Error
+(ERR) — When a frame is compiete with a cyclic redundancy
+check (CRC) error or a short frame error (the frame does not
+have complete Address and Control fields), the ERR status
+bit is set instead of the Frame Valid status bit. Other func-
+tions, frame boundry indication and control function, are ex-
+actly the same as for the Frame Valid status bit. Refer to the
+FY status bit.
+
+b5 — Data Carrier Detect (DCD) — A positive transition
+on the DCD input is stored in the status register and causes
+an IRQ (if enabled). The stored DCD condition and its iRQ
+are Cleared by the Clear Rx Status Control bit or RX Reset.
+After stored status is reset, the DCD status bit follows the
+State of the input. Both the stored DCD condition and the
+DCD input cause the reset of the receiver section when they
+are high.
+
+b6 — Receiver Overrun (OVRN) — OVRN status indicates
+that receiver data has been transferred into the Rx FIFO
+when it is full, resulting in data loss. The OVRN status is
+cleared by the Clear Rx Status bit or Rx Reset. Continued
+overrunning only destroys data in the first FIFO Register.
+
+b?7 — Receiver Data Available (RDA) — The Receiver Data
+Available status bit indicates when receiver data can be read
+from the Rx Data FIFO. When the prioritized status mode is
+used, the RDA bit indicates that non-address and non-last
+data are available in the Rx FIFO. The receiver data being
+present in the last register of the FIFO causes RDA to be high
+for the “1-Byte Transfer Mode.”’ The RDA bit being high in-
+dicates that the last two registers are full when in the ‘’2-Byte
+Transfer Mode.”’ The RDA status bit is reset automatically
+when data is not available.
+MC6854* MC68A54e MC68B54
+
+1.
+
+PROGRAMMING CONSIDERATIONS
+
+Status Priority — When the prioritized status made is us-
+ed, it is best to test for the lowest priority conditions first.
+The lowest priority conditions typically occur more fre-
+quently and are the most likely conditions to exist when
+the processor is interrupted.
+
+Stored vs Present Status — Certain status bits (DCD,
+CTS, Rx Abort, and Rx Idie) indicate a status which is the
+logical OR of a stored and a present condition. It is the
+Stored status that causes an interrupt. and which is
+cleared by a Status Clear control bit. After being cleared,
+the status register will reflect the present condition of an
+input or a receiver input sequence.
+
+. Clearing Status Registers — In order to clear an interrupt
+
+with tne two Status Clear control bits, a particular status
+condition must be read before it can be cleared. In the
+prioritized mode, clearing a higher priority condition
+might result in another IRQ caused by a lower priority
+condition whose status was suppressed when a status
+register was first read. This quarantees that a status con-
+dition is never inadvertently cleared.
+
+. Clearing the Rx FIFO — An Rx Reset will effectively clear
+
+the contents of all three Rx FIFO bytes. However, the
+FIFO may contain data from two different frames when
+abort or DCD failure occurs. When this happens, the data
+from a previously closed frame (a frame whose closing
+flag has been received) will not be destroyed.
+
+Servicing the Rx FIFO in a 2-Byte Mode — The procedure
+for reading the last bytes of data is the same, regardless of
+whether the frame contains an even or an odd number of
+bytes. Continue to read 2 bytes until an interrupt cocurs
+that is caused by an end-of-frame status {FV or ERR).
+When this occurs, indicating the last byte either has been
+read or is ready to be raad, switch temporarily to the
+1-byte mode with no prioritized status (control register 2).
+
+Test RDA to indicate whether a 1-byte read should be
+performed. Then clear the frame end status.
+
+6. Frame Complete Status and RTS Release — in many
+cases, a MODEM will require a delay for releasing RTS.
+An 8-bit or 16-bit delay can be added to the ADLC RTS
+output by using an Abort. At the end of a transmission,
+frame complete status will indicate the frame completion.
+After frame complete status goes high, write “1° into the
+Abt control bit (and Abt Extend bit if a 16-bit delay is re-
+quired). After the Abt control bit is set, write “0” into the
+RTS contro! bit. The transmitter will transmit eight or six-
+teen “1's” and the RTS output will then go high
+(inactive).
+
+7. Note to users not using the MC6800 — (a) Care should be
+taken when performing a write fallowed by a read on suc-
+cessive E pulses at a high frequency rate. Time must be
+allowed for status changes to occur. If this is done, the
+time that E is low between successive write/read E pulses
+should be at least 500 ns. (b}) The ADLC is a completely
+Static part. However, the E frequency should be high
+enough to move data through the FIFOs and to service
+the peripheral! requirements. Also, the period between
+successive E pulses should be less than the period of RxC
+or TxC in order to maintain synchronization between the
+data bus and the peripherals.
+
+8. Clear-to-Send (CTS) — The CTS input, when high, pro-
+vides a real-time inhibit to the TDRA status bit and its
+associated interrupt. All other status bits will be opera-
+tional. Since it inhibits TDRA, CTS also inhibts the TOSR
+DMA request. The CTS input being high does not affect
+any other part of the transmitter. Information in the Tx
+FIFO and Tx Shift Register will, therefore, continue to be
+transmitted as long as the Tx CLK is running.
+
+ORDERING INFORMATION
+
+Better program processing Is available on all types listed. Add
+suffix letters to part number.
+
+MC68A54CP
+
+“TT eee
+
+Motorola Integrated Circurt
+M6800 Family ss
+Blanks = 1.0 MH2
+A=1.5 MHz
+B=2.0 MHz
+Device Designation
+In M6800 Family |
+Temperature Range : _—
+Blank =0°=« + 70°C
+
+= —40°— + 85°C
+Package — -
+P = Piastic
+S = Cerdip
+L= Ceramic
+
+BETTER PROGRAM
+
+Level }add "S” Level 2 add “’D" Level 3 add "DS"
+
+Level 1 °S"'=10 Temp Cycles — (-25 to 150°C),
+Hi Temp testing at Ta max
+
+Level 2 “°D' = 168 Hour Burn-in at 125°C
+
+Level! 3 “DS = Combination of Level! 1 and 2
+
+v7 — =,
+
+Speed ___ Device _| Temperature Range
+1.0 MHz MC6854P,L,S Oto 70°C
+MC6854CP,CL,CS —40 to +85°C
+1.5 MHz  -MCBBAB4P.L.S [| Oto +70°C
+MC68A54CP,CL,CS | —40 to + 85°C
+2.0 MHz MC68B54P,L,S Oto + 70°C
+
+4-5/1
+

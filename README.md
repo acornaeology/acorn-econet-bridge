@@ -43,6 +43,12 @@ Writeups of interesting details uncovered during the disassembly work.
 
 - [Anti-aliasing in the Econet Bridge's RAM test](docs/analysis/ram-test-anti-aliasing.md)
   A close reading of the thirteen-instruction routine at &E00B that sizes the Bridge's RAM. The INC $00 instructions between each write and read are a layered defence against three distinct failure modes.
+- [The self-test LED, driven by a repurposed ADLC pin](docs/analysis/led-self-test-indicator.md)
+  How the Bridge's single front-panel LED is driven by CR3 bit 7 on ADLC B, with exactly two writes in the whole ROM, making it a pure function of which init path was taken.
+- [Escape-to-main: the Bridge's cooperative error-recovery idiom](docs/analysis/escape-to-main-control-flow.md)
+  Four routines share a PLA/PLA/JMP main_loop abnormal exit that drops the caller's return address and collapses any failed operation back to the main dispatcher. Trades per-site clarity for global simplicity and a meaningful ROM-space saving.
+- [One frame, two broadcasts: reset-time announcement](docs/analysis/two-broadcasts-one-template.md)
+  The Bridge announces itself on both Econet sides at power-on by building a single frame template and transmitting it twice, patching a single byte of payload between the two transmissions. A small idiom with a clean separation of concerns between builder and transmitter.
 
 ## References
 

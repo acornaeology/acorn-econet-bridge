@@ -10,6 +10,24 @@
             "url": "docs/analysis/ram-test-anti-aliasing.md",
             "icon": "doc",
             "note": "A close reading of the thirteen-instruction routine at &E00B that sizes the Bridge's RAM. The INC $00 instructions between each write and read are a layered defence against three distinct failure modes."
+        },
+        {
+            "label": "The self-test LED, driven by a repurposed ADLC pin",
+            "url": "docs/analysis/led-self-test-indicator.md",
+            "icon": "doc",
+            "note": "How the Bridge's single front-panel LED is driven by CR3 bit 7 on ADLC B, with exactly two writes in the whole ROM, making it a pure function of which init path was taken."
+        },
+        {
+            "label": "Escape-to-main: the Bridge's cooperative error-recovery idiom",
+            "url": "docs/analysis/escape-to-main-control-flow.md",
+            "icon": "doc",
+            "note": "Four routines share a PLA/PLA/JMP main_loop abnormal exit that drops the caller's return address and collapses any failed operation back to the main dispatcher. Trades per-site clarity for global simplicity and a meaningful ROM-space saving."
+        },
+        {
+            "label": "One frame, two broadcasts: reset-time announcement",
+            "url": "docs/analysis/two-broadcasts-one-template.md",
+            "icon": "doc",
+            "note": "The Bridge announces itself on both Econet sides at power-on by building a single frame template and transmitting it twice, patching a single byte of payload between the two transmissions. A small idiom with a clean separation of concerns between builder and transmitter."
         }
     ],
     "references": [
