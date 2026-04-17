@@ -238,7 +238,7 @@ label(0x0215, "ctr24_mid")
 label(0x0216, "ctr24_hi")
 
 # Outbound-frame control block at &045A-&0460. Populated by various
-# "frame builder" subroutines, then consumed by the transmit path
+# "frame builder" subroutines, then consumed by transmit_frame_a
 # (via mem_ptr at &80/&81 = &045A). Field names follow the Acorn
 # Econet frame-header convention — provisional until the transmit
 # routine is fully analysed.
@@ -248,7 +248,17 @@ label(0x045C, "tx_src_stn")   # source station (provisional)
 label(0x045D, "tx_src_net")   # source network (provisional)
 label(0x045E, "tx_ctrl")      # control byte (scout flags)
 label(0x045F, "tx_port")      # port number (protocol selector)
-label(0x0460, "tx_data0")     # first payload byte
+label(0x0460, "tx_data0")     # optional trailing payload byte
+
+# Transmit end-pointer (16-bit, consumed by transmit_frame_a). The
+# main TX loop sends byte pairs from mem_ptr upward and terminates
+# once mem_ptr+Y reaches or passes (tx_end_hi:tx_end_lo). Builders
+# for the "6-byte frame header" case write tx_end_lo=&06 and
+# tx_end_hi=&04, corresponding to end address &0406 when combined
+# with the buffer start at &045A (so the loop transmits up to Y=6,
+# i.e. the 6 header bytes).
+label(0x0200, "tx_end_lo")
+label(0x0201, "tx_end_hi")
 
 
 # =====================================================================
@@ -396,6 +406,61 @@ comment(0xE472, "Payload byte 0: bridge's station id on side B")
 comment(0xE478, "X = 1: probable side selector (B)")
 comment(0xE47A, "tx command block: len=&06, ?=&04 (provisional)")
 comment(0xE484, "mem_ptr = &045A (start of frame block)")
+
+
+# =====================================================================
+# Transmit a frame via ADLC A
+# =====================================================================
+
+label(0xE517, "transmit_frame_a")
+subroutine(0xE517, "transmit_frame_a", hook=None,
+    title="Send the frame at mem_ptr out through ADLC A's TX FIFO",
+    description="""\
+Sends the frame starting at mem_ptr (&80/&81 — normally pointing at
+the outbound control block &045A) through ADLC A's TX FIFO. Termi-
+nation is controlled by the 16-bit pointer tx_end_lo/tx_end_hi
+(&0200/&0201): the loop sends byte pairs until mem_ptr + Y reaches
+or passes (tx_end_hi:tx_end_lo). X is a flag — non-zero means send
+one extra trailing byte after the terminator (used by builders that
+append a payload like build_announce_b's station_id_b at &0460).
+
+On entry:
+  mem_ptr_lo/hi                      start address of frame
+  tx_end_lo/hi                       end address (exclusive pair)
+  X                                  0 = no trailing byte,
+                                     1 = send one trailing byte
+  ADLC A must already be primed by a frame builder
+
+On exit (normal RTS):
+  mem_ptr_lo/hi reset to &045A       ready for next builder
+  ADLC A's TX FIFO flushed, CR2 = &3F
+
+Abnormal exit: if any of the three wait_adlc_a_irq polls returns
+with SR1's V-bit clear instead of set (meaning the ADLC didn't reach
+the expected TDRA state), the routine drops the caller's return
+address from the stack and JMP's into the main loop at &E051 —
+the same escape-to-main pattern used by adlc_a_poll_or_escape.
+
+Called from seven sites: reset (&E03E), &E0AD, &E1B2, &E1CD, &E251,
+&E25D, &E3D8.""")
+
+comment(0xE517, "CR2 = &E7: prime for TX (FC_TDRA, 2-byte, PSE+extras)")
+comment(0xE51C, "CR1 = &44: arm TX interrupts")
+comment(0xE521, "Y = 0 (buffer offset into frame)")
+comment(0xE523, "Wait for ADLC A to flag TDRA")
+comment(0xE526, "Test SR1 V-flag (TDRA bit 6)")
+comment(0xE529, "V set -> room in FIFO, send next pair")
+comment(0xE52B, "V clear: abandon frame and escape to main loop")
+comment(0xE530, "Load and send frame byte Y")
+comment(0xE536, "Load and send frame byte Y+1")
+comment(0xE53C, "Y wrapped: bump mem_ptr_hi")
+comment(0xE540, "Terminate once Y == tx_end_lo and hi == tx_end_hi")
+comment(0xE54C, "X!=0: send one more trailing byte (X bit 0 only)")
+comment(0xE550, "Wait for TDRA before trailing byte")
+comment(0xE556, "V clear -> escape (mirror of &E52B)")
+comment(0xE558, "Send trailing byte (tx_data0 in announce frames)")
+comment(0xE55D, "CR2 = &3F: signal end of burst, wait for completion")
+comment(0xE565, "Reset mem_ptr to &045A for next builder")
 
 
 # =====================================================================

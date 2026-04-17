@@ -6,8 +6,8 @@ l0003       = &0003
 mem_ptr_lo  = &0080
 mem_ptr_hi  = &0081
 top_ram_page = &0082
-l0200       = &0200
-l0201       = &0201
+tx_end_lo   = &0200
+tx_end_hi   = &0201
 ctr24_lo    = &0214
 ctr24_mid   = &0215
 ctr24_hi    = &0216
@@ -136,7 +136,7 @@ adlc_b_tx2  = &d803
     sta l0229                                                         ; e035: 8d 29 02    .).
     jsr build_announce_b                                              ; e038: 20 58 e4     X.
     jsr adlc_a_poll_or_escape                                         ; e03b: 20 dc e6     ..
-    jsr sub_ce517                                                     ; e03e: 20 17 e5     ..
+    jsr transmit_frame_a                                              ; e03e: 20 17 e5     ..
     lda station_id_a                                                  ; e041: ad 00 c0    ...
     sta tx_data0                                                      ; e044: 8d 60 04    .`.
     lda #4                                                            ; e047: a9 04       ..
@@ -193,7 +193,7 @@ adlc_b_tx2  = &d803
     lda #&c2                                                          ; e0a5: a9 c2       ..
     sta adlc_b_cr1                                                    ; e0a7: 8d 00 d8    ...
     jsr adlc_a_poll_or_escape                                         ; e0aa: 20 dc e6     ..
-    jsr sub_ce517                                                     ; e0ad: 20 17 e5     ..
+    jsr transmit_frame_a                                              ; e0ad: 20 17 e5     ..
     dec l022c                                                         ; e0b0: ce 2c 02    .,.
     beq ce0c2                                                         ; e0b3: f0 0d       ..
 ; &e0b5 referenced 1 time by &e0e0
@@ -328,7 +328,7 @@ adlc_b_tx2  = &d803
     sta ctr24_lo                                                      ; e1a9: 8d 14 02    ...
     jsr sub_ce448                                                     ; e1ac: 20 48 e4     H.
     jsr adlc_a_poll_or_escape                                         ; e1af: 20 dc e6     ..
-    jsr sub_ce517                                                     ; e1b2: 20 17 e5     ..
+    jsr transmit_frame_a                                              ; e1b2: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e1b5: 20 6e e5     n.
     jsr sub_ce48d                                                     ; e1b8: 20 8d e4     ..
     lda station_id_b                                                  ; e1bb: ad 00 d0    ...
@@ -337,7 +337,7 @@ adlc_b_tx2  = &d803
     sta tx_ctrl                                                       ; e1c4: 8d 5e 04    .^.
     lda l0249                                                         ; e1c7: ad 49 02    .I.
     sta tx_port                                                       ; e1ca: 8d 5f 04    ._.
-    jsr sub_ce517                                                     ; e1cd: 20 17 e5     ..
+    jsr transmit_frame_a                                              ; e1cd: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e1d0: 20 6e e5     n.
 ; &e1d3 referenced 1 time by &e19b
 .ce1d3
@@ -406,11 +406,11 @@ adlc_b_tx2  = &d803
     lda #4                                                            ; e24a: a9 04       ..
     sta mem_ptr_hi                                                    ; e24c: 85 81       ..
     jsr sub_ce5ff                                                     ; e24e: 20 ff e5     ..
-    jsr sub_ce517                                                     ; e251: 20 17 e5     ..
+    jsr transmit_frame_a                                              ; e251: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e254: 20 6e e5     n.
     jsr sub_ce4c0                                                     ; e257: 20 c0 e4     ..
     jsr sub_ce5ff                                                     ; e25a: 20 ff e5     ..
-    jsr sub_ce517                                                     ; e25d: 20 17 e5     ..
+    jsr transmit_frame_a                                              ; e25d: 20 17 e5     ..
 ; &e260 referenced 1 time by &e21c
 .ce260
     jmp ce051                                                         ; e260: 4c 51 e0    LQ.
@@ -601,7 +601,7 @@ adlc_b_tx2  = &d803
     jsr sub_ce56e                                                     ; e3cf: 20 6e e5     n.
     jsr sub_ce4c0                                                     ; e3d2: 20 c0 e4     ..
     jsr sub_ce5ff                                                     ; e3d5: 20 ff e5     ..
-    jsr sub_ce517                                                     ; e3d8: 20 17 e5     ..
+    jsr transmit_frame_a                                              ; e3d8: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e3db: 20 6e e5     n.
     jsr sub_ce4c0                                                     ; e3de: 20 c0 e4     ..
 ; &e3e1 referenced 1 time by &e39d
@@ -804,9 +804,9 @@ adlc_b_tx2  = &d803
     ldx #1                                                            ; e478: a2 01       ..
 ; tx command block: len=&06, ?=&04 (provisional)
     lda #6                                                            ; e47a: a9 06       ..
-    sta l0200                                                         ; e47c: 8d 00 02    ...
+    sta tx_end_lo                                                     ; e47c: 8d 00 02    ...
     lda #4                                                            ; e47f: a9 04       ..
-    sta l0201                                                         ; e481: 8d 01 02    ...
+    sta tx_end_hi                                                     ; e481: 8d 01 02    ...
 ; mem_ptr = &045A (start of frame block)
     lda #&5a ; 'Z'                                                    ; e484: a9 5a       .Z
     sta mem_ptr_lo                                                    ; e486: 85 80       ..
@@ -829,9 +829,9 @@ adlc_b_tx2  = &d803
     sta tx_port                                                       ; e4a8: 8d 5f 04    ._.
     ldx #0                                                            ; e4ab: a2 00       ..
     lda #6                                                            ; e4ad: a9 06       ..
-    sta l0200                                                         ; e4af: 8d 00 02    ...
+    sta tx_end_lo                                                     ; e4af: 8d 00 02    ...
     lda #4                                                            ; e4b2: a9 04       ..
-    sta l0201                                                         ; e4b4: 8d 01 02    ...
+    sta tx_end_hi                                                     ; e4b4: 8d 01 02    ...
     lda #&5a ; 'Z'                                                    ; e4b7: a9 5a       .Z
     sta mem_ptr_lo                                                    ; e4b9: 85 80       ..
     lda #4                                                            ; e4bb: a9 04       ..
@@ -868,10 +868,10 @@ adlc_b_tx2  = &d803
     inc mem_ptr_hi                                                    ; e4e7: e6 81       ..
 ; &e4e9 referenced 1 time by &e4e5
 .ce4e9
-    cpy l0200                                                         ; e4e9: cc 00 02    ...
+    cpy tx_end_lo                                                     ; e4e9: cc 00 02    ...
     bne ce4cc                                                         ; e4ec: d0 de       ..
     lda mem_ptr_hi                                                    ; e4ee: a5 81       ..
-    cmp l0201                                                         ; e4f0: cd 01 02    ...
+    cmp tx_end_hi                                                     ; e4f0: cd 01 02    ...
     bcc ce4cc                                                         ; e4f3: 90 d7       ..
     txa                                                               ; e4f5: 8a          .
     ror a                                                             ; e4f6: 6a          j
@@ -892,54 +892,101 @@ adlc_b_tx2  = &d803
     sta mem_ptr_hi                                                    ; e514: 85 81       ..
     rts                                                               ; e516: 60          `
 
+; ***************************************************************************************
+; Send the frame at mem_ptr out through ADLC A's TX FIFO
+; 
+; Sends the frame starting at mem_ptr (&80/&81 — normally pointing at
+; the outbound control block &045A) through ADLC A's TX FIFO. Termi-
+; nation is controlled by the 16-bit pointer tx_end_lo/tx_end_hi
+; (&0200/&0201): the loop sends byte pairs until mem_ptr + Y reaches
+; or passes (tx_end_hi:tx_end_lo). X is a flag — non-zero means send
+; one extra trailing byte after the terminator (used by builders that
+; append a payload like build_announce_b's station_id_b at &0460).
+; 
+; On entry:
+;   mem_ptr_lo/hi                      start address of frame
+;   tx_end_lo/hi                       end address (exclusive pair)
+;   X                                  0 = no trailing byte,
+;                                      1 = send one trailing byte
+;   ADLC A must already be primed by a frame builder
+; 
+; On exit (normal RTS):
+;   mem_ptr_lo/hi reset to &045A       ready for next builder
+;   ADLC A's TX FIFO flushed, CR2 = &3F
+; 
+; Abnormal exit: if any of the three wait_adlc_a_irq polls returns
+; with SR1's V-bit clear instead of set (meaning the ADLC didn't reach
+; the expected TDRA state), the routine drops the caller's return
+; address from the stack and JMP's into the main loop at &E051 —
+; the same escape-to-main pattern used by adlc_a_poll_or_escape.
+; 
+; Called from seven sites: reset (&E03E), &E0AD, &E1B2, &E1CD, &E251,
+; &E25D, &E3D8.
+; CR2 = &E7: prime for TX (FC_TDRA, 2-byte, PSE+extras)
 ; &e517 referenced 7 times by &e03e, &e0ad, &e1b2, &e1cd, &e251, &e25d, &e3d8
-.sub_ce517
+.transmit_frame_a
     lda #&e7                                                          ; e517: a9 e7       ..
     sta adlc_a_cr2                                                    ; e519: 8d 01 c8    ...
+; CR1 = &44: arm TX interrupts
     lda #&44 ; 'D'                                                    ; e51c: a9 44       .D
     sta adlc_a_cr1                                                    ; e51e: 8d 00 c8    ...
+; Y = 0 (buffer offset into frame)
     ldy #0                                                            ; e521: a0 00       ..
+; Wait for ADLC A to flag TDRA
 ; &e523 referenced 2 times by &e543, &e54a
 .ce523
     jsr wait_adlc_a_irq                                               ; e523: 20 e4 e3     ..
+; Test SR1 V-flag (TDRA bit 6)
     bit adlc_a_cr1                                                    ; e526: 2c 00 c8    ,..
+; V set -> room in FIFO, send next pair
     bvs ce530                                                         ; e529: 70 05       p.
+; V clear: abandon frame and escape to main loop
 ; &e52b referenced 1 time by &e556
 .ce52b
     pla                                                               ; e52b: 68          h
     pla                                                               ; e52c: 68          h
     jmp ce051                                                         ; e52d: 4c 51 e0    LQ.
 
+; Load and send frame byte Y
 ; &e530 referenced 1 time by &e529
 .ce530
     lda (mem_ptr_lo),y                                                ; e530: b1 80       ..
     sta adlc_a_tx                                                     ; e532: 8d 02 c8    ...
     iny                                                               ; e535: c8          .
+; Load and send frame byte Y+1
     lda (mem_ptr_lo),y                                                ; e536: b1 80       ..
     sta adlc_a_tx                                                     ; e538: 8d 02 c8    ...
     iny                                                               ; e53b: c8          .
+; Y wrapped: bump mem_ptr_hi
     bne ce540                                                         ; e53c: d0 02       ..
     inc mem_ptr_hi                                                    ; e53e: e6 81       ..
+; Terminate once Y == tx_end_lo and hi == tx_end_hi
 ; &e540 referenced 1 time by &e53c
 .ce540
-    cpy l0200                                                         ; e540: cc 00 02    ...
+    cpy tx_end_lo                                                     ; e540: cc 00 02    ...
     bne ce523                                                         ; e543: d0 de       ..
     lda mem_ptr_hi                                                    ; e545: a5 81       ..
-    cmp l0201                                                         ; e547: cd 01 02    ...
+    cmp tx_end_hi                                                     ; e547: cd 01 02    ...
     bcc ce523                                                         ; e54a: 90 d7       ..
+; X!=0: send one more trailing byte (X bit 0 only)
     txa                                                               ; e54c: 8a          .
     ror a                                                             ; e54d: 6a          j
     bcc ce55d                                                         ; e54e: 90 0d       ..
+; Wait for TDRA before trailing byte
     jsr wait_adlc_a_irq                                               ; e550: 20 e4 e3     ..
     bit adlc_a_cr1                                                    ; e553: 2c 00 c8    ,..
+; V clear -> escape (mirror of &E52B)
     bvc ce52b                                                         ; e556: 50 d3       P.
+; Send trailing byte (tx_data0 in announce frames)
     lda (mem_ptr_lo),y                                                ; e558: b1 80       ..
     sta adlc_a_tx                                                     ; e55a: 8d 02 c8    ...
+; CR2 = &3F: signal end of burst, wait for completion
 ; &e55d referenced 1 time by &e54e
 .ce55d
     lda #&3f ; '?'                                                    ; e55d: a9 3f       .?
     sta adlc_a_cr2                                                    ; e55f: 8d 01 c8    ...
     jsr wait_adlc_a_irq                                               ; e562: 20 e4 e3     ..
+; Reset mem_ptr to &045A for next builder
     lda #&5a ; 'Z'                                                    ; e565: a9 5a       .Z
     sta mem_ptr_lo                                                    ; e567: 85 80       ..
     lda #4                                                            ; e569: a9 04       ..
@@ -1002,7 +1049,7 @@ adlc_b_tx2  = &d803
     tya                                                               ; e5cf: 98          .
     tax                                                               ; e5d0: aa          .
     and #&fe                                                          ; e5d1: 29 fe       ).
-    sta l0200                                                         ; e5d3: 8d 00 02    ...
+    sta tx_end_lo                                                     ; e5d3: 8d 00 02    ...
     lda tx_src_net                                                    ; e5d6: ad 5d 04    .].
     bne ce5e1                                                         ; e5d9: d0 06       ..
     lda station_id_a                                                  ; e5db: ad 00 c0    ...
@@ -1020,7 +1067,7 @@ adlc_b_tx2  = &d803
 ; &e5f5 referenced 1 time by &e5ee
 .ce5f5
     lda mem_ptr_hi                                                    ; e5f5: a5 81       ..
-    sta l0201                                                         ; e5f7: 8d 01 02    ...
+    sta tx_end_hi                                                     ; e5f7: 8d 01 02    ...
     lda #4                                                            ; e5fa: a9 04       ..
     sta mem_ptr_hi                                                    ; e5fc: 85 81       ..
     rts                                                               ; e5fe: 60          `
@@ -1081,7 +1128,7 @@ adlc_b_tx2  = &d803
     tya                                                               ; e660: 98          .
     tax                                                               ; e661: aa          .
     and #&fe                                                          ; e662: 29 fe       ).
-    sta l0200                                                         ; e664: 8d 00 02    ...
+    sta tx_end_lo                                                     ; e664: 8d 00 02    ...
     lda tx_src_net                                                    ; e667: ad 5d 04    .].
     bne ce672                                                         ; e66a: d0 06       ..
     lda station_id_b                                                  ; e66c: ad 00 d0    ...
@@ -1099,7 +1146,7 @@ adlc_b_tx2  = &d803
 ; &e686 referenced 1 time by &e67f
 .ce686
     lda mem_ptr_hi                                                    ; e686: a5 81       ..
-    sta l0201                                                         ; e688: 8d 01 02    ...
+    sta tx_end_hi                                                     ; e688: 8d 01 02    ...
     lda #4                                                            ; e68b: a9 04       ..
     sta mem_ptr_hi                                                    ; e68d: 85 81       ..
     rts                                                               ; e68f: 60          `
@@ -2258,11 +2305,11 @@ save pydis_start, pydis_end
 ;     reset:                    7
 ;     self_test_fail:           7
 ;     sub_ce4c0:                7
-;     sub_ce517:                7
+;     transmit_frame_a:         7
 ;     cf09d:                    6
-;     l0200:                    6
-;     l0201:                    6
 ;     l0229:                    6
+;     tx_end_hi:                6
+;     tx_end_lo:                6
 ;     ce079:                    5
 ;     ce5b1:                    5
 ;     ce642:                    5
@@ -2505,8 +2552,6 @@ save pydis_start, pydis_end
 ;     l0001
 ;     l0002
 ;     l0003
-;     l0200
-;     l0201
 ;     l0228
 ;     l0229
 ;     l022a
@@ -2538,7 +2583,6 @@ save pydis_start, pydis_end
 ;     sub_ce448
 ;     sub_ce48d
 ;     sub_ce4c0
-;     sub_ce517
 ;     sub_ce56e
 ;     sub_ce5ff
 ;     sub_ce690
