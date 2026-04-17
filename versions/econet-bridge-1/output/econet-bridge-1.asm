@@ -338,140 +338,100 @@ adlc_b_tx2      = &d803
 ;   other ->  rx_a_forward   (&E208) - forward or discard
 ; 
 ; The side-B handler at &E263 is the mirror of this routine.
-; A = &01: mask SR2 bit 0 (AP: Address Present)
 ; &e0e2 referenced 1 time by &e086
 .rx_frame_a
-    lda #1                                                            ; e0e2: a9 01       ..
-    bit adlc_a_cr2                                                    ; e0e4: 2c 01 c8    ,..
-; AP missing -> spurious IRQ, bail
-    beq rx_frame_a_bail                                               ; e0e7: f0 53       .S
-; Read byte 0: destination station
-    lda adlc_a_tx                                                     ; e0e9: ad 02 c8    ...
-    sta rx_dst_stn                                                    ; e0ec: 8d 3c 02    .<.
-; Wait for second IRQ: next byte ready
-    jsr wait_adlc_a_irq                                               ; e0ef: 20 e4 e3     ..
-    bit adlc_a_cr2                                                    ; e0f2: 2c 01 c8    ,..
-; No second IRQ -> frame is truncated, bail
-    bpl rx_frame_a_bail                                               ; e0f5: 10 45       .E
-; Read byte 1: destination network
-    ldy adlc_a_tx                                                     ; e0f7: ac 02 c8    ...
-; dst_net == 0 (local net) -> not for us
-    beq rx_a_not_for_us                                               ; e0fa: f0 43       .C
-; dst_net not known in reachable_via_b -> not for us
-    lda reachable_via_b,y                                             ; e0fc: b9 5a 02    .Z.
-    beq rx_a_not_for_us                                               ; e0ff: f0 3e       .>
-    sty rx_dst_net                                                    ; e101: 8c 3d 02    .=.
-; Y = 2: start of pair-drain loop
-    ldy #2                                                            ; e104: a0 02       ..
-; Wait for next FIFO IRQ
+    lda #1                                                            ; e0e2: a9 01       ..             ; A = &01: mask SR2 bit 0 (AP = Address Present)
+    bit adlc_a_cr2                                                    ; e0e4: 2c 01 c8    ,..            ; BIT SR2 -- confirm the IRQ was a frame start
+    beq rx_frame_a_bail                                               ; e0e7: f0 53       .S             ; AP not set -> spurious IRQ, return to main_loop
+    lda adlc_a_tx                                                     ; e0e9: ad 02 c8    ...            ; Read FIFO byte 0: destination station
+    sta rx_dst_stn                                                    ; e0ec: 8d 3c 02    .<.            ; Stage dst_stn into the rx header buffer
+    jsr wait_adlc_a_irq                                               ; e0ef: 20 e4 e3     ..            ; Block until ADLC A IRQs again (byte 1 ready)
+    bit adlc_a_cr2                                                    ; e0f2: 2c 01 c8    ,..            ; BIT SR2 -- RDA still set for the next byte?
+    bpl rx_frame_a_bail                                               ; e0f5: 10 45       .E             ; RDA cleared: frame truncated before dst_net, bail
+    ldy adlc_a_tx                                                     ; e0f7: ac 02 c8    ...            ; Read byte 1 into Y: destination network
+    beq rx_a_not_for_us                                               ; e0fa: f0 43       .C             ; dst_net == 0 means 'local net of sender' -- not for us
+    lda reachable_via_b,y                                             ; e0fc: b9 5a 02    .Z.            ; Probe reachable_via_b[dst_net] for a route via side B
+    beq rx_a_not_for_us                                               ; e0ff: f0 3e       .>             ; No route -> frame isn't ours to drain, re-listen
+    sty rx_dst_net                                                    ; e101: 8c 3d 02    .=.            ; Commit dst_net now that it has passed filtering
+    ldy #2                                                            ; e104: a0 02       ..             ; Y = 2: resume drain at offset 2 (after header)
 ; &e106 referenced 1 time by &e11e
 .rx_frame_a_drain
-    jsr wait_adlc_a_irq                                               ; e106: 20 e4 e3     ..
-    bit adlc_a_cr2                                                    ; e109: 2c 01 c8    ,..
-; IRQ cleared -> end of frame body
-    bpl rx_frame_a_end                                                ; e10c: 10 12       ..
-; Read byte Y
-    lda adlc_a_tx                                                     ; e10e: ad 02 c8    ...
-    sta rx_dst_stn,y                                                  ; e111: 99 3c 02    .<.
-    iny                                                               ; e114: c8          .
-; Read byte Y+1 (pair for throughput)
-    lda adlc_a_tx                                                     ; e115: ad 02 c8    ...
-    sta rx_dst_stn,y                                                  ; e118: 99 3c 02    .<.
-    iny                                                               ; e11b: c8          .
-; Stop at 20 bytes (header + 14 payload)
-    cpy #&14                                                          ; e11c: c0 14       ..
-    bcc rx_frame_a_drain                                              ; e11e: 90 e6       ..
-; Halt the ADLC: CR1=0, CR2=&84
+    jsr wait_adlc_a_irq                                               ; e106: 20 e4 e3     ..            ; Wait for the next FIFO byte IRQ
+    bit adlc_a_cr2                                                    ; e109: 2c 01 c8    ,..            ; BIT SR2 -- RDA still asserted?
+    bpl rx_frame_a_end                                                ; e10c: 10 12       ..             ; RDA cleared mid-body -> go to FV check
+    lda adlc_a_tx                                                     ; e10e: ad 02 c8    ...            ; Read byte Y of payload from TX/RX FIFO
+    sta rx_dst_stn,y                                                  ; e111: 99 3c 02    .<.            ; Store into rx_dst_stn+Y (buffer grows into rx_*)
+    iny                                                               ; e114: c8          .              ; Advance Y to the next slot
+    lda adlc_a_tx                                                     ; e115: ad 02 c8    ...            ; Read byte Y+1 (pair-read without an IRQ wait)
+    sta rx_dst_stn,y                                                  ; e118: 99 3c 02    .<.            ; Store the second byte of the pair
+    iny                                                               ; e11b: c8          .              ; Advance Y past the pair
+    cpy #&14                                                          ; e11c: c0 14       ..             ; Cap at 20 bytes (6-byte header + up to 14 payload)
+    bcc rx_frame_a_drain                                              ; e11e: 90 e6       ..             ; Under cap -> keep draining
 ; &e120 referenced 1 time by &e10c
 .rx_frame_a_end
-    lda #0                                                            ; e120: a9 00       ..
-    sta adlc_a_cr1                                                    ; e122: 8d 00 c8    ...
-    lda #&84                                                          ; e125: a9 84       ..
-    sta adlc_a_cr2                                                    ; e127: 8d 01 c8    ...
-; A = &02: mask SR2 bit 1 (FV: Frame Valid)
-    lda #2                                                            ; e12a: a9 02       ..
-    bit adlc_a_cr2                                                    ; e12c: 2c 01 c8    ,..
-; No FV -> frame corrupt/short, bail
-    beq rx_frame_a_bail                                               ; e12f: f0 0b       ..
-; FV set but no RDA -> frame done, process it
-    bpl rx_frame_a_dispatch                                           ; e131: 10 17       ..
-; FV + RDA: one trailing byte to drain
-    lda adlc_a_tx                                                     ; e133: ad 02 c8    ...
-    sta rx_dst_stn,y                                                  ; e136: 99 3c 02    .<.
-    iny                                                               ; e139: c8          .
-    bne rx_frame_a_dispatch                                           ; e13a: d0 0e       ..
-; Bail: return to main_loop
+    lda #0                                                            ; e120: a9 00       ..             ; A = &00: halt ADLC A
+    sta adlc_a_cr1                                                    ; e122: 8d 00 c8    ...            ; CR1 = 0: disable TX and RX IRQs
+    lda #&84                                                          ; e125: a9 84       ..             ; A = &84: clear-RX-status + FV-clear bits
+    sta adlc_a_cr2                                                    ; e127: 8d 01 c8    ...            ; Commit CR2: acknowledge end-of-frame
+    lda #2                                                            ; e12a: a9 02       ..             ; A = &02: mask SR2 bit 1 (FV: Frame Valid)
+    bit adlc_a_cr2                                                    ; e12c: 2c 01 c8    ,..            ; BIT SR2 -- test FV and RDA
+    beq rx_frame_a_bail                                               ; e12f: f0 0b       ..             ; FV clear -> frame corrupt or short, bail
+    bpl rx_frame_a_dispatch                                           ; e131: 10 17       ..             ; FV set + no RDA -> clean end; go to dispatch
+    lda adlc_a_tx                                                     ; e133: ad 02 c8    ...            ; FV + RDA: one trailing byte still in FIFO
+    sta rx_dst_stn,y                                                  ; e136: 99 3c 02    .<.            ; Store the odd trailing byte
+    iny                                                               ; e139: c8          .              ; Advance Y to count that final byte
+    bne rx_frame_a_dispatch                                           ; e13a: d0 0e       ..             ; Unconditional: continue to dispatch
 ; &e13c referenced 4 times by &e0e7, &e0f5, &e12f, &e14f
 .rx_frame_a_bail
-    jmp main_loop                                                     ; e13c: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e13c: 4c 51 e0    LQ.            ; Bail: restart from main_loop (full ADLC re-init)
 
-; Re-listen with CR1=&A2 (RX on, IRQ enabled)
 ; &e13f referenced 2 times by &e0fa, &e0ff
 .rx_a_not_for_us
-    lda #&a2                                                          ; e13f: a9 a2       ..
-    sta adlc_a_cr1                                                    ; e141: 8d 00 c8    ...
-; Back to poll (skip main_loop re-arm)
-    jmp main_loop_poll                                                ; e144: 4c 79 e0    Ly.
+    lda #&a2                                                          ; e13f: a9 a2       ..             ; A = &A2: RX on, IRQ enabled, TX in reset
+    sta adlc_a_cr1                                                    ; e141: 8d 00 c8    ...            ; Re-arm ADLC A to listen for the next frame
+    jmp main_loop_poll                                                ; e144: 4c 79 e0    Ly.            ; Skip main_loop re-init; go straight back to polling
 
-; Dispatched to rx_a_forward at &E208
 ; &e147 referenced 2 times by &e171, &e180
 .rx_a_to_forward
-    jmp rx_a_forward                                                  ; e147: 4c 08 e2    L..
+    jmp rx_a_forward                                                  ; e147: 4c 08 e2    L..            ; Out-of-range JMP to rx_a_forward (JSR can't reach &E208)
 
-; Save final byte count as rx_len
 ; &e14a referenced 2 times by &e131, &e13a
 .rx_frame_a_dispatch
-    sty rx_len                                                        ; e14a: 8c 28 02    .(.
-; Need >= 6 bytes for a valid scout header
-    cpy #6                                                            ; e14d: c0 06       ..
-    bcc rx_frame_a_bail                                               ; e14f: 90 eb       ..
-; Lazy-init rx_src_net if zero
-    lda rx_src_net                                                    ; e151: ad 3f 02    .?.
-    bne ce15c                                                         ; e154: d0 06       ..
-; Default src_net to net_num_a
-    lda net_num_a                                                     ; e156: ad 00 c0    ...
-    sta rx_src_net                                                    ; e159: 8d 3f 02    .?.
-; Is rx_dst_net addressing side B (= our B station)?
+    sty rx_len                                                        ; e14a: 8c 28 02    .(.            ; Save final byte count (even if 0 bytes of payload)
+    cpy #6                                                            ; e14d: c0 06       ..             ; Compare to 6 -- minimum valid scout header
+    bcc rx_frame_a_bail                                               ; e14f: 90 eb       ..             ; Shorter than header -> bail
+    lda rx_src_net                                                    ; e151: ad 3f 02    .?.            ; Load src_net from the drained frame
+    bne rx_a_src_net_resolved                                         ; e154: d0 06       ..             ; Non-zero -> sender supplied src_net, keep it
+    lda net_num_a                                                     ; e156: ad 00 c0    ...            ; Sender left src_net = 0 ('my local net')
+    sta rx_src_net                                                    ; e159: 8d 3f 02    .?.            ; ...substitute our own A-side network number
 ; &e15c referenced 1 time by &e154
-.ce15c
-    lda net_num_b                                                     ; e15c: ad 00 d0    ...
-    cmp rx_dst_net                                                    ; e15f: cd 3d 02    .=.
-    bne ce169                                                         ; e162: d0 05       ..
-; Yes: normalise rx_dst_net to 0 (local on B)
-    lda #0                                                            ; e164: a9 00       ..
-    sta rx_dst_net                                                    ; e166: 8d 3d 02    .=.
-; Broadcast test: both dst bytes == &FF?
+.rx_a_src_net_resolved
+    lda net_num_b                                                     ; e15c: ad 00 d0    ...            ; Load our B-side network number for comparison
+    cmp rx_dst_net                                                    ; e15f: cd 3d 02    .=.            ; Compare against the incoming dst_net
+    bne rx_a_broadcast_check                                          ; e162: d0 05       ..             ; Not for side B -> skip the local rewrite
+    lda #0                                                            ; e164: a9 00       ..             ; dst_net names our B-side network...
+    sta rx_dst_net                                                    ; e166: 8d 3d 02    .=.            ; ...normalise dst_net to 0 (local on B)
 ; &e169 referenced 1 time by &e162
-.ce169
-    lda rx_dst_stn                                                    ; e169: ad 3c 02    .<.
-    and rx_dst_net                                                    ; e16c: 2d 3d 02    -=.
-    cmp #&ff                                                          ; e16f: c9 ff       ..
-; Not broadcast -> forward path
-    bne rx_a_to_forward                                               ; e171: d0 d4       ..
-; Broadcast: re-arm A's listen mode
-    jsr adlc_a_listen                                                 ; e173: 20 ff e3     ..
-    lda #&c2                                                          ; e176: a9 c2       ..
-    sta adlc_a_cr1                                                    ; e178: 8d 00 c8    ...
-    lda rx_port                                                       ; e17b: ad 41 02    .A.
-; Bridge-protocol port (&9C)?
-    cmp #&9c                                                          ; e17e: c9 9c       ..
-; Not bridge protocol -> forward
-    bne rx_a_to_forward                                               ; e180: d0 c5       ..
-; Dispatch on rx_ctrl
-    lda rx_ctrl                                                       ; e182: ad 40 02    .@.
-; &81 -> re-announcement handler
-    cmp #&81                                                          ; e185: c9 81       ..
-    beq rx_a_handle_81                                                ; e187: f0 65       .e
-; &80 -> initial announcement handler
-    cmp #&80                                                          ; e189: c9 80       ..
-    beq rx_a_handle_80                                                ; e18b: f0 49       .I
-; &82 -> bridge query (shares &83 path)
-    cmp #&82                                                          ; e18d: c9 82       ..
-    beq rx_a_handle_82                                                ; e18f: f0 0c       ..
-; &83 -> bridge query, known-station path
-    cmp #&83                                                          ; e191: c9 83       ..
-    bne rx_a_forward                                                  ; e193: d0 73       .s
-; Station Y known in reachable_via_b?
+.rx_a_broadcast_check
+    lda rx_dst_stn                                                    ; e169: ad 3c 02    .<.            ; Load dst_stn for the broadcast test
+    and rx_dst_net                                                    ; e16c: 2d 3d 02    -=.            ; AND with dst_net (both &FF only if full broadcast)
+    cmp #&ff                                                          ; e16f: c9 ff       ..             ; Compare result to &FF
+    bne rx_a_to_forward                                               ; e171: d0 d4       ..             ; Not a full broadcast -> forward path
+    jsr adlc_a_listen                                                 ; e173: 20 ff e3     ..            ; Broadcast: re-arm A's listen mode for any follow-up
+    lda #&c2                                                          ; e176: a9 c2       ..             ; A = &C2: reset TX, enable RX
+    sta adlc_a_cr1                                                    ; e178: 8d 00 c8    ...            ; Commit CR1 while we process the bridge-protocol frame
+    lda rx_port                                                       ; e17b: ad 41 02    .A.            ; Load the port byte from the drained frame
+    cmp #&9c                                                          ; e17e: c9 9c       ..             ; Compare with &9C (bridge-protocol port)
+    bne rx_a_to_forward                                               ; e180: d0 c5       ..             ; Not our port -> drop into forward path
+    lda rx_ctrl                                                       ; e182: ad 40 02    .@.            ; Load ctrl byte for the per-type dispatch
+    cmp #&81                                                          ; e185: c9 81       ..             ; Test &81 (BridgeReply: re-announcement)
+    beq rx_a_handle_81                                                ; e187: f0 65       .e             ; Match -> rx_a_handle_81
+    cmp #&80                                                          ; e189: c9 80       ..             ; Test &80 (BridgeReset: initial announcement)
+    beq rx_a_handle_80                                                ; e18b: f0 49       .I             ; Match -> rx_a_handle_80
+    cmp #&82                                                          ; e18d: c9 82       ..             ; Test &82 (WhatNet: general query)
+    beq rx_a_handle_82                                                ; e18f: f0 0c       ..             ; Match -> rx_a_handle_82
+    cmp #&83                                                          ; e191: c9 83       ..             ; Test &83 (IsNet: targeted query)
+    bne rx_a_forward                                                  ; e193: d0 73       .s             ; Unknown ctrl -> forward path (fall through to rx_a_handle_83 on match)
 ; ***************************************************************************************
 ; Side-A IsNet query (ctrl=&83): targeted network lookup
 ; 
@@ -488,7 +448,6 @@ adlc_b_tx2      = &d803
 .rx_a_handle_83
     ldy rx_query_net                                                  ; e195: ac 49 02    .I.            ; Y = the queried network number
     lda reachable_via_b,y                                             ; e198: b9 5a 02    .Z.            ; Check if we have a route via the other side
-; Unknown -> skip, back to main loop
     beq ce1d3                                                         ; e19b: f0 36       .6             ; Unknown -> silently drop this IsNet query
 ; ***************************************************************************************
 ; Side-A WhatNet query (ctrl=&82); also the IsNet response path
@@ -758,98 +717,98 @@ adlc_b_tx2      = &d803
 ; See rx_frame_a for the full per-instruction explanation.
 ; &e263 referenced 1 time by &e07e
 .rx_frame_b
-    lda #1                                                            ; e263: a9 01       ..
-    bit adlc_b_cr2                                                    ; e265: 2c 01 d8    ,..
-    beq rx_frame_b_bail                                               ; e268: f0 53       .S
-    lda adlc_b_tx                                                     ; e26a: ad 02 d8    ...
-    sta rx_dst_stn                                                    ; e26d: 8d 3c 02    .<.
-    jsr wait_adlc_b_irq                                               ; e270: 20 ea e3     ..
-    bit adlc_b_cr2                                                    ; e273: 2c 01 d8    ,..
-    bpl rx_frame_b_bail                                               ; e276: 10 45       .E
-    ldy adlc_b_tx                                                     ; e278: ac 02 d8    ...
-    beq rx_b_not_for_us                                               ; e27b: f0 43       .C
-    lda reachable_via_a,y                                             ; e27d: b9 5a 03    .Z.
-    beq rx_b_not_for_us                                               ; e280: f0 3e       .>
-    sty rx_dst_net                                                    ; e282: 8c 3d 02    .=.
-    ldy #2                                                            ; e285: a0 02       ..
+    lda #1                                                            ; e263: a9 01       ..             ; A = &01: mask SR2 bit 0 (AP = Address Present)
+    bit adlc_b_cr2                                                    ; e265: 2c 01 d8    ,..            ; BIT SR2 -- confirm the IRQ was a frame start
+    beq rx_frame_b_bail                                               ; e268: f0 53       .S             ; AP not set -> spurious IRQ, return to main_loop
+    lda adlc_b_tx                                                     ; e26a: ad 02 d8    ...            ; Read FIFO byte 0: destination station
+    sta rx_dst_stn                                                    ; e26d: 8d 3c 02    .<.            ; Stage dst_stn into the rx header buffer
+    jsr wait_adlc_b_irq                                               ; e270: 20 ea e3     ..            ; Block until ADLC B IRQs again (byte 1 ready)
+    bit adlc_b_cr2                                                    ; e273: 2c 01 d8    ,..            ; BIT SR2 -- RDA still set for the next byte?
+    bpl rx_frame_b_bail                                               ; e276: 10 45       .E             ; RDA cleared: frame truncated before dst_net, bail
+    ldy adlc_b_tx                                                     ; e278: ac 02 d8    ...            ; Read byte 1 into Y: destination network
+    beq rx_b_not_for_us                                               ; e27b: f0 43       .C             ; dst_net == 0 means 'local net of sender' -- not for us
+    lda reachable_via_a,y                                             ; e27d: b9 5a 03    .Z.            ; Probe reachable_via_a[dst_net] for a route via side A
+    beq rx_b_not_for_us                                               ; e280: f0 3e       .>             ; No route -> frame isn't ours to drain, re-listen
+    sty rx_dst_net                                                    ; e282: 8c 3d 02    .=.            ; Commit dst_net now that it has passed filtering
+    ldy #2                                                            ; e285: a0 02       ..             ; Y = 2: resume drain at offset 2 (after header)
 ; &e287 referenced 1 time by &e29f
 .rx_frame_b_drain
-    jsr wait_adlc_b_irq                                               ; e287: 20 ea e3     ..
-    bit adlc_b_cr2                                                    ; e28a: 2c 01 d8    ,..
-    bpl rx_frame_b_end                                                ; e28d: 10 12       ..
-    lda adlc_b_tx                                                     ; e28f: ad 02 d8    ...
-    sta rx_dst_stn,y                                                  ; e292: 99 3c 02    .<.
-    iny                                                               ; e295: c8          .
-    lda adlc_b_tx                                                     ; e296: ad 02 d8    ...
-    sta rx_dst_stn,y                                                  ; e299: 99 3c 02    .<.
-    iny                                                               ; e29c: c8          .
-    cpy #&14                                                          ; e29d: c0 14       ..
-    bcc rx_frame_b_drain                                              ; e29f: 90 e6       ..
+    jsr wait_adlc_b_irq                                               ; e287: 20 ea e3     ..            ; Wait for the next FIFO byte IRQ
+    bit adlc_b_cr2                                                    ; e28a: 2c 01 d8    ,..            ; BIT SR2 -- RDA still asserted?
+    bpl rx_frame_b_end                                                ; e28d: 10 12       ..             ; RDA cleared mid-body -> go to FV check
+    lda adlc_b_tx                                                     ; e28f: ad 02 d8    ...            ; Read byte Y of payload from TX/RX FIFO
+    sta rx_dst_stn,y                                                  ; e292: 99 3c 02    .<.            ; Store into rx_dst_stn+Y (buffer grows into rx_*)
+    iny                                                               ; e295: c8          .              ; Advance Y to the next slot
+    lda adlc_b_tx                                                     ; e296: ad 02 d8    ...            ; Read byte Y+1 (pair-read without an IRQ wait)
+    sta rx_dst_stn,y                                                  ; e299: 99 3c 02    .<.            ; Store the second byte of the pair
+    iny                                                               ; e29c: c8          .              ; Advance Y past the pair
+    cpy #&14                                                          ; e29d: c0 14       ..             ; Cap at 20 bytes (6-byte header + up to 14 payload)
+    bcc rx_frame_b_drain                                              ; e29f: 90 e6       ..             ; Under cap -> keep draining
 ; &e2a1 referenced 1 time by &e28d
 .rx_frame_b_end
-    lda #0                                                            ; e2a1: a9 00       ..
-    sta adlc_b_cr1                                                    ; e2a3: 8d 00 d8    ...
-    lda #&84                                                          ; e2a6: a9 84       ..
-    sta adlc_b_cr2                                                    ; e2a8: 8d 01 d8    ...
-    lda #2                                                            ; e2ab: a9 02       ..
-    bit adlc_b_cr2                                                    ; e2ad: 2c 01 d8    ,..
-    beq rx_frame_b_bail                                               ; e2b0: f0 0b       ..
-    bpl rx_frame_b_dispatch                                           ; e2b2: 10 17       ..
-    lda adlc_b_tx                                                     ; e2b4: ad 02 d8    ...
-    sta rx_dst_stn,y                                                  ; e2b7: 99 3c 02    .<.
-    iny                                                               ; e2ba: c8          .
-    bne rx_frame_b_dispatch                                           ; e2bb: d0 0e       ..
+    lda #0                                                            ; e2a1: a9 00       ..             ; A = &00: halt ADLC B
+    sta adlc_b_cr1                                                    ; e2a3: 8d 00 d8    ...            ; CR1 = 0: disable TX and RX IRQs
+    lda #&84                                                          ; e2a6: a9 84       ..             ; A = &84: clear-RX-status + FV-clear bits
+    sta adlc_b_cr2                                                    ; e2a8: 8d 01 d8    ...            ; Commit CR2: acknowledge end-of-frame
+    lda #2                                                            ; e2ab: a9 02       ..             ; A = &02: mask SR2 bit 1 (FV: Frame Valid)
+    bit adlc_b_cr2                                                    ; e2ad: 2c 01 d8    ,..            ; BIT SR2 -- test FV and RDA
+    beq rx_frame_b_bail                                               ; e2b0: f0 0b       ..             ; FV clear -> frame corrupt or short, bail
+    bpl rx_frame_b_dispatch                                           ; e2b2: 10 17       ..             ; FV set + no RDA -> clean end; go to dispatch
+    lda adlc_b_tx                                                     ; e2b4: ad 02 d8    ...            ; FV + RDA: one trailing byte still in FIFO
+    sta rx_dst_stn,y                                                  ; e2b7: 99 3c 02    .<.            ; Store the odd trailing byte
+    iny                                                               ; e2ba: c8          .              ; Advance Y to count that final byte
+    bne rx_frame_b_dispatch                                           ; e2bb: d0 0e       ..             ; Unconditional: continue to dispatch
 ; &e2bd referenced 4 times by &e268, &e276, &e2b0, &e2d0
 .rx_frame_b_bail
-    jmp main_loop                                                     ; e2bd: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e2bd: 4c 51 e0    LQ.            ; Bail: restart from main_loop (full ADLC re-init)
 
 ; &e2c0 referenced 2 times by &e27b, &e280
 .rx_b_not_for_us
-    lda #&a2                                                          ; e2c0: a9 a2       ..
-    sta adlc_b_cr1                                                    ; e2c2: 8d 00 d8    ...
-    jmp main_loop_poll                                                ; e2c5: 4c 79 e0    Ly.
+    lda #&a2                                                          ; e2c0: a9 a2       ..             ; A = &A2: RX on, IRQ enabled, TX in reset
+    sta adlc_b_cr1                                                    ; e2c2: 8d 00 d8    ...            ; Re-arm ADLC B to listen for the next frame
+    jmp main_loop_poll                                                ; e2c5: 4c 79 e0    Ly.            ; Skip main_loop re-init; go straight back to polling
 
 ; &e2c8 referenced 2 times by &e2f2, &e301
 .rx_b_to_forward
-    jmp rx_b_forward                                                  ; e2c8: 4c 89 e3    L..
+    jmp rx_b_forward                                                  ; e2c8: 4c 89 e3    L..            ; Out-of-range JMP to rx_b_forward (JSR can't reach &E389)
 
 ; &e2cb referenced 2 times by &e2b2, &e2bb
 .rx_frame_b_dispatch
-    sty rx_len                                                        ; e2cb: 8c 28 02    .(.
-    cpy #6                                                            ; e2ce: c0 06       ..
-    bcc rx_frame_b_bail                                               ; e2d0: 90 eb       ..
-    lda rx_src_net                                                    ; e2d2: ad 3f 02    .?.
-    bne ce2dd                                                         ; e2d5: d0 06       ..
-    lda net_num_b                                                     ; e2d7: ad 00 d0    ...
-    sta rx_src_net                                                    ; e2da: 8d 3f 02    .?.
+    sty rx_len                                                        ; e2cb: 8c 28 02    .(.            ; Save final byte count (even if 0 bytes of payload)
+    cpy #6                                                            ; e2ce: c0 06       ..             ; Compare to 6 -- minimum valid scout header
+    bcc rx_frame_b_bail                                               ; e2d0: 90 eb       ..             ; Shorter than header -> bail
+    lda rx_src_net                                                    ; e2d2: ad 3f 02    .?.            ; Load src_net from the drained frame
+    bne rx_b_src_net_resolved                                         ; e2d5: d0 06       ..             ; Non-zero -> sender supplied src_net, keep it
+    lda net_num_b                                                     ; e2d7: ad 00 d0    ...            ; Sender left src_net = 0 ('my local net')
+    sta rx_src_net                                                    ; e2da: 8d 3f 02    .?.            ; ...substitute our own B-side network number
 ; &e2dd referenced 1 time by &e2d5
-.ce2dd
-    lda net_num_a                                                     ; e2dd: ad 00 c0    ...
-    cmp rx_dst_net                                                    ; e2e0: cd 3d 02    .=.
-    bne ce2ea                                                         ; e2e3: d0 05       ..
-    lda #0                                                            ; e2e5: a9 00       ..
-    sta rx_dst_net                                                    ; e2e7: 8d 3d 02    .=.
+.rx_b_src_net_resolved
+    lda net_num_a                                                     ; e2dd: ad 00 c0    ...            ; Load our A-side network number for comparison
+    cmp rx_dst_net                                                    ; e2e0: cd 3d 02    .=.            ; Compare against the incoming dst_net
+    bne rx_b_broadcast_check                                          ; e2e3: d0 05       ..             ; Not for side A -> skip the local rewrite
+    lda #0                                                            ; e2e5: a9 00       ..             ; dst_net names our A-side network...
+    sta rx_dst_net                                                    ; e2e7: 8d 3d 02    .=.            ; ...normalise dst_net to 0 (local on A)
 ; &e2ea referenced 1 time by &e2e3
-.ce2ea
-    lda rx_dst_stn                                                    ; e2ea: ad 3c 02    .<.
-    and rx_dst_net                                                    ; e2ed: 2d 3d 02    -=.
-    cmp #&ff                                                          ; e2f0: c9 ff       ..
-    bne rx_b_to_forward                                               ; e2f2: d0 d4       ..
-    jsr adlc_b_listen                                                 ; e2f4: 20 19 e4     ..
-    lda #&c2                                                          ; e2f7: a9 c2       ..
-    sta adlc_b_cr1                                                    ; e2f9: 8d 00 d8    ...
-    lda rx_port                                                       ; e2fc: ad 41 02    .A.
-    cmp #&9c                                                          ; e2ff: c9 9c       ..
-    bne rx_b_to_forward                                               ; e301: d0 c5       ..
-    lda rx_ctrl                                                       ; e303: ad 40 02    .@.
-    cmp #&81                                                          ; e306: c9 81       ..
-    beq rx_b_handle_81                                                ; e308: f0 65       .e
-    cmp #&80                                                          ; e30a: c9 80       ..
-    beq rx_b_handle_80                                                ; e30c: f0 49       .I
-    cmp #&82                                                          ; e30e: c9 82       ..
-    beq rx_b_handle_82                                                ; e310: f0 0c       ..
-    cmp #&83                                                          ; e312: c9 83       ..
-    bne rx_b_forward                                                  ; e314: d0 73       .s
+.rx_b_broadcast_check
+    lda rx_dst_stn                                                    ; e2ea: ad 3c 02    .<.            ; Load dst_stn for the broadcast test
+    and rx_dst_net                                                    ; e2ed: 2d 3d 02    -=.            ; AND with dst_net (both &FF only if full broadcast)
+    cmp #&ff                                                          ; e2f0: c9 ff       ..             ; Compare result to &FF
+    bne rx_b_to_forward                                               ; e2f2: d0 d4       ..             ; Not a full broadcast -> forward path
+    jsr adlc_b_listen                                                 ; e2f4: 20 19 e4     ..            ; Broadcast: re-arm B's listen mode for any follow-up
+    lda #&c2                                                          ; e2f7: a9 c2       ..             ; A = &C2: reset TX, enable RX
+    sta adlc_b_cr1                                                    ; e2f9: 8d 00 d8    ...            ; Commit CR1 while we process the bridge-protocol frame
+    lda rx_port                                                       ; e2fc: ad 41 02    .A.            ; Load the port byte from the drained frame
+    cmp #&9c                                                          ; e2ff: c9 9c       ..             ; Compare with &9C (bridge-protocol port)
+    bne rx_b_to_forward                                               ; e301: d0 c5       ..             ; Not our port -> drop into forward path
+    lda rx_ctrl                                                       ; e303: ad 40 02    .@.            ; Load ctrl byte for the per-type dispatch
+    cmp #&81                                                          ; e306: c9 81       ..             ; Test &81 (BridgeReply: re-announcement)
+    beq rx_b_handle_81                                                ; e308: f0 65       .e             ; Match -> rx_b_handle_81
+    cmp #&80                                                          ; e30a: c9 80       ..             ; Test &80 (BridgeReset: initial announcement)
+    beq rx_b_handle_80                                                ; e30c: f0 49       .I             ; Match -> rx_b_handle_80
+    cmp #&82                                                          ; e30e: c9 82       ..             ; Test &82 (WhatNet: general query)
+    beq rx_b_handle_82                                                ; e310: f0 0c       ..             ; Match -> rx_b_handle_82
+    cmp #&83                                                          ; e312: c9 83       ..             ; Test &83 (IsNet: targeted query)
+    bne rx_b_forward                                                  ; e314: d0 73       .s             ; Unknown ctrl -> forward path (fall through to rx_b_handle_83 on match)
 ; ***************************************************************************************
 ; Side-B IsNet query (ctrl=&83): targeted network lookup
 ; 
@@ -2965,11 +2924,7 @@ save pydis_start, pydis_end
 ;     tx_src_stn:                    2
 ;     adlc_a_full_reset:             1
 ;     adlc_b_full_reset:             1
-;     ce15c:                         1
-;     ce169:                         1
 ;     ce1d3:                         1
-;     ce2dd:                         1
-;     ce2ea:                         1
 ;     ce354:                         1
 ;     cf156:                         1
 ;     cf15c:                         1
@@ -2998,6 +2953,7 @@ save pydis_start, pydis_end
 ;     ram_test_loop:                 1
 ;     re_announce_rearm:             1
 ;     re_announce_side_b:            1
+;     rx_a_broadcast_check:          1
 ;     rx_a_forward_ack_round:        1
 ;     rx_a_forward_done:             1
 ;     rx_a_forward_pair_loop:        1
@@ -3005,6 +2961,8 @@ save pydis_start, pydis_end
 ;     rx_a_handle_81:                1
 ;     rx_a_handle_82:                1
 ;     rx_a_learn_loop:               1
+;     rx_a_src_net_resolved:         1
+;     rx_b_broadcast_check:          1
 ;     rx_b_forward_ack_round:        1
 ;     rx_b_forward_done:             1
 ;     rx_b_forward_pair_loop:        1
@@ -3012,6 +2970,7 @@ save pydis_start, pydis_end
 ;     rx_b_handle_81:                1
 ;     rx_b_handle_82:                1
 ;     rx_b_learn_loop:               1
+;     rx_b_src_net_resolved:         1
 ;     rx_frame_a:                    1
 ;     rx_frame_a_drain:              1
 ;     rx_frame_a_end:                1
@@ -3047,11 +3006,7 @@ save pydis_start, pydis_end
 ;     wait_adlc_b_idle_tick:         1
 
 ; Automatically generated labels:
-;     ce15c
-;     ce169
 ;     ce1d3
-;     ce2dd
-;     ce2ea
 ;     ce354
 ;     cf151
 ;     cf156
