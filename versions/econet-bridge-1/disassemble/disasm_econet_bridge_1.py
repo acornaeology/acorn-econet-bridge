@@ -1355,6 +1355,8 @@ comment(0xF043, "If pattern was &AA, ZP test done")
 comment(0xF047, "Second pattern: &AA, loop back through the test")
 
 label(0xF04C, "self_test_rom_checksum")
+comment(0xF04C, "")  # separator for reader
+
 subroutine(0xF04C, "self_test_rom_checksum", hook=None,
     is_entry_point=False,
     title="ROM checksum",
@@ -1374,19 +1376,167 @@ comment(0xF061, "Advance to next page")
 comment(0xF067, "Expected total: &55")
 comment(0xF06B, "Fail code 2: ROM checksum")
 
+label(0xF070, "self_test_ram_pattern")
+subroutine(0xF070, "self_test_ram_pattern", hook=None,
+    is_entry_point=False,
+    title="RAM pattern test: write &55/&AA to every byte, verify",
+    description="""\
+Starting at address &0004 (skipping the three zero-page bytes
+reserved for the self-test workspace at &00/&01/&02), iterates
+through the full 8 KiB of RAM and checks that each byte can
+store both &55 and &AA. Pointer in (&00,&01) = &0000, Y starts
+at 4 and wraps, page count in &02 = &20 (32 pages = 8 KiB).
+
+On mismatch, jumps to ram_test_fail at &F28C (note: a *different*
+failure handler from self_test_fail, because a broken RAM cannot
+use the normal blink-code loop which needs RAM workspace).""")
+
+label(0xF0A0, "self_test_ram_incr")
+subroutine(0xF0A0, "self_test_ram_incr", hook=None,
+    is_entry_point=False,
+    title="RAM incrementing-pattern test: fill with X, read back",
+    description="""\
+Second RAM test. Fills the whole 8 KiB with an incrementing byte
+pattern (X register cycles through 0..&FF and then reinitialised
+each page with a different offset, giving a distinctive pattern
+across the RAM that catches address-line faults). Then reads
+back and verifies.
+
+Catches failures that a plain &55/&AA pattern would miss:
+particularly address-line shorts, where writing to (say) &0410
+and &0420 would land at the same cell and produce the same bytes
+under a uniform pattern but different bytes under this one.
+
+On mismatch, jumps to ram_test_fail at &F28C.""")
+
+label(0xF0D6, "self_test_adlc_state")
+subroutine(0xF0D6, "self_test_adlc_state", hook=None,
+    is_entry_point=False,
+    title="Verify both ADLCs' register state after reset",
+    description="""\
+Checks that both ADLCs show the expected register state after
+self_test_reset_adlcs has configured them. Tests specific bits
+of SR1 and SR2 on each chip (ADLC A bits from &C800/&C801,
+ADLC B bits from &D800/&D801).
+
+Failure paths:
+  Code 3 (at &F107): ADLC A register-state mismatch
+  Code 4 (at &F102): ADLC B register-state mismatch""")
+
+label(0xF10A, "self_test_loopback_a_to_b")
+subroutine(0xF10A, "self_test_loopback_a_to_b", hook=None,
+    is_entry_point=False,
+    title="Loopback test: transmit on ADLC A, receive on ADLC B",
+    description="""\
+Assumes a loopback cable is connected between the two Econet
+ports. Reconfigures ADLC A for transmit (CR1=&44) and ADLC B for
+receive (CR1=&82), then sends a sequence of bytes out A and
+verifies they are received on B in the correct order.
+
+Checks each byte against an expected value (X register,
+incrementing) and confirms the Frame Valid bit at end of frame.
+
+Failure: Code 5 at &F153 -- TX on A or RX on B didn't match.""")
+
+label(0xF1AB, "self_test_loopback_b_to_a")
+subroutine(0xF1AB, "self_test_loopback_b_to_a", hook=None,
+    is_entry_point=False,
+    title="Loopback test: transmit on ADLC B, receive on ADLC A",
+    description="""\
+Mirror of self_test_loopback_a_to_b. ADLC B transmits, ADLC A
+receives, same byte-sequence verification.
+
+Failure: Code 6 at &F1F4.""")
+
+label(0xF24C, "self_test_check_netnums")
+subroutine(0xF24C, "self_test_check_netnums", hook=None,
+    is_entry_point=False,
+    title="Verify jumper-set network numbers match self-test expectations",
+    description="""\
+Checks that net_num_a == 1 and net_num_b == 2. The self-test
+presumes a standard loopback-test configuration: the jumpers on
+the bridge board should be set for 1 and 2 respectively before
+the self-test button is pressed, so that the network numbers
+are predictable and the loopback tests can complete without
+colliding with anything else a tester might leave plugged in.
+
+Failure paths:
+  Code 7 at &F255: net_num_a != 1
+  Code 8 at &F261: net_num_b != 2""")
+
+label(0xF264, "self_test_pass_done")
+subroutine(0xF264, "self_test_pass_done", hook=None,
+    is_entry_point=False,
+    title="End-of-pass: toggle scratch flag and loop for another pass",
+    description="""\
+Reached when every test in a pass has succeeded. The self-test
+doesn't stop -- it loops indefinitely until reset. Toggles bit 7
+of &0003 (the self-test scratch byte) via EOR #&FF; if bit 7 is
+set after the toggle, JMPs to self_test_reset_adlcs for another
+full pass. Otherwise falls through to a slower test variant that
+resets ADLCs differently before re-entering the ZP test.
+
+Two-pass structure lets the operator see continuous LED activity
+(via the self-test ADLC reset's CR3=&80) for as long as the test
+is running, with minor variation between passes catching some
+intermittent faults.""")
+
+label(0xF28C, "ram_test_fail")
+subroutine(0xF28C, "ram_test_fail", hook=None,
+    title="RAM-failure blink pattern (does not use RAM)",
+    description="""\
+Reached from any of the three RAM tests on failure -- ZP test,
+pattern RAM test, incrementing RAM test. This handler can't
+use RAM for counting blinks (if RAM is broken, reading/writing
+RAM is exactly what's untrustworthy), so it generates its blink
+pattern from ROM-based DEC abs,X instructions that exercise the
+CPU for timing without touching RAM.
+
+Sets CR1=1 (AC=1) so writes to adlc_a_cr2 target CR3. Alternates
+CR3 between &00 (LED off) and &80 (LED on) in an infinite loop
+paced by DEX/DEY delays and by seven DEC instructions that
+read-modify-write (but actually just read, since writes to ROM
+are ignored) bytes in the ROM starting at the reset vector.
+
+Continues forever; the operator infers "the RAM is bad" from the
+fact that the LED is blinking but no specific error code can be
+counted out -- distinct from the more structured blink patterns
+produced by self_test_fail with codes 2-8.""")
+
+
 label(0xF2C7, "self_test_fail")
 subroutine(0xF2C7, "self_test_fail", hook=None,
-    title="Self-test failure — signal error code via ADLC A",
+    title="Self-test failure — signal error code via the LED",
     description="""\
-Common failure exit from all self-test stages. Called with the
-error code in A. Save two copies of the code in &00/&01 then
-toggle adlc_a_cr2 in a timed pattern that probably drives a
-visible indicator (status LED or loopback-cable signal) with a
-blink count corresponding to the error code.
+Common failure exit for every non-RAM self-test stage. Called
+with the error code in A. Saves two copies of the code in &00/&01
+then enters an infinite loop that blinks the LED (via CR3 bit 7
+on ADLC B, which is the pin that drives the front-panel LED)
+a count of times equal to the error code, separated by longer
+gaps.
 
-Reached from 7 sites: ROM checksum (&F06D, code 2), and six
-other failure points at &F102, &F107, &F153, &F1F4, &F255,
-&F261 (codes still to be identified).""")
+Error code table:
+
+  2   ROM checksum mismatch (self_test_rom_checksum at &F04C)
+  3   ADLC A register state wrong (self_test_adlc_state, &F107)
+  4   ADLC B register state wrong (self_test_adlc_state, &F102)
+  5   A-to-B loopback fail (self_test_loopback_a_to_b, &F153)
+  6   B-to-A loopback fail (self_test_loopback_b_to_a, &F1F4)
+  7   net_num_a != 1 (self_test_check_netnums, &F255)
+  8   net_num_b != 2 (self_test_check_netnums, &F261)
+
+(Code 1 is not used: the zero-page integrity test's failure path
+routes to ram_test_fail via cf09d, not here, because any failure
+of the first three RAM tests means normal counting loops can't
+be trusted. ram_test_fail at &F28C uses a distinct ROM-only
+blink instead.)
+
+Blink pattern: CR1=1 sets the ADLC's AC bit so writes to CR2's
+address hit CR3. The handler alternates CR3=&00 (LED off) and
+CR3=&80 (LED on) N times, where N = error code held in &01, with
+delay loops between each pulse. After each N-pulse burst, a fixed
+8-pulse spacer pattern runs before the outer loop repeats. The
+operator counts pulses to identify the failed test.""")
 
 
 # =====================================================================
