@@ -237,6 +237,18 @@ label(0x0214, "ctr24_lo")
 label(0x0215, "ctr24_mid")
 label(0x0216, "ctr24_hi")
 
+# Periodic re-announcement state, used by the main Bridge loop. The
+# main loop polls both ADLCs for IRQs; in the idle path it tests
+# announce_flag, and if set decrements announce_tmr_lo/hi. When the
+# timer expires, it rebuilds and retransmits the bridge announce-
+# ment, bumps announce_count, and clears announce_flag when the
+# count runs out. Provisional names — refine as the full re-announce
+# flow is analysed.
+label(0x0229, "announce_flag")
+label(0x022A, "announce_tmr_lo")
+label(0x022B, "announce_tmr_hi")
+label(0x022C, "announce_count")
+
 # Outbound-frame control block at &045A-&0460. Populated by various
 # "frame builder" subroutines, then consumed by transmit_frame_a
 # (via mem_ptr at &80/&81 = &045A). Field names follow the Acorn
@@ -409,6 +421,35 @@ comment(0xE484, "mem_ptr = &045A (start of frame block)")
 
 
 # =====================================================================
+# Main Bridge loop (post-reset dispatcher)
+# =====================================================================
+
+label(0xE051, "main_loop")
+subroutine(0xE051, "main_loop", hook=None, is_entry_point=False,
+    title="Main Bridge loop: poll both ADLCs for frames, re-announce",
+    description="""\
+The Bridge's continuous-operation entry point. Reached by fall-
+through from the reset handler once startup completes, and by JMP
+from fourteen other sites — every routine that takes an "escape to
+main" path (adlc_a_poll_or_escape, transmit_frame_a/b, etc.) lands
+here.
+
+The loop clears stale status on both ADLCs, then enters an inner
+polling loop that tests SR1 bit 7 (IRQ) on each chip in turn:
+
+  ADLC B IRQ set  ->  jump to frame handler at &E263
+  ADLC A IRQ set  ->  jump to frame handler at &E0E2
+  Neither set     ->  check announce_flag; if set, decrement the
+                      16-bit timer; when it expires, rebuild and
+                      retransmit the bridge-announcement frame and
+                      bump announce_count
+
+The handlers at &E0E2 (side A) and &E263 (side B) ultimately JMP
+back here, so main_loop is the anchor of every packet-processing
+cycle.""")
+
+
+# =====================================================================
 # Transmit a frame via ADLC A
 # =====================================================================
 
@@ -461,6 +502,40 @@ comment(0xE556, "V clear -> escape (mirror of &E52B)")
 comment(0xE558, "Send trailing byte (tx_data0 in announce frames)")
 comment(0xE55D, "CR2 = &3F: signal end of burst, wait for completion")
 comment(0xE565, "Reset mem_ptr to &045A for next builder")
+
+
+# =====================================================================
+# Transmit a frame via ADLC B (mirror of transmit_frame_a)
+# =====================================================================
+
+label(0xE4C0, "transmit_frame_b")
+subroutine(0xE4C0, "transmit_frame_b", hook=None,
+    title="Send the frame at mem_ptr out through ADLC B's TX FIFO",
+    description="""\
+Byte-for-byte mirror of transmit_frame_a (&E517) with adlc_a_*
+replaced by adlc_b_*. Everything there applies here — same entry
+conditions, same end-pointer semantics (tx_end_lo/hi), same X=0/1
+trailing-byte flag, same escape-to-main-loop on unexpected SR1
+state, same normal exit that resets mem_ptr to &045A.
+
+Called from seven sites: reset (&E04E), &E0D8, &E257, &E333, &E34E,
+&E3D2, &E3DE.""")
+
+
+# =====================================================================
+# Poll ADLC B for activity, or escape to the main loop
+#  (mirror of adlc_a_poll_or_escape)
+# =====================================================================
+
+label(0xE690, "adlc_b_poll_or_escape")
+subroutine(0xE690, "adlc_b_poll_or_escape", hook=None,
+    title="Poll ADLC B with ~2s timeout; on timeout bypass caller",
+    description="""\
+Byte-for-byte mirror of adlc_a_poll_or_escape (&E6DC) with adlc_a_*
+replaced by adlc_b_*. Same 24-bit timeout, same escape pattern, same
+normal exit semantics.
+
+Called from four sites: reset (&E04B), &E0D5, &E211, &E330.""")
 
 
 # =====================================================================

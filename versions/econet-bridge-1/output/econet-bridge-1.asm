@@ -1,48 +1,48 @@
 ; Memory locations
-l0000       = &0000
-l0001       = &0001
-l0002       = &0002
-l0003       = &0003
-mem_ptr_lo  = &0080
-mem_ptr_hi  = &0081
-top_ram_page = &0082
-tx_end_lo   = &0200
-tx_end_hi   = &0201
-ctr24_lo    = &0214
-ctr24_mid   = &0215
-ctr24_hi    = &0216
-l0228       = &0228
-l0229       = &0229
-l022a       = &022a
-l022b       = &022b
-l022c       = &022c
-l023c       = &023c
-l023d       = &023d
-l023e       = &023e
-l023f       = &023f
-l0240       = &0240
-l0241       = &0241
-l0248       = &0248
-l0249       = &0249
-net_a_map   = &025a
-net_b_map   = &035a
-tx_dst_stn  = &045a
-tx_dst_net  = &045b
-tx_src_stn  = &045c
-tx_src_net  = &045d
-tx_ctrl     = &045e
-tx_port     = &045f
-tx_data0    = &0460
-station_id_a = &c000
-adlc_a_cr1  = &c800
-adlc_a_cr2  = &c801
-adlc_a_tx   = &c802
-adlc_a_tx2  = &c803
-station_id_b = &d000
-adlc_b_cr1  = &d800
-adlc_b_cr2  = &d801
-adlc_b_tx   = &d802
-adlc_b_tx2  = &d803
+l0000           = &0000
+l0001           = &0001
+l0002           = &0002
+l0003           = &0003
+mem_ptr_lo      = &0080
+mem_ptr_hi      = &0081
+top_ram_page    = &0082
+tx_end_lo       = &0200
+tx_end_hi       = &0201
+ctr24_lo        = &0214
+ctr24_mid       = &0215
+ctr24_hi        = &0216
+l0228           = &0228
+announce_flag   = &0229
+announce_tmr_lo = &022a
+announce_tmr_hi = &022b
+announce_count  = &022c
+l023c           = &023c
+l023d           = &023d
+l023e           = &023e
+l023f           = &023f
+l0240           = &0240
+l0241           = &0241
+l0248           = &0248
+l0249           = &0249
+net_a_map       = &025a
+net_b_map       = &035a
+tx_dst_stn      = &045a
+tx_dst_net      = &045b
+tx_src_stn      = &045c
+tx_src_net      = &045d
+tx_ctrl         = &045e
+tx_port         = &045f
+tx_data0        = &0460
+station_id_a    = &c000
+adlc_a_cr1      = &c800
+adlc_a_cr2      = &c801
+adlc_a_tx       = &c802
+adlc_a_tx2      = &c803
+station_id_b    = &d000
+adlc_b_cr1      = &d800
+adlc_b_cr2      = &d801
+adlc_b_tx       = &d802
+adlc_b_tx2      = &d803
 
     org &e000
 
@@ -133,7 +133,7 @@ adlc_b_tx2  = &d803
     sta top_ram_page                                                  ; e031: 85 82       ..
 ; Clear &0229 (flag, purpose TBD)
     lda #0                                                            ; e033: a9 00       ..
-    sta l0229                                                         ; e035: 8d 29 02    .).
+    sta announce_flag                                                 ; e035: 8d 29 02    .).
     jsr build_announce_b                                              ; e038: 20 58 e4     X.
     jsr adlc_a_poll_or_escape                                         ; e03b: 20 dc e6     ..
     jsr transmit_frame_a                                              ; e03e: 20 17 e5     ..
@@ -141,10 +141,32 @@ adlc_b_tx2  = &d803
     sta tx_data0                                                      ; e044: 8d 60 04    .`.
     lda #4                                                            ; e047: a9 04       ..
     sta mem_ptr_hi                                                    ; e049: 85 81       ..
-    jsr sub_ce690                                                     ; e04b: 20 90 e6     ..
-    jsr sub_ce4c0                                                     ; e04e: 20 c0 e4     ..
+    jsr adlc_b_poll_or_escape                                         ; e04b: 20 90 e6     ..
+    jsr transmit_frame_b                                              ; e04e: 20 c0 e4     ..
+; ***************************************************************************************
+; Main Bridge loop: poll both ADLCs for frames, re-announce
+; 
+; The Bridge's continuous-operation entry point. Reached by fall-
+; through from the reset handler once startup completes, and by JMP
+; from fourteen other sites — every routine that takes an "escape to
+; main" path (adlc_a_poll_or_escape, transmit_frame_a/b, etc.) lands
+; here.
+; 
+; The loop clears stale status on both ADLCs, then enters an inner
+; polling loop that tests SR1 bit 7 (IRQ) on each chip in turn:
+; 
+;   ADLC B IRQ set  ->  jump to frame handler at &E263
+;   ADLC A IRQ set  ->  jump to frame handler at &E0E2
+;   Neither set     ->  check announce_flag; if set, decrement the
+;                       16-bit timer; when it expires, rebuild and
+;                       retransmit the bridge-announcement frame and
+;                       bump announce_count
+; 
+; The handlers at &E0E2 (side A) and &E263 (side B) ultimately JMP
+; back here, so main_loop is the anchor of every packet-processing
+; cycle.
 ; &e051 referenced 14 times by &e0bf, &e0c7, &e13c, &e1d3, &e260, &e2bd, &e354, &e3e1, &e4d6, &e52d, &e5b3, &e644, &e6d0, &e71c
-.ce051
+.main_loop
     lda adlc_a_cr2                                                    ; e051: ad 01 c8    ...
     and #&81                                                          ; e054: 29 81       ).
     beq ce05d                                                         ; e056: f0 05       ..
@@ -179,36 +201,36 @@ adlc_b_tx2  = &d803
 
 ; &e089 referenced 1 time by &e084
 .ce089
-    lda l0229                                                         ; e089: ad 29 02    .).
+    lda announce_flag                                                 ; e089: ad 29 02    .).
     beq ce079                                                         ; e08c: f0 eb       ..
-    dec l022a                                                         ; e08e: ce 2a 02    .*.
+    dec announce_tmr_lo                                               ; e08e: ce 2a 02    .*.
     bne ce079                                                         ; e091: d0 e6       ..
-    dec l022b                                                         ; e093: ce 2b 02    .+.
+    dec announce_tmr_hi                                               ; e093: ce 2b 02    .+.
     bne ce079                                                         ; e096: d0 e1       ..
     jsr build_announce_b                                              ; e098: 20 58 e4     X.
     lda #&81                                                          ; e09b: a9 81       ..
     sta tx_ctrl                                                       ; e09d: 8d 5e 04    .^.
-    bit l0229                                                         ; e0a0: 2c 29 02    ,).
+    bit announce_flag                                                 ; e0a0: 2c 29 02    ,).
     bmi ce0ca                                                         ; e0a3: 30 25       0%
     lda #&c2                                                          ; e0a5: a9 c2       ..
     sta adlc_b_cr1                                                    ; e0a7: 8d 00 d8    ...
     jsr adlc_a_poll_or_escape                                         ; e0aa: 20 dc e6     ..
     jsr transmit_frame_a                                              ; e0ad: 20 17 e5     ..
-    dec l022c                                                         ; e0b0: ce 2c 02    .,.
+    dec announce_count                                                ; e0b0: ce 2c 02    .,.
     beq ce0c2                                                         ; e0b3: f0 0d       ..
 ; &e0b5 referenced 1 time by &e0e0
 .ce0b5
     lda #&80                                                          ; e0b5: a9 80       ..
-    sta l022b                                                         ; e0b7: 8d 2b 02    .+.
+    sta announce_tmr_hi                                               ; e0b7: 8d 2b 02    .+.
     lda #0                                                            ; e0ba: a9 00       ..
-    sta l022a                                                         ; e0bc: 8d 2a 02    .*.
-    jmp ce051                                                         ; e0bf: 4c 51 e0    LQ.
+    sta announce_tmr_lo                                               ; e0bc: 8d 2a 02    .*.
+    jmp main_loop                                                     ; e0bf: 4c 51 e0    LQ.
 
 ; &e0c2 referenced 2 times by &e0b3, &e0de
 .ce0c2
     lda #0                                                            ; e0c2: a9 00       ..
-    sta l0229                                                         ; e0c4: 8d 29 02    .).
-    jmp ce051                                                         ; e0c7: 4c 51 e0    LQ.
+    sta announce_flag                                                 ; e0c4: 8d 29 02    .).
+    jmp main_loop                                                     ; e0c7: 4c 51 e0    LQ.
 
 ; &e0ca referenced 1 time by &e0a3
 .ce0ca
@@ -216,9 +238,9 @@ adlc_b_tx2  = &d803
     sta tx_data0                                                      ; e0cd: 8d 60 04    .`.
     lda #&c2                                                          ; e0d0: a9 c2       ..
     sta adlc_a_cr1                                                    ; e0d2: 8d 00 c8    ...
-    jsr sub_ce690                                                     ; e0d5: 20 90 e6     ..
-    jsr sub_ce4c0                                                     ; e0d8: 20 c0 e4     ..
-    dec l022c                                                         ; e0db: ce 2c 02    .,.
+    jsr adlc_b_poll_or_escape                                         ; e0d5: 20 90 e6     ..
+    jsr transmit_frame_b                                              ; e0d8: 20 c0 e4     ..
+    dec announce_count                                                ; e0db: ce 2c 02    .,.
     beq ce0c2                                                         ; e0de: f0 e2       ..
     bne ce0b5                                                         ; e0e0: d0 d3       ..             ; ALWAYS branch
 
@@ -267,7 +289,7 @@ adlc_b_tx2  = &d803
     bne ce14a                                                         ; e13a: d0 0e       ..
 ; &e13c referenced 4 times by &e0e7, &e0f5, &e12f, &e14f
 .ce13c
-    jmp ce051                                                         ; e13c: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e13c: 4c 51 e0    LQ.
 
 ; &e13f referenced 2 times by &e0fa, &e0ff
 .ce13f
@@ -341,19 +363,19 @@ adlc_b_tx2  = &d803
     jsr sub_ce56e                                                     ; e1d0: 20 6e e5     n.
 ; &e1d3 referenced 1 time by &e19b
 .ce1d3
-    jmp ce051                                                         ; e1d3: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e1d3: 4c 51 e0    LQ.
 
 ; &e1d6 referenced 1 time by &e18b
 .ce1d6
     jsr init_station_maps                                             ; e1d6: 20 24 e4     $.
     lda station_id_b                                                  ; e1d9: ad 00 d0    ...
-    sta l022b                                                         ; e1dc: 8d 2b 02    .+.
+    sta announce_tmr_hi                                               ; e1dc: 8d 2b 02    .+.
     lda #0                                                            ; e1df: a9 00       ..
-    sta l022a                                                         ; e1e1: 8d 2a 02    .*.
+    sta announce_tmr_lo                                               ; e1e1: 8d 2a 02    .*.
     lda #&0a                                                          ; e1e4: a9 0a       ..
-    sta l022c                                                         ; e1e6: 8d 2c 02    .,.
+    sta announce_count                                                ; e1e6: 8d 2c 02    .,.
     lda #&40 ; '@'                                                    ; e1e9: a9 40       .@
-    sta l0229                                                         ; e1eb: 8d 29 02    .).
+    sta announce_flag                                                 ; e1eb: 8d 29 02    .).
 ; &e1ee referenced 1 time by &e187
 .ce1ee
     ldy #6                                                            ; e1ee: a0 06       ..
@@ -375,7 +397,7 @@ adlc_b_tx2  = &d803
     tax                                                               ; e20b: aa          .
     and #&fe                                                          ; e20c: 29 fe       ).
     sta l0228                                                         ; e20e: 8d 28 02    .(.
-    jsr sub_ce690                                                     ; e211: 20 90 e6     ..
+    jsr adlc_b_poll_or_escape                                         ; e211: 20 90 e6     ..
     ldy #0                                                            ; e214: a0 00       ..
 ; &e216 referenced 1 time by &e22f
 .loop_ce216
@@ -408,12 +430,12 @@ adlc_b_tx2  = &d803
     jsr sub_ce5ff                                                     ; e24e: 20 ff e5     ..
     jsr transmit_frame_a                                              ; e251: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e254: 20 6e e5     n.
-    jsr sub_ce4c0                                                     ; e257: 20 c0 e4     ..
+    jsr transmit_frame_b                                              ; e257: 20 c0 e4     ..
     jsr sub_ce5ff                                                     ; e25a: 20 ff e5     ..
     jsr transmit_frame_a                                              ; e25d: 20 17 e5     ..
 ; &e260 referenced 1 time by &e21c
 .ce260
-    jmp ce051                                                         ; e260: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e260: 4c 51 e0    LQ.
 
 ; &e263 referenced 1 time by &e07e
 .ce263
@@ -460,7 +482,7 @@ adlc_b_tx2  = &d803
     bne ce2cb                                                         ; e2bb: d0 0e       ..
 ; &e2bd referenced 4 times by &e268, &e276, &e2b0, &e2d0
 .ce2bd
-    jmp ce051                                                         ; e2bd: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e2bd: 4c 51 e0    LQ.
 
 ; &e2c0 referenced 2 times by &e27b, &e280
 .ce2c0
@@ -520,8 +542,8 @@ adlc_b_tx2  = &d803
     sta tx_src_net                                                    ; e327: 8d 5d 04    .].
     sta ctr24_lo                                                      ; e32a: 8d 14 02    ...
     jsr sub_ce448                                                     ; e32d: 20 48 e4     H.
-    jsr sub_ce690                                                     ; e330: 20 90 e6     ..
-    jsr sub_ce4c0                                                     ; e333: 20 c0 e4     ..
+    jsr adlc_b_poll_or_escape                                         ; e330: 20 90 e6     ..
+    jsr transmit_frame_b                                              ; e333: 20 c0 e4     ..
     jsr sub_ce5ff                                                     ; e336: 20 ff e5     ..
     jsr sub_ce48d                                                     ; e339: 20 8d e4     ..
     lda station_id_a                                                  ; e33c: ad 00 c0    ...
@@ -530,23 +552,23 @@ adlc_b_tx2  = &d803
     sta tx_ctrl                                                       ; e345: 8d 5e 04    .^.
     lda l0249                                                         ; e348: ad 49 02    .I.
     sta tx_port                                                       ; e34b: 8d 5f 04    ._.
-    jsr sub_ce4c0                                                     ; e34e: 20 c0 e4     ..
+    jsr transmit_frame_b                                              ; e34e: 20 c0 e4     ..
     jsr sub_ce5ff                                                     ; e351: 20 ff e5     ..
 ; &e354 referenced 1 time by &e31c
 .ce354
-    jmp ce051                                                         ; e354: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e354: 4c 51 e0    LQ.
 
 ; &e357 referenced 1 time by &e30c
 .ce357
     jsr init_station_maps                                             ; e357: 20 24 e4     $.
     lda station_id_a                                                  ; e35a: ad 00 c0    ...
-    sta l022b                                                         ; e35d: 8d 2b 02    .+.
+    sta announce_tmr_hi                                               ; e35d: 8d 2b 02    .+.
     lda #0                                                            ; e360: a9 00       ..
-    sta l022a                                                         ; e362: 8d 2a 02    .*.
+    sta announce_tmr_lo                                               ; e362: 8d 2a 02    .*.
     lda #&0a                                                          ; e365: a9 0a       ..
-    sta l022c                                                         ; e367: 8d 2c 02    .,.
+    sta announce_count                                                ; e367: 8d 2c 02    .,.
     lda #&80                                                          ; e36a: a9 80       ..
-    sta l0229                                                         ; e36c: 8d 29 02    .).
+    sta announce_flag                                                 ; e36c: 8d 29 02    .).
 ; &e36f referenced 1 time by &e308
 .ce36f
     ldy #6                                                            ; e36f: a0 06       ..
@@ -599,14 +621,14 @@ adlc_b_tx2  = &d803
     lda #4                                                            ; e3cb: a9 04       ..
     sta mem_ptr_hi                                                    ; e3cd: 85 81       ..
     jsr sub_ce56e                                                     ; e3cf: 20 6e e5     n.
-    jsr sub_ce4c0                                                     ; e3d2: 20 c0 e4     ..
+    jsr transmit_frame_b                                              ; e3d2: 20 c0 e4     ..
     jsr sub_ce5ff                                                     ; e3d5: 20 ff e5     ..
     jsr transmit_frame_a                                              ; e3d8: 20 17 e5     ..
     jsr sub_ce56e                                                     ; e3db: 20 6e e5     n.
-    jsr sub_ce4c0                                                     ; e3de: 20 c0 e4     ..
+    jsr transmit_frame_b                                              ; e3de: 20 c0 e4     ..
 ; &e3e1 referenced 1 time by &e39d
 .ce3e1
-    jmp ce051                                                         ; e3e1: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e3e1: 4c 51 e0    LQ.
 
 ; ***************************************************************************************
 ; Wait for ADLC A IRQ (polled)
@@ -838,8 +860,19 @@ adlc_b_tx2  = &d803
     sta mem_ptr_hi                                                    ; e4bd: 85 81       ..
     rts                                                               ; e4bf: 60          `
 
+; ***************************************************************************************
+; Send the frame at mem_ptr out through ADLC B's TX FIFO
+; 
+; Byte-for-byte mirror of transmit_frame_a (&E517) with adlc_a_*
+; replaced by adlc_b_*. Everything there applies here — same entry
+; conditions, same end-pointer semantics (tx_end_lo/hi), same X=0/1
+; trailing-byte flag, same escape-to-main-loop on unexpected SR1
+; state, same normal exit that resets mem_ptr to &045A.
+; 
+; Called from seven sites: reset (&E04E), &E0D8, &E257, &E333, &E34E,
+; &E3D2, &E3DE.
 ; &e4c0 referenced 7 times by &e04e, &e0d8, &e257, &e333, &e34e, &e3d2, &e3de
-.sub_ce4c0
+.transmit_frame_b
     lda #&e7                                                          ; e4c0: a9 e7       ..
     sta adlc_b_cr2                                                    ; e4c2: 8d 01 d8    ...
     lda #&44 ; 'D'                                                    ; e4c5: a9 44       .D
@@ -854,7 +887,7 @@ adlc_b_tx2  = &d803
 .ce4d4
     pla                                                               ; e4d4: 68          h
     pla                                                               ; e4d5: 68          h
-    jmp ce051                                                         ; e4d6: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e4d6: 4c 51 e0    LQ.
 
 ; &e4d9 referenced 1 time by &e4d2
 .ce4d9
@@ -945,7 +978,7 @@ adlc_b_tx2  = &d803
 .ce52b
     pla                                                               ; e52b: 68          h
     pla                                                               ; e52c: 68          h
-    jmp ce051                                                         ; e52d: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e52d: 4c 51 e0    LQ.
 
 ; Load and send frame byte Y
 ; &e530 referenced 1 time by &e529
@@ -1029,7 +1062,7 @@ adlc_b_tx2  = &d803
 .ce5b1
     pla                                                               ; e5b1: 68          h
     pla                                                               ; e5b2: 68          h
-    jmp ce051                                                         ; e5b3: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e5b3: 4c 51 e0    LQ.
 
 ; &e5b6 referenced 1 time by &e599
 .ce5b6
@@ -1108,7 +1141,7 @@ adlc_b_tx2  = &d803
 .ce642
     pla                                                               ; e642: 68          h
     pla                                                               ; e643: 68          h
-    jmp ce051                                                         ; e644: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e644: 4c 51 e0    LQ.
 
 ; &e647 referenced 1 time by &e62a
 .ce647
@@ -1151,8 +1184,16 @@ adlc_b_tx2  = &d803
     sta mem_ptr_hi                                                    ; e68d: 85 81       ..
     rts                                                               ; e68f: 60          `
 
+; ***************************************************************************************
+; Poll ADLC B with ~2s timeout; on timeout bypass caller
+; 
+; Byte-for-byte mirror of adlc_a_poll_or_escape (&E6DC) with adlc_a_*
+; replaced by adlc_b_*. Same 24-bit timeout, same escape pattern, same
+; normal exit semantics.
+; 
+; Called from four sites: reset (&E04B), &E0D5, &E211, &E330.
 ; &e690 referenced 4 times by &e04b, &e0d5, &e211, &e330
-.sub_ce690
+.adlc_b_poll_or_escape
     lda #0                                                            ; e690: a9 00       ..
     sta ctr24_lo                                                      ; e692: 8d 14 02    ...
     sta ctr24_mid                                                     ; e695: 8d 15 02    ...
@@ -1184,7 +1225,7 @@ adlc_b_tx2  = &d803
     bne ce6a2                                                         ; e6cc: d0 d4       ..
     pla                                                               ; e6ce: 68          h
     pla                                                               ; e6cf: 68          h
-    jmp ce051                                                         ; e6d0: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e6d0: 4c 51 e0    LQ.
 
 ; &e6d3 referenced 1 time by &e6ac
 .ce6d3
@@ -1268,7 +1309,7 @@ adlc_b_tx2  = &d803
     pla                                                               ; e71a: 68          h
     pla                                                               ; e71b: 68          h
 ; ...and jump straight to the main Bridge loop
-    jmp ce051                                                         ; e71c: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e71c: 4c 51 e0    LQ.
 
 ; Activity exit: arm CR2 and CR1 for what's next
 ; &e71f referenced 1 time by &e6f8
@@ -2288,7 +2329,7 @@ save pydis_start, pydis_end
 ;     wait_adlc_b_irq:         19
 ;     l0000:                   15
 ;     l0001:                   15
-;     ce051:                   14
+;     main_loop:               14
 ;     station_id_a:            13
 ;     cf151:                   12
 ;     cf1f2:                   12
@@ -2304,10 +2345,10 @@ save pydis_start, pydis_end
 ;     pydis_start:              7
 ;     reset:                    7
 ;     self_test_fail:           7
-;     sub_ce4c0:                7
 ;     transmit_frame_a:         7
+;     transmit_frame_b:         7
+;     announce_flag:            6
 ;     cf09d:                    6
-;     l0229:                    6
 ;     tx_end_hi:                6
 ;     tx_end_lo:                6
 ;     ce079:                    5
@@ -2317,17 +2358,17 @@ save pydis_start, pydis_end
 ;     sub_ce5ff:                5
 ;     tx_ctrl:                  5
 ;     adlc_a_poll_or_escape:    4
+;     adlc_b_poll_or_escape:    4
+;     announce_count:           4
+;     announce_tmr_hi:          4
+;     announce_tmr_lo:          4
 ;     ce13c:                    4
 ;     ce2bd:                    4
 ;     ctr24_hi:                 4
 ;     ctr24_mid:                4
-;     l022a:                    4
-;     l022b:                    4
-;     l022c:                    4
 ;     l023f:                    4
 ;     l0249:                    4
 ;     sub_ce48d:                4
-;     sub_ce690:                4
 ;     tx_dst_stn:               4
 ;     tx_port:                  4
 ;     ce6a2:                    3
@@ -2454,7 +2495,6 @@ save pydis_start, pydis_end
 ;     self_test_zp:             1
 
 ; Automatically generated labels:
-;     ce051
 ;     ce05d
 ;     ce073
 ;     ce079
@@ -2553,10 +2593,6 @@ save pydis_start, pydis_end
 ;     l0002
 ;     l0003
 ;     l0228
-;     l0229
-;     l022a
-;     l022b
-;     l022c
 ;     l023c
 ;     l023d
 ;     l023e
@@ -2582,10 +2618,8 @@ save pydis_start, pydis_end
 ;     loop_cf22a
 ;     sub_ce448
 ;     sub_ce48d
-;     sub_ce4c0
 ;     sub_ce56e
 ;     sub_ce5ff
-;     sub_ce690
 
 ; Stats:
 ;     Total size (Code + Data) = 8192 bytes
