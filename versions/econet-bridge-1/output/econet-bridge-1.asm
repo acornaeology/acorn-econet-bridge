@@ -181,66 +181,48 @@ adlc_b_tx2      = &d803
 ; announce_flag bit 7. The timer is re-armed to &8000 (32768 idle
 ; iterations) after each announce, giving a roughly constant cadence
 ; regardless of how busy the ADLCs are with other traffic.
-; Check ADLC A for stale AP/RDA from previous activity
 ; &e051 referenced 14 times by &e0bf, &e0c7, &e13c, &e1d3, &e260, &e2bd, &e354, &e3e1, &e4d6, &e52d, &e5b3, &e644, &e6d0, &e71c
 .main_loop
-    lda adlc_a_cr2                                                    ; e051: ad 01 c8    ...
-    and #&81                                                          ; e054: 29 81       ).
-    beq ce05d                                                         ; e056: f0 05       ..
-; Reset A's TX path but leave RX running
-    lda #&c2                                                          ; e058: a9 c2       ..
-    sta adlc_a_cr1                                                    ; e05a: 8d 00 c8    ...
-; Arm CR1 A = &82: TX reset, RX IRQ enabled
+    lda adlc_a_cr2                                                    ; e051: ad 01 c8    ...            ; Read ADLC A's SR2
+    and #&81                                                          ; e054: 29 81       ).             ; Mask AP/RDA bits to test for any stale RX state
+    beq main_loop_arm_a                                               ; e056: f0 05       ..             ; Clean -> skip the TX reset
+    lda #&c2                                                          ; e058: a9 c2       ..             ; Mask: reset TX, leave RX running
+    sta adlc_a_cr1                                                    ; e05a: 8d 00 c8    ...            ; Clear any stale TX state on ADLC A
 ; &e05d referenced 1 time by &e056
-.ce05d
-    ldx #&82                                                          ; e05d: a2 82       ..
-    stx adlc_a_cr1                                                    ; e05f: 8e 00 c8    ...
-; Arm CR2 A = &67: standard listen-mode config
-    ldy #&67 ; 'g'                                                    ; e062: a0 67       .g
-    sty adlc_a_cr2                                                    ; e064: 8c 01 c8    ...
-; Same stale-state check for ADLC B
-    lda adlc_b_cr2                                                    ; e067: ad 01 d8    ...
-    and #&81                                                          ; e06a: 29 81       ).
-    beq ce073                                                         ; e06c: f0 05       ..
-    lda #&c2                                                          ; e06e: a9 c2       ..
-    sta adlc_b_cr1                                                    ; e070: 8d 00 d8    ...
-; Arm CR1 B = &82 and CR2 B = &67
+.main_loop_arm_a
+    ldx #&82                                                          ; e05d: a2 82       ..             ; X = &82: listen-mode CR1 (TX reset, RX IRQ)
+    stx adlc_a_cr1                                                    ; e05f: 8e 00 c8    ...            ; Commit CR1 on ADLC A
+    ldy #&67 ; 'g'                                                    ; e062: a0 67       .g             ; Y = &67: listen-mode CR2 (status-clear pattern)
+    sty adlc_a_cr2                                                    ; e064: 8c 01 c8    ...            ; Commit CR2 on ADLC A
+    lda adlc_b_cr2                                                    ; e067: ad 01 d8    ...            ; Read ADLC B's SR2
+    and #&81                                                          ; e06a: 29 81       ).             ; Mask AP/RDA to test for any stale RX state
+    beq main_loop_arm_b                                               ; e06c: f0 05       ..             ; Clean -> skip the TX reset on B
+    lda #&c2                                                          ; e06e: a9 c2       ..             ; Mask: reset TX, leave RX running
+    sta adlc_b_cr1                                                    ; e070: 8d 00 d8    ...            ; Clear any stale TX state on ADLC B
 ; &e073 referenced 1 time by &e06c
-.ce073
-    stx adlc_b_cr1                                                    ; e073: 8e 00 d8    ...
-    sty adlc_b_cr2                                                    ; e076: 8c 01 d8    ...
-; Test SR1 bit 7 on B (IRQ summary)
+.main_loop_arm_b
+    stx adlc_b_cr1                                                    ; e073: 8e 00 d8    ...            ; Commit CR1 on ADLC B (X still = &82)
+    sty adlc_b_cr2                                                    ; e076: 8c 01 d8    ...            ; Commit CR2 on ADLC B (Y still = &67)
 ; &e079 referenced 5 times by &e08c, &e091, &e096, &e144, &e2c5
 .main_loop_poll
-    bit adlc_b_cr1                                                    ; e079: 2c 00 d8    ,..
-; No IRQ on B, check A
-    bpl ce081                                                         ; e07c: 10 03       ..
-; B IRQ: hand off to side-B frame handler
-    jmp rx_frame_b                                                    ; e07e: 4c 63 e2    Lc.
+    bit adlc_b_cr1                                                    ; e079: 2c 00 d8    ,..            ; BIT ADLC B's SR1 -- N <- bit 7 (IRQ summary)
+    bpl main_loop_poll_a                                              ; e07c: 10 03       ..             ; B quiet -> check A
+    jmp rx_frame_b                                                    ; e07e: 4c 63 e2    Lc.            ; B has an event -> dispatch to rx_frame_b
 
-; Test SR1 bit 7 on A (IRQ summary)
 ; &e081 referenced 1 time by &e07c
-.ce081
-    bit adlc_a_cr1                                                    ; e081: 2c 00 c8    ,..
-; No IRQ on A, drop to idle path
-    bpl main_loop_idle                                                ; e084: 10 03       ..
-; A IRQ: hand off to side-A frame handler
-    jmp rx_frame_a                                                    ; e086: 4c e2 e0    L..
+.main_loop_poll_a
+    bit adlc_a_cr1                                                    ; e081: 2c 00 c8    ,..            ; BIT ADLC A's SR1 -- N <- bit 7 (IRQ summary)
+    bpl main_loop_idle                                                ; e084: 10 03       ..             ; A quiet -> nothing to do; maybe re-announce
+    jmp rx_frame_a                                                    ; e086: 4c e2 e0    L..            ; A has an event -> dispatch to rx_frame_a
 
-; Re-announce enabled?
 ; &e089 referenced 1 time by &e084
 .main_loop_idle
-    lda announce_flag                                                 ; e089: ad 29 02    .).
-; No: go back to polling the ADLCs
-    beq main_loop_poll                                                ; e08c: f0 eb       ..
-; Yes: decrement 16-bit re-announce timer
-    dec announce_tmr_lo                                               ; e08e: ce 2a 02    .*.
-; Still ticking, back to poll
-    bne main_loop_poll                                                ; e091: d0 e6       ..
-; LSB wrapped, tick MSB too
-    dec announce_tmr_hi                                               ; e093: ce 2b 02    .+.
-; Still ticking, back to poll
-    bne main_loop_poll                                                ; e096: d0 e1       ..
+    lda announce_flag                                                 ; e089: ad 29 02    .).            ; Read announce_flag -- is a re-announce burst pending?
+    beq main_loop_poll                                                ; e08c: f0 eb       ..             ; No burst in progress -> straight back to polling
+    dec announce_tmr_lo                                               ; e08e: ce 2a 02    .*.            ; Tick the 16-bit re-announce countdown, low byte
+    bne main_loop_poll                                                ; e091: d0 e6       ..             ; Low byte didn't wrap -> keep polling
+    dec announce_tmr_hi                                               ; e093: ce 2b 02    .+.            ; Low byte wrapped -> tick the high byte too
+    bne main_loop_poll                                                ; e096: d0 e1       ..             ; Timer hasn't expired yet -> keep polling
 ; ***************************************************************************************
 ; Emit one BridgeReply in an in-progress response burst
 ; 
@@ -273,59 +255,43 @@ adlc_b_tx2      = &d803
 ; Before transmitting on one side, the routine resets the OTHER
 ; ADLC's TX path (CR1 = &C2) to prevent the opposite side from
 ; inadvertently transmitting a colliding frame while we're busy.
-; Rebuild the frame template (dst=FF, ctrl=&80, ...)
 .re_announce
-    jsr build_announce_b                                              ; e098: 20 58 e4     X.
-; Patch ctrl = &81 (re-announce variant)
-    lda #&81                                                          ; e09b: a9 81       ..
-    sta tx_ctrl                                                       ; e09d: 8d 5e 04    .^.
-; Test announce_flag bit 7: which side?
-    bit announce_flag                                                 ; e0a0: 2c 29 02    ,).
-; Bit 7 set -> transmit via side B
-    bmi re_announce_side_b                                            ; e0a3: 30 25       0%
-; Side A path: reset B's TX first (no collision)
-    lda #&c2                                                          ; e0a5: a9 c2       ..
-    sta adlc_b_cr1                                                    ; e0a7: 8d 00 d8    ...
-; Wait for A's line to go idle then transmit
-    jsr wait_adlc_a_idle                                              ; e0aa: 20 dc e6     ..
-    jsr transmit_frame_a                                              ; e0ad: 20 17 e5     ..
-; Count this announce; stop if exhausted
-    dec announce_count                                                ; e0b0: ce 2c 02    .,.
-    beq re_announce_done                                              ; e0b3: f0 0d       ..
-; Re-arm timer to &8000 (32K idle iterations)
+    jsr build_announce_b                                              ; e098: 20 58 e4     X.            ; Rebuild the frame template from scratch (ctrl=&80 default)
+    lda #&81                                                          ; e09b: a9 81       ..             ; A = &81: the BridgeReply control byte
+    sta tx_ctrl                                                       ; e09d: 8d 5e 04    .^.            ; Patch tx_ctrl to &81 -- this announcement is a reply
+    bit announce_flag                                                 ; e0a0: 2c 29 02    ,).            ; Test announce_flag bit 7 via BIT
+    bmi re_announce_side_b                                            ; e0a3: 30 25       0%             ; Bit 7 set -> send via ADLC B (re_announce_side_b)
+    lda #&c2                                                          ; e0a5: a9 c2       ..             ; Side-A path: silence B's TX first
+    sta adlc_b_cr1                                                    ; e0a7: 8d 00 d8    ...            ; Reset ADLC B's TX to avoid a cross-side collision
+    jsr wait_adlc_a_idle                                              ; e0aa: 20 dc e6     ..            ; CSMA wait on A before transmitting
+    jsr transmit_frame_a                                              ; e0ad: 20 17 e5     ..            ; Send the BridgeReply on ADLC A
+    dec announce_count                                                ; e0b0: ce 2c 02    .,.            ; Decrement burst-remaining count
+    beq re_announce_done                                              ; e0b3: f0 0d       ..             ; Count hit zero -> clear announce_flag
 ; &e0b5 referenced 1 time by &e0e0
 .re_announce_rearm
-    lda #&80                                                          ; e0b5: a9 80       ..
-    sta announce_tmr_hi                                               ; e0b7: 8d 2b 02    .+.
-    lda #0                                                            ; e0ba: a9 00       ..
-    sta announce_tmr_lo                                               ; e0bc: 8d 2a 02    .*.
-; Back to main loop
-    jmp main_loop                                                     ; e0bf: 4c 51 e0    LQ.
+    lda #&80                                                          ; e0b5: a9 80       ..             ; A = &80: reseed timer high byte
+    sta announce_tmr_hi                                               ; e0b7: 8d 2b 02    .+.            ; Store new timer_hi
+    lda #0                                                            ; e0ba: a9 00       ..             ; A = 0: timer low byte
+    sta announce_tmr_lo                                               ; e0bc: 8d 2a 02    .*.            ; Store timer_lo; next firing in ~&8000 idle iterations
+    jmp main_loop                                                     ; e0bf: 4c 51 e0    LQ.            ; Continue the main loop
 
-; announce_count exhausted: disable re-announce
 ; &e0c2 referenced 2 times by &e0b3, &e0de
 .re_announce_done
-    lda #0                                                            ; e0c2: a9 00       ..
-    sta announce_flag                                                 ; e0c4: 8d 29 02    .).
-; Back to main loop
-    jmp main_loop                                                     ; e0c7: 4c 51 e0    LQ.
+    lda #0                                                            ; e0c2: a9 00       ..             ; A = 0: 'burst complete' marker
+    sta announce_flag                                                 ; e0c4: 8d 29 02    .).            ; Clear announce_flag; re-announce stops until next BridgeReset
+    jmp main_loop                                                     ; e0c7: 4c 51 e0    LQ.            ; Continue the main loop
 
-; Side B path: patch tx_data0 for side-B broadcast
 ; &e0ca referenced 1 time by &e0a3
 .re_announce_side_b
-    lda net_num_a                                                     ; e0ca: ad 00 c0    ...
-    sta tx_data0                                                      ; e0cd: 8d 60 04    .`.
-; Reset A's TX first (mirror of side-A path)
-    lda #&c2                                                          ; e0d0: a9 c2       ..
-    sta adlc_a_cr1                                                    ; e0d2: 8d 00 c8    ...
-; Wait for B's line to go idle then transmit
-    jsr wait_adlc_b_idle                                              ; e0d5: 20 90 e6     ..
-    jsr transmit_frame_b                                              ; e0d8: 20 c0 e4     ..
-; Count this announce; stop if exhausted
-    dec announce_count                                                ; e0db: ce 2c 02    .,.
-    beq re_announce_done                                              ; e0de: f0 e2       ..
-; Not exhausted -> re_announce_rearm (ALWAYS branch)
-    bne re_announce_rearm                                             ; e0e0: d0 d3       ..             ; ALWAYS branch
+    lda net_num_a                                                     ; e0ca: ad 00 c0    ...            ; Fetch our side-A network number
+    sta tx_data0                                                      ; e0cd: 8d 60 04    .`.            ; Patch tx_data0: this frame announces net_num_a to side B
+    lda #&c2                                                          ; e0d0: a9 c2       ..             ; Mask: reset TX, RX going
+    sta adlc_a_cr1                                                    ; e0d2: 8d 00 c8    ...            ; Silence ADLC A's TX to avoid collision while we send on B
+    jsr wait_adlc_b_idle                                              ; e0d5: 20 90 e6     ..            ; CSMA wait on B
+    jsr transmit_frame_b                                              ; e0d8: 20 c0 e4     ..            ; Send the BridgeReply on ADLC B
+    dec announce_count                                                ; e0db: ce 2c 02    .,.            ; Decrement burst-remaining count
+    beq re_announce_done                                              ; e0de: f0 e2       ..             ; Count hit zero -> clear announce_flag
+    bne re_announce_rearm                                             ; e0e0: d0 d3       ..             ; Not exhausted -> re-arm timer and continue (ALWAYS branch)
 
 ; ***************************************************************************************
 ; Drain and dispatch an inbound frame on ADLC A
@@ -575,39 +541,27 @@ adlc_b_tx2      = &d803
 ; Re-arm A for listen after the received query
 ; &e19d referenced 1 time by &e18f
 .rx_a_handle_82
-    jsr adlc_a_listen                                                 ; e19d: 20 ff e3     ..
-; Build reply-scout template (unicast to querier)
-    jsr build_query_response                                          ; e1a0: 20 8d e4     ..
-; Patch src_net with our B-side network number
-    lda net_num_b                                                     ; e1a3: ad 00 d0    ...
-    sta tx_src_net                                                    ; e1a6: 8d 5d 04    .].
-; Seed stagger counter from net_num_b
-    sta ctr24_lo                                                      ; e1a9: 8d 14 02    ...
-; Delay before transmit -- collision avoidance
-    jsr stagger_delay                                                 ; e1ac: 20 48 e4     H.
-; CSMA on A
-    jsr wait_adlc_a_idle                                              ; e1af: 20 dc e6     ..
-; Transmit reply scout (dst = querier)
-    jsr transmit_frame_a                                              ; e1b2: 20 17 e5     ..
-; Receive scout-ACK from querier
-    jsr handshake_rx_a                                                ; e1b5: 20 6e e5     n.
-; Rebuild buffer; now populating it as a data frame
-    jsr build_query_response                                          ; e1b8: 20 8d e4     ..
-    lda net_num_b                                                     ; e1bb: ad 00 d0    ...
-    sta tx_src_net                                                    ; e1be: 8d 5d 04    .].
-; Data payload byte 0 = net_num_a
-    lda net_num_a                                                     ; e1c1: ad 00 c0    ...
-    sta tx_ctrl                                                       ; e1c4: 8d 5e 04    .^.
-; Data payload byte 1 = echo of queried network
-    lda rx_query_net                                                  ; e1c7: ad 49 02    .I.
-    sta tx_port                                                       ; e1ca: 8d 5f 04    ._.
-; Transmit response data frame
-    jsr transmit_frame_a                                              ; e1cd: 20 17 e5     ..
-; Receive final data-ACK
-    jsr handshake_rx_a                                                ; e1d0: 20 6e e5     n.
+    jsr adlc_a_listen                                                 ; e19d: 20 ff e3     ..            ; Re-arm ADLC A into listen mode before replying
+    jsr build_query_response                                          ; e1a0: 20 8d e4     ..            ; Build reply-scout template addressed at the querier
+    lda net_num_b                                                     ; e1a3: ad 00 d0    ...            ; Fetch our side-B network number
+    sta tx_src_net                                                    ; e1a6: 8d 5d 04    .].            ; Patch src_net so the scout names us by net_num_b
+    sta ctr24_lo                                                      ; e1a9: 8d 14 02    ...            ; Copy it into the stagger-delay counter too
+    jsr stagger_delay                                                 ; e1ac: 20 48 e4     H.            ; Busy-wait for (net_num_b * ~50us) + 160us
+    jsr wait_adlc_a_idle                                              ; e1af: 20 dc e6     ..            ; CSMA wait on A so we don't collide with live traffic
+    jsr transmit_frame_a                                              ; e1b2: 20 17 e5     ..            ; Transmit the reply scout
+    jsr handshake_rx_a                                                ; e1b5: 20 6e e5     n.            ; Wait for the querier's scout-ACK on A
+    jsr build_query_response                                          ; e1b8: 20 8d e4     ..            ; Rebuild template -- next frame is the data response
+    lda net_num_b                                                     ; e1bb: ad 00 d0    ...            ; Fetch net_num_b
+    sta tx_src_net                                                    ; e1be: 8d 5d 04    .].            ; Re-patch src_net (rebuilt block needs it again)
+    lda net_num_a                                                     ; e1c1: ad 00 c0    ...            ; Fetch net_num_a
+    sta tx_ctrl                                                       ; e1c4: 8d 5e 04    .^.            ; Write it as data-frame payload byte 0 (tx_ctrl slot)
+    lda rx_query_net                                                  ; e1c7: ad 49 02    .I.            ; Fetch the network the querier asked about
+    sta tx_port                                                       ; e1ca: 8d 5f 04    ._.            ; Write it as data-frame payload byte 1 (tx_port slot)
+    jsr transmit_frame_a                                              ; e1cd: 20 17 e5     ..            ; Transmit the data frame
+    jsr handshake_rx_a                                                ; e1d0: 20 6e e5     n.            ; Wait for the querier's final data-ACK
 ; &e1d3 referenced 1 time by &e19b
 .ce1d3
-    jmp main_loop                                                     ; e1d3: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e1d3: 4c 51 e0    LQ.            ; Transaction complete -> back to main_loop
 
 ; ***************************************************************************************
 ; Side-A BridgeReset (ctrl=&80): learn topology from scratch
@@ -639,22 +593,17 @@ adlc_b_tx2      = &d803
 ; a BridgeReset does. A solo bridge therefore stays silent after
 ; its boot-time BridgeReset pair, because nothing comes back to
 ; trigger a response. See the event-driven-reannouncement writeup.
-; Forget learned routes (topology change)
 ; &e1d6 referenced 1 time by &e18b
 .rx_a_handle_80
-    jsr init_reachable_nets                                           ; e1d6: 20 24 e4     $.
-; Seed timer high byte from our B-side net number
-    lda net_num_b                                                     ; e1d9: ad 00 d0    ...
-    sta announce_tmr_hi                                               ; e1dc: 8d 2b 02    .+.
-; Timer low byte = 0
-    lda #0                                                            ; e1df: a9 00       ..
-    sta announce_tmr_lo                                               ; e1e1: 8d 2a 02    .*.
-; Queue 10 re-announces
-    lda #&0a                                                          ; e1e4: a9 0a       ..
-    sta announce_count                                                ; e1e6: 8d 2c 02    .,.
-; Flag = &40 (enable, side A)
-    lda #&40 ; '@'                                                    ; e1e9: a9 40       .@
-    sta announce_flag                                                 ; e1eb: 8d 29 02    .).
+    jsr init_reachable_nets                                           ; e1d6: 20 24 e4     $.            ; Wipe all learned routing state (topology reset)
+    lda net_num_b                                                     ; e1d9: ad 00 d0    ...            ; Fetch our side-B network number
+    sta announce_tmr_hi                                               ; e1dc: 8d 2b 02    .+.            ; Use it as the re-announce timer's high byte (stagger)
+    lda #0                                                            ; e1df: a9 00       ..             ; A = 0: timer low byte
+    sta announce_tmr_lo                                               ; e1e1: 8d 2a 02    .*.            ; Store timer_lo; first fire in (net_num_b * 256) idle ticks
+    lda #&0a                                                          ; e1e4: a9 0a       ..             ; A = 10: number of BridgeReplies to emit
+    sta announce_count                                                ; e1e6: 8d 2c 02    .,.            ; Store the burst count
+    lda #&40 ; '@'                                                    ; e1e9: a9 40       .@             ; A = &40: enable re-announce, bit 7 clear = send via A
+    sta announce_flag                                                 ; e1eb: 8d 29 02    .).            ; Set announce_flag; main loop will now schedule the burst
 ; ***************************************************************************************
 ; Side-A BridgeReply (ctrl=&81): learn and re-broadcast
 ; 
@@ -945,27 +894,27 @@ adlc_b_tx2      = &d803
 ; full protocol description.
 ; &e31e referenced 1 time by &e310
 .rx_b_handle_82
-    jsr adlc_b_listen                                                 ; e31e: 20 19 e4     ..
-    jsr build_query_response                                          ; e321: 20 8d e4     ..
-    lda net_num_a                                                     ; e324: ad 00 c0    ...
-    sta tx_src_net                                                    ; e327: 8d 5d 04    .].
-    sta ctr24_lo                                                      ; e32a: 8d 14 02    ...
-    jsr stagger_delay                                                 ; e32d: 20 48 e4     H.
-    jsr wait_adlc_b_idle                                              ; e330: 20 90 e6     ..
-    jsr transmit_frame_b                                              ; e333: 20 c0 e4     ..
-    jsr handshake_rx_b                                                ; e336: 20 ff e5     ..
-    jsr build_query_response                                          ; e339: 20 8d e4     ..
-    lda net_num_a                                                     ; e33c: ad 00 c0    ...
-    sta tx_src_net                                                    ; e33f: 8d 5d 04    .].
-    lda net_num_b                                                     ; e342: ad 00 d0    ...
-    sta tx_ctrl                                                       ; e345: 8d 5e 04    .^.
-    lda rx_query_net                                                  ; e348: ad 49 02    .I.
-    sta tx_port                                                       ; e34b: 8d 5f 04    ._.
-    jsr transmit_frame_b                                              ; e34e: 20 c0 e4     ..
-    jsr handshake_rx_b                                                ; e351: 20 ff e5     ..
+    jsr adlc_b_listen                                                 ; e31e: 20 19 e4     ..            ; Re-arm ADLC B into listen mode before replying
+    jsr build_query_response                                          ; e321: 20 8d e4     ..            ; Build reply-scout template addressed at the querier
+    lda net_num_a                                                     ; e324: ad 00 c0    ...            ; Fetch our side-A network number
+    sta tx_src_net                                                    ; e327: 8d 5d 04    .].            ; Patch src_net so the scout names us by net_num_a
+    sta ctr24_lo                                                      ; e32a: 8d 14 02    ...            ; Copy it into the stagger-delay counter too
+    jsr stagger_delay                                                 ; e32d: 20 48 e4     H.            ; Busy-wait for (net_num_a * ~50us) + 160us
+    jsr wait_adlc_b_idle                                              ; e330: 20 90 e6     ..            ; CSMA wait on B
+    jsr transmit_frame_b                                              ; e333: 20 c0 e4     ..            ; Transmit the reply scout
+    jsr handshake_rx_b                                                ; e336: 20 ff e5     ..            ; Wait for the querier's scout-ACK on B
+    jsr build_query_response                                          ; e339: 20 8d e4     ..            ; Rebuild template -- next frame is the data response
+    lda net_num_a                                                     ; e33c: ad 00 c0    ...            ; Fetch net_num_a
+    sta tx_src_net                                                    ; e33f: 8d 5d 04    .].            ; Re-patch src_net
+    lda net_num_b                                                     ; e342: ad 00 d0    ...            ; Fetch net_num_b
+    sta tx_ctrl                                                       ; e345: 8d 5e 04    .^.            ; Write as data-frame payload byte 0
+    lda rx_query_net                                                  ; e348: ad 49 02    .I.            ; Fetch the network the querier asked about
+    sta tx_port                                                       ; e34b: 8d 5f 04    ._.            ; Write as data-frame payload byte 1
+    jsr transmit_frame_b                                              ; e34e: 20 c0 e4     ..            ; Transmit the data frame
+    jsr handshake_rx_b                                                ; e351: 20 ff e5     ..            ; Wait for final data-ACK
 ; &e354 referenced 1 time by &e31c
 .ce354
-    jmp main_loop                                                     ; e354: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e354: 4c 51 e0    LQ.            ; Transaction complete -> back to main_loop
 
 ; ***************************************************************************************
 ; Side-B BridgeReset (ctrl=&80): learn topology from scratch
@@ -980,15 +929,15 @@ adlc_b_tx2      = &d803
 ; non-zero; all other writes to that byte clear it.
 ; &e357 referenced 1 time by &e30c
 .rx_b_handle_80
-    jsr init_reachable_nets                                           ; e357: 20 24 e4     $.
-    lda net_num_a                                                     ; e35a: ad 00 c0    ...
-    sta announce_tmr_hi                                               ; e35d: 8d 2b 02    .+.
-    lda #0                                                            ; e360: a9 00       ..
-    sta announce_tmr_lo                                               ; e362: 8d 2a 02    .*.
-    lda #&0a                                                          ; e365: a9 0a       ..
-    sta announce_count                                                ; e367: 8d 2c 02    .,.
-    lda #&80                                                          ; e36a: a9 80       ..
-    sta announce_flag                                                 ; e36c: 8d 29 02    .).
+    jsr init_reachable_nets                                           ; e357: 20 24 e4     $.            ; Wipe all learned routing state (topology reset)
+    lda net_num_a                                                     ; e35a: ad 00 c0    ...            ; Fetch our side-A network number
+    sta announce_tmr_hi                                               ; e35d: 8d 2b 02    .+.            ; Use as re-announce timer high byte (stagger)
+    lda #0                                                            ; e360: a9 00       ..             ; A = 0: timer low byte
+    sta announce_tmr_lo                                               ; e362: 8d 2a 02    .*.            ; Store timer_lo; first fire in (net_num_a * 256) ticks
+    lda #&0a                                                          ; e365: a9 0a       ..             ; A = 10: number of BridgeReplies to emit
+    sta announce_count                                                ; e367: 8d 2c 02    .,.            ; Store the burst count
+    lda #&80                                                          ; e36a: a9 80       ..             ; A = &80: enable re-announce, bit 7 set = send via B
+    sta announce_flag                                                 ; e36c: 8d 29 02    .).            ; Set announce_flag; main loop will now schedule the burst
 ; ***************************************************************************************
 ; Side-B BridgeReply (ctrl=&81): learn and re-broadcast
 ; 
@@ -3095,9 +3044,6 @@ save pydis_start, pydis_end
 ;     tx_src_stn:                    2
 ;     adlc_a_full_reset:             1
 ;     adlc_b_full_reset:             1
-;     ce05d:                         1
-;     ce073:                         1
-;     ce081:                         1
 ;     ce15c:                         1
 ;     ce169:                         1
 ;     ce1d3:                         1
@@ -3133,7 +3079,10 @@ save pydis_start, pydis_end
 ;     loop_cf189:                    1
 ;     loop_cf1c6:                    1
 ;     loop_cf22a:                    1
+;     main_loop_arm_a:               1
+;     main_loop_arm_b:               1
 ;     main_loop_idle:                1
+;     main_loop_poll_a:              1
 ;     ram_test_done:                 1
 ;     ram_test_fail:                 1
 ;     ram_test_fail_loop:            1
@@ -3177,9 +3126,6 @@ save pydis_start, pydis_end
 ;     stagger_delay_prelude:         1
 
 ; Automatically generated labels:
-;     ce05d
-;     ce073
-;     ce081
 ;     ce15c
 ;     ce169
 ;     ce1d3
