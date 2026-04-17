@@ -692,74 +692,51 @@ adlc_b_tx2      = &d803
 ; therefore the natural shape of a bridged four-way handshake when
 ; the initial scout came from side A: two frames travel A -> B
 ; (scout and data) and two travel B -> A (two ACKs).
-; rx_len -> even-rounded byte count for pair loop
 ; &e208 referenced 2 times by &e147, &e193
 .rx_a_forward
-    lda rx_len                                                        ; e208: ad 28 02    .(.
-; X = original rx_len (preserved for odd-fix at end)
-    tax                                                               ; e20b: aa          .
-    and #&fe                                                          ; e20c: 29 fe       ).
-    sta rx_len                                                        ; e20e: 8d 28 02    .(.
-; CSMA on side B before transmitting
-    jsr wait_adlc_b_idle                                              ; e211: 20 90 e6     ..
-; Y = 0: rx buffer offset
-    ldy #0                                                            ; e214: a0 00       ..
-; Wait for TDRA on B
+    lda rx_len                                                        ; e208: ad 28 02    .(.            ; Read rx_len into A
+    tax                                                               ; e20b: aa          .              ; Preserve original length in X for odd-parity check
+    and #&fe                                                          ; e20c: 29 fe       ).             ; Mask low bit to round DOWN to even byte count
+    sta rx_len                                                        ; e20e: 8d 28 02    .(.            ; Store the rounded count for the pair loop
+    jsr wait_adlc_b_idle                                              ; e211: 20 90 e6     ..            ; CSMA wait on B before transmitting the forwarded scout
+    ldy #0                                                            ; e214: a0 00       ..             ; Y = 0: start at byte 0 of the rx_* buffer
 ; &e216 referenced 1 time by &e22f
 .rx_a_forward_pair_loop
-    jsr wait_adlc_b_irq                                               ; e216: 20 ea e3     ..
-    bit adlc_b_cr1                                                    ; e219: 2c 00 d8    ,..
-; TDRA clear -> ADLC lost sync, escape to main
-    bvc rx_a_forward_done                                             ; e21c: 50 42       PB
-; Send byte Y (from rx buffer) as continuation
-    lda rx_dst_stn,y                                                  ; e21e: b9 3c 02    .<.
-    sta adlc_b_tx                                                     ; e221: 8d 02 d8    ...
-    iny                                                               ; e224: c8          .
-; Send byte Y+1 (pair for throughput)
-    lda rx_dst_stn,y                                                  ; e225: b9 3c 02    .<.
-    sta adlc_b_tx                                                     ; e228: 8d 02 d8    ...
-    iny                                                               ; e22b: c8          .
-; Done at even length?
-    cpy rx_len                                                        ; e22c: cc 28 02    .(.
-    bcc rx_a_forward_pair_loop                                        ; e22f: 90 e5       ..
-; Recover original length to check parity
-    txa                                                               ; e231: 8a          .
-; ROR: carry <- bit 0 (= original length was odd?)
-    ror a                                                             ; e232: 6a          j
-; Even -> skip trailing-byte path
-    bcc rx_a_forward_ack_round                                        ; e233: 90 09       ..
-; Odd-length tail: wait for TDRA
-    jsr wait_adlc_b_irq                                               ; e235: 20 ea e3     ..
-; ...send the final byte
-    lda rx_dst_stn,y                                                  ; e238: b9 3c 02    .<.
-    sta adlc_b_tx                                                     ; e23b: 8d 02 d8    ...
-; CR2 = &3F: end-of-burst (scout delivered)
+    jsr wait_adlc_b_irq                                               ; e216: 20 ea e3     ..            ; Wait for ADLC B's TDRA
+    bit adlc_b_cr1                                                    ; e219: 2c 00 d8    ,..            ; BIT SR1 -- V <- bit 6 (TDRA)
+    bvc rx_a_forward_done                                             ; e21c: 50 42       PB             ; TDRA clear -> chip lost sync, escape to main_loop
+    lda rx_dst_stn,y                                                  ; e21e: b9 3c 02    .<.            ; Load byte Y of the received scout
+    sta adlc_b_tx                                                     ; e221: 8d 02 d8    ...            ; Push it to ADLC B's TX FIFO
+    iny                                                               ; e224: c8          .              ; Advance Y
+    lda rx_dst_stn,y                                                  ; e225: b9 3c 02    .<.            ; Load byte Y+1
+    sta adlc_b_tx                                                     ; e228: 8d 02 d8    ...            ; Push the second byte of the pair
+    iny                                                               ; e22b: c8          .              ; Advance Y again
+    cpy rx_len                                                        ; e22c: cc 28 02    .(.            ; Have we reached the even-rounded length yet?
+    bcc rx_a_forward_pair_loop                                        ; e22f: 90 e5       ..             ; No -> keep looping
+    txa                                                               ; e231: 8a          .              ; Recover original length from X for parity check
+    ror a                                                             ; e232: 6a          j              ; ROR: carry <- bit 0 (= original length was odd?)
+    bcc rx_a_forward_ack_round                                        ; e233: 90 09       ..             ; Even -> skip the trailing-byte path
+    jsr wait_adlc_b_irq                                               ; e235: 20 ea e3     ..            ; Odd: wait for TDRA once more for the last byte
+    lda rx_dst_stn,y                                                  ; e238: b9 3c 02    .<.            ; Load the trailing byte
+    sta adlc_b_tx                                                     ; e23b: 8d 02 d8    ...            ; Push it to the TX FIFO
 ; &e23e referenced 1 time by &e233
 .rx_a_forward_ack_round
-    lda #&3f ; '?'                                                    ; e23e: a9 3f       .?
-    sta adlc_b_cr2                                                    ; e240: 8d 01 d8    ...
-    jsr wait_adlc_b_irq                                               ; e243: 20 ea e3     ..
-; Reset mem_ptr to &045A for the handshake staging
-    lda #&5a ; 'Z'                                                    ; e246: a9 5a       .Z
-    sta mem_ptr_lo                                                    ; e248: 85 80       ..
-    lda #4                                                            ; e24a: a9 04       ..
-    sta mem_ptr_hi                                                    ; e24c: 85 81       ..
-; Stage 2: receive ACK1 on B into &045A
-    jsr handshake_rx_b                                                ; e24e: 20 ff e5     ..
-; ...forward ACK1 to A
-    jsr transmit_frame_a                                              ; e251: 20 17 e5     ..
-; Stage 3: receive DATA on A into &045A
-    jsr handshake_rx_a                                                ; e254: 20 6e e5     n.
-; ...forward DATA to B
-    jsr transmit_frame_b                                              ; e257: 20 c0 e4     ..
-; Stage 4: receive ACK2 on B into &045A
-    jsr handshake_rx_b                                                ; e25a: 20 ff e5     ..
-; ...forward ACK2 to A
-    jsr transmit_frame_a                                              ; e25d: 20 17 e5     ..
-; Handshake complete -> back to main_loop
+    lda #&3f ; '?'                                                    ; e23e: a9 3f       .?             ; A = &3F: end-of-burst CR2 value
+    sta adlc_b_cr2                                                    ; e240: 8d 01 d8    ...            ; Commit CR2 -- ADLC B flushes the scout
+    jsr wait_adlc_b_irq                                               ; e243: 20 ea e3     ..            ; Wait for the frame-complete IRQ
+    lda #&5a ; 'Z'                                                    ; e246: a9 5a       .Z             ; A = &5A: reset mem_ptr_lo for the handshake stages below
+    sta mem_ptr_lo                                                    ; e248: 85 80       ..             ; Store mem_ptr_lo
+    lda #4                                                            ; e24a: a9 04       ..             ; A = 4: reset mem_ptr_hi
+    sta mem_ptr_hi                                                    ; e24c: 85 81       ..             ; Store mem_ptr_hi -- handshake_rx_? will write here
+    jsr handshake_rx_b                                                ; e24e: 20 ff e5     ..            ; Stage 2: drain ACK1 from B into &045A...
+    jsr transmit_frame_a                                              ; e251: 20 17 e5     ..            ; ...and retransmit it on A so the originator hears its ACK
+    jsr handshake_rx_a                                                ; e254: 20 6e e5     n.            ; Stage 3: drain DATA from A into &045A...
+    jsr transmit_frame_b                                              ; e257: 20 c0 e4     ..            ; ...and retransmit it on B to the destination
+    jsr handshake_rx_b                                                ; e25a: 20 ff e5     ..            ; Stage 4: drain ACK2 from B into &045A...
+    jsr transmit_frame_a                                              ; e25d: 20 17 e5     ..            ; ...and retransmit it on A as the final ACK
 ; &e260 referenced 1 time by &e21c
 .rx_a_forward_done
-    jmp main_loop                                                     ; e260: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e260: 4c 51 e0    LQ.            ; 4-way handshake bridged; back to main_loop
 
 ; ***************************************************************************************
 ; Drain and dispatch an inbound frame on ADLC B
@@ -975,49 +952,49 @@ adlc_b_tx2      = &d803
 ; See rx_a_forward for the full per-stage explanation.
 ; &e389 referenced 2 times by &e2c8, &e314
 .rx_b_forward
-    lda rx_len                                                        ; e389: ad 28 02    .(.
-    tax                                                               ; e38c: aa          .
-    and #&fe                                                          ; e38d: 29 fe       ).
-    sta rx_len                                                        ; e38f: 8d 28 02    .(.
-    jsr wait_adlc_a_idle                                              ; e392: 20 dc e6     ..
-    ldy #0                                                            ; e395: a0 00       ..
+    lda rx_len                                                        ; e389: ad 28 02    .(.            ; Read rx_len into A
+    tax                                                               ; e38c: aa          .              ; Preserve original length in X for odd-parity check
+    and #&fe                                                          ; e38d: 29 fe       ).             ; Mask low bit to round DOWN to even byte count
+    sta rx_len                                                        ; e38f: 8d 28 02    .(.            ; Store the rounded count for the pair loop
+    jsr wait_adlc_a_idle                                              ; e392: 20 dc e6     ..            ; CSMA wait on A before transmitting the forwarded scout
+    ldy #0                                                            ; e395: a0 00       ..             ; Y = 0: start at byte 0 of the rx_* buffer
 ; &e397 referenced 1 time by &e3b0
 .rx_b_forward_pair_loop
-    jsr wait_adlc_a_irq                                               ; e397: 20 e4 e3     ..
-    bit adlc_a_cr1                                                    ; e39a: 2c 00 c8    ,..
-    bvc rx_b_forward_done                                             ; e39d: 50 42       PB
-    lda rx_dst_stn,y                                                  ; e39f: b9 3c 02    .<.
-    sta adlc_a_tx                                                     ; e3a2: 8d 02 c8    ...
-    iny                                                               ; e3a5: c8          .
-    lda rx_dst_stn,y                                                  ; e3a6: b9 3c 02    .<.
-    sta adlc_a_tx                                                     ; e3a9: 8d 02 c8    ...
-    iny                                                               ; e3ac: c8          .
-    cpy rx_len                                                        ; e3ad: cc 28 02    .(.
-    bcc rx_b_forward_pair_loop                                        ; e3b0: 90 e5       ..
-    txa                                                               ; e3b2: 8a          .
-    ror a                                                             ; e3b3: 6a          j
-    bcc rx_b_forward_ack_round                                        ; e3b4: 90 09       ..
-    jsr wait_adlc_a_irq                                               ; e3b6: 20 e4 e3     ..
-    lda rx_dst_stn,y                                                  ; e3b9: b9 3c 02    .<.
-    sta adlc_a_tx                                                     ; e3bc: 8d 02 c8    ...
+    jsr wait_adlc_a_irq                                               ; e397: 20 e4 e3     ..            ; Wait for ADLC A's TDRA
+    bit adlc_a_cr1                                                    ; e39a: 2c 00 c8    ,..            ; BIT SR1 -- V <- bit 6 (TDRA)
+    bvc rx_b_forward_done                                             ; e39d: 50 42       PB             ; TDRA clear -> chip lost sync, escape to main_loop
+    lda rx_dst_stn,y                                                  ; e39f: b9 3c 02    .<.            ; Load byte Y of the received scout
+    sta adlc_a_tx                                                     ; e3a2: 8d 02 c8    ...            ; Push it to ADLC A's TX FIFO
+    iny                                                               ; e3a5: c8          .              ; Advance Y
+    lda rx_dst_stn,y                                                  ; e3a6: b9 3c 02    .<.            ; Load byte Y+1
+    sta adlc_a_tx                                                     ; e3a9: 8d 02 c8    ...            ; Push the second byte of the pair
+    iny                                                               ; e3ac: c8          .              ; Advance Y again
+    cpy rx_len                                                        ; e3ad: cc 28 02    .(.            ; Have we reached the even-rounded length yet?
+    bcc rx_b_forward_pair_loop                                        ; e3b0: 90 e5       ..             ; No -> keep looping
+    txa                                                               ; e3b2: 8a          .              ; Recover original length from X for parity check
+    ror a                                                             ; e3b3: 6a          j              ; ROR: carry <- bit 0 (= original length was odd?)
+    bcc rx_b_forward_ack_round                                        ; e3b4: 90 09       ..             ; Even -> skip the trailing-byte path
+    jsr wait_adlc_a_irq                                               ; e3b6: 20 e4 e3     ..            ; Odd: wait for TDRA once more for the last byte
+    lda rx_dst_stn,y                                                  ; e3b9: b9 3c 02    .<.            ; Load the trailing byte
+    sta adlc_a_tx                                                     ; e3bc: 8d 02 c8    ...            ; Push it to the TX FIFO
 ; &e3bf referenced 1 time by &e3b4
 .rx_b_forward_ack_round
-    lda #&3f ; '?'                                                    ; e3bf: a9 3f       .?
-    sta adlc_a_cr2                                                    ; e3c1: 8d 01 c8    ...
-    jsr wait_adlc_a_irq                                               ; e3c4: 20 e4 e3     ..
-    lda #&5a ; 'Z'                                                    ; e3c7: a9 5a       .Z
-    sta mem_ptr_lo                                                    ; e3c9: 85 80       ..
-    lda #4                                                            ; e3cb: a9 04       ..
-    sta mem_ptr_hi                                                    ; e3cd: 85 81       ..
-    jsr handshake_rx_a                                                ; e3cf: 20 6e e5     n.
-    jsr transmit_frame_b                                              ; e3d2: 20 c0 e4     ..
-    jsr handshake_rx_b                                                ; e3d5: 20 ff e5     ..
-    jsr transmit_frame_a                                              ; e3d8: 20 17 e5     ..
-    jsr handshake_rx_a                                                ; e3db: 20 6e e5     n.
-    jsr transmit_frame_b                                              ; e3de: 20 c0 e4     ..
+    lda #&3f ; '?'                                                    ; e3bf: a9 3f       .?             ; A = &3F: end-of-burst CR2 value
+    sta adlc_a_cr2                                                    ; e3c1: 8d 01 c8    ...            ; Commit CR2 -- ADLC A flushes the scout
+    jsr wait_adlc_a_irq                                               ; e3c4: 20 e4 e3     ..            ; Wait for the frame-complete IRQ
+    lda #&5a ; 'Z'                                                    ; e3c7: a9 5a       .Z             ; A = &5A: reset mem_ptr_lo for the handshake stages below
+    sta mem_ptr_lo                                                    ; e3c9: 85 80       ..             ; Store mem_ptr_lo
+    lda #4                                                            ; e3cb: a9 04       ..             ; A = 4: reset mem_ptr_hi
+    sta mem_ptr_hi                                                    ; e3cd: 85 81       ..             ; Store mem_ptr_hi -- handshake_rx_? will write here
+    jsr handshake_rx_a                                                ; e3cf: 20 6e e5     n.            ; Stage 2: drain ACK1 from A into &045A...
+    jsr transmit_frame_b                                              ; e3d2: 20 c0 e4     ..            ; ...and retransmit it on B so the originator hears its ACK
+    jsr handshake_rx_b                                                ; e3d5: 20 ff e5     ..            ; Stage 3: drain DATA from B into &045A...
+    jsr transmit_frame_a                                              ; e3d8: 20 17 e5     ..            ; ...and retransmit it on A to the destination
+    jsr handshake_rx_a                                                ; e3db: 20 6e e5     n.            ; Stage 4: drain ACK2 from A into &045A...
+    jsr transmit_frame_b                                              ; e3de: 20 c0 e4     ..            ; ...and retransmit it on B as the final ACK
 ; &e3e1 referenced 1 time by &e39d
 .rx_b_forward_done
-    jmp main_loop                                                     ; e3e1: 4c 51 e0    LQ.
+    jmp main_loop                                                     ; e3e1: 4c 51 e0    LQ.            ; 4-way handshake bridged; back to main_loop
 
 ; ***************************************************************************************
 ; Wait for ADLC A IRQ (polled)
