@@ -101,7 +101,13 @@
             "label": "J.G. Harston's mdfs.net Econet Bridge archive",
             "url": "https://mdfs.net/System/ROMs/Econet/Bridge/",
             "icon": "ref",
-            "note": "Directory listing for the Acorn Econet Bridge on mdfs.net. As of writing, the BRIDGE.S disassembly link on the page does not resolve."
+            "note": "Directory listing for the Acorn Econet Bridge on mdfs.net."
+        },
+        {
+            "label": "J.G. Harston's Bridge disassembly (BBC BASIC embedded-assembler source)",
+            "url": "https://mdfs.net/System/ROMs/Econet/Bridge/BRIDGE.SRC",
+            "icon": "ref",
+            "note": "A parallel disassembly of the same variant as this one, using BBC BASIC's inline assembler, with memory-layout comments and protocol-level terminology (BridgeReset / BridgeReply / WhatNet / IsNet / BridgeQuery port). Valuable corroboration for our analysis; our annotations are informed by his nomenclature but independently phrased."
         },
         {
             "label": "Motorola MC68B54P ADLC datasheet (PDF)",

@@ -135,3 +135,4 @@ External references:
 - [Econet Installation Guide, chapter 3](../Econet%20Installation%20Guide%200482,009%20Issue%201%2027%20September%201988.pdf) — Acorn's own description of how the Bridge is deployed.
 - [MC68B54 datasheet](../Motorola-MC68B54P-datasheet.pdf) — authoritative reference for the ADLC's register semantics.
 - [Ian Stocks's reverse-engineered schematic](../econet_bridge_Ian_Stocks.pdf) — the board layout from which the hardware map is derived.
+- [J.G. Harston's BRIDGE.SRC](https://mdfs.net/System/ROMs/Econet/Bridge/BRIDGE.SRC) — a parallel disassembly of the same binary variant, written as BBC-BASIC embedded-assembler source. Assembles to the same addresses we annotate, and supplied independent corroboration for most of the structure documented in this overview. Where our naming differs, we cross-reference his in the driver script comments.
