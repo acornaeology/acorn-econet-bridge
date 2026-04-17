@@ -51,6 +51,8 @@ Writeups of interesting details uncovered during the disassembly work.
   The Bridge announces itself on both Econet sides at power-on by building a single frame template and transmitting it twice, patching a single byte of payload between the two transmissions. A small idiom with a clean separation of concerns between builder and transmitter.
 - [The Econet Bridge has no station address](docs/analysis/bridge-has-no-station-number.md)
   Architectural writeup on why the Bridge operates without a station number on either of its connected networks. Evidence from the board's two 74LS244 network-number buffers, the firmware's network-keyed routing tables, and the Installation Guide. Covers the &18 firmware marker in outbound announcements and the practical implications for anyone reading the disassembly.
+- [Bridging the four-way handshake](docs/analysis/four-way-handshake-bridging.md)
+  How the Bridge forwards Econet's four-stage scout/ACK/data/ACK transactions across two segments. Documents the receive-and-stage pattern that makes rx_a_forward's puzzling A-B-A transmit tail resolve into a clean protocol implementation, and the role of escape-to-main in making mid-handshake failures safe without any per-transaction state.
 
 ## References
 

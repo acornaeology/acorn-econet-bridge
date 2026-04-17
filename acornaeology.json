@@ -34,6 +34,12 @@
             "url": "docs/analysis/bridge-has-no-station-number.md",
             "icon": "doc",
             "note": "Architectural writeup on why the Bridge operates without a station number on either of its connected networks. Evidence from the board's two 74LS244 network-number buffers, the firmware's network-keyed routing tables, and the Installation Guide. Covers the &18 firmware marker in outbound announcements and the practical implications for anyone reading the disassembly."
+        },
+        {
+            "label": "Bridging the four-way handshake",
+            "url": "docs/analysis/four-way-handshake-bridging.md",
+            "icon": "doc",
+            "note": "How the Bridge forwards Econet's four-stage scout/ACK/data/ACK transactions across two segments. Documents the receive-and-stage pattern that makes rx_a_forward's puzzling A-B-A transmit tail resolve into a clean protocol implementation, and the role of escape-to-main in making mid-handshake failures safe without any per-transaction state."
         }
     ],
     "references": [
