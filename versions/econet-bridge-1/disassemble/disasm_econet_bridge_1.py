@@ -264,9 +264,12 @@ label(0x023F, "rx_src_net")   # byte 3: source network
 label(0x0240, "rx_ctrl")      # byte 4: control byte (bridge: &80-&83)
 label(0x0241, "rx_port")      # byte 5: port (bridge-protocol = &9C)
 # Payload bytes at &0242-&024F; named as they become understood.
-# Byte 13 (&0249) is consulted as a station number in the ctrl=&83
-# bridge-protocol branch, so tentatively name it.
-label(0x0249, "rx_query_stn") # byte 13: station number (ctrl=&83)
+# Byte 12 (&0248) holds a port number the querier wants the response
+# on; byte 13 (&0249) holds a network number that ctrl=&83 queries
+# ask about (the &83 path consults it against reachable_via_b, which
+# is network-keyed).
+label(0x0248, "rx_query_port") # byte 12: port for response frame
+label(0x0249, "rx_query_net")  # byte 13: network number (ctrl=&83)
 label(0x0228, "rx_len")       # bytes received (written at end of drain)
 
 # Periodic re-announcement state, used by the main Bridge loop. The
@@ -454,7 +457,7 @@ Called from the reset handler at &E038 and again from &E098 (the
 main-loop periodic re-announce path). A structurally identical
 cousin builder lives at sub_ce48d (&E48D) and is called from four
 sites; it populates the same fields with values drawn from RAM
-variables at rx_src_stn and rx_query_stn rather than baked-in
+variables at rx_src_stn and rx_query_net rather than baked-in
 constants.""")
 
 comment(0xE458, "dst = &FFFF: broadcast station + network")
@@ -730,6 +733,110 @@ forwardability check is against reachable_via_a.
 
 Called from five sites: &E24E, &E25A, &E336, &E351, &E3D5.
 See handshake_rx_a for the per-instruction explanation.""")
+
+
+label(0xE48D, "build_query_response")
+subroutine(0xE48D, "build_query_response", hook=None,
+    title="Build a reply-scout frame addressed back to the querier",
+    description="""\
+A second frame-builder (sibling of build_announce_b) used by the
+bridge-query response path. Where build_announce_b writes a
+broadcast-addressed template, this one builds a unicast reply:
+
+  tx_dst_stn = rx_src_stn          station that sent the query
+  tx_dst_net = 0                   local network
+  tx_src_stn = 0                   Bridge has no station
+  tx_src_net = 0                   (caller patches to net_num_?)
+  tx_ctrl    = &80                 scout control byte
+  tx_port    = rx_query_port       response port from byte 12 of query
+  X          = 0                   no trailing payload
+
+Also writes tx_end_lo=&06 / tx_end_hi=&04 and points mem_ptr at
+&045A so a subsequent transmit_frame_? sends the 6-byte scout.
+
+Called from the two query-response paths (&E1A0 and &E1B8 on
+side A; &E321 and &E339 on side B). Each caller then patches a
+subset of the fields before calling transmit_frame_? -- the
+idiomatic second call in particular overwrites tx_ctrl and
+tx_port to carry the bridge's routing answer.""")
+
+comment(0xE48D, "dst_stn = rx_src_stn: reply to the querier")
+comment(0xE493, "dst_net = 0: reply on local network")
+comment(0xE498, "src = (0, 0): Bridge has no station")
+comment(0xE4A0, "ctrl = &80: scout")
+comment(0xE4A5, "port = rx_query_port: from byte 12 of query")
+comment(0xE4AB, "X = 0: no trailing payload byte")
+comment(0xE4AD, "tx_end = &0406: 6-byte scout")
+comment(0xE4B7, "mem_ptr = &045A: frame-block base")
+
+
+label(0xE195, "rx_a_handle_83")
+subroutine(0xE195, "rx_a_handle_83", hook=None, is_entry_point=False,
+    title="Side-A bridge query for a specific network (ctrl=&83)",
+    description="""\
+Called when a received frame on side A is broadcast + port=&9C +
+ctrl=&83. The frame is a bridge query asking 'can you reach
+network X?', where X is carried in rx_query_net (byte 13 of the
+payload).
+
+Consults reachable_via_b[rx_query_net]. If the entry is zero, we
+don't know how to reach that network and the query is dropped
+(JMP main_loop via &E1D3). If non-zero, falls through to
+rx_a_handle_82 to compose and send the reply.""")
+
+comment(0xE195, "Y = rx_query_net: network being queried")
+comment(0xE198, "Look up in reachable_via_b")
+comment(0xE19B, "Unknown network -> silently drop the query")
+
+
+label(0xE19D, "rx_a_handle_82")
+subroutine(0xE19D, "rx_a_handle_82", hook=None, is_entry_point=False,
+    title="Side-A bridge general query (ctrl=&82); also &83 target path",
+    description="""\
+Called when a received frame on side A is broadcast + port=&9C +
+ctrl=&82 (a general bridge query), or when rx_a_handle_83 has
+verified that the queried network is known to this Bridge. The
+handler generates a two-frame bridge-query response, following
+the standard Econet four-way handshake from the responder side:
+
+  1. Build a reply scout via build_query_response -- addressed
+     back to the querier on its local network, with tx_src_net
+     patched to our net_num_b.
+
+  2. Stagger the transmission using sub_ce448 with the delay
+     counter seeded from net_num_b (so multiple bridges on the
+     same segment don't collide responding to a broadcast query).
+
+  3. CSMA, transmit the reply scout, then handshake_rx_a to
+     receive the querier's scout-ACK.
+
+  4. Rebuild the frame via build_query_response again and patch
+     it into the response-data shape:
+        tx_ctrl = net_num_a        "this Bridge serves side-A network"
+        tx_port = rx_query_net     echoes the queried network
+     The ctrl and port fields are being repurposed to carry the
+     routing answer as two bytes of payload -- unusual but
+     compact for a 6-byte scout-shaped frame.
+
+  5. Transmit the response data frame, then handshake_rx_a for
+     the final ACK. JMP main_loop on completion.
+
+Either handshake_rx_a call can escape to main_loop if the
+querier doesn't complete the handshake, aborting cleanly.""")
+
+comment(0xE19D, "Re-arm A for listen after the received query")
+comment(0xE1A0, "Build reply-scout template (unicast to querier)")
+comment(0xE1A3, "Patch src_net with our B-side network number")
+comment(0xE1A9, "Seed delay counter from net_num_b (stagger)")
+comment(0xE1AC, "Delay before transmit -- collision avoidance")
+comment(0xE1AF, "CSMA on A")
+comment(0xE1B2, "Transmit reply scout (dst = querier)")
+comment(0xE1B5, "Receive scout-ACK from querier")
+comment(0xE1B8, "Rebuild frame for the data phase")
+comment(0xE1C1, "Encode A-side network number into ctrl field")
+comment(0xE1C7, "Echo queried network in port field")
+comment(0xE1CD, "Transmit response data frame")
+comment(0xE1D0, "Receive final handshake ACK")
 
 
 label(0xE208, "rx_a_forward")

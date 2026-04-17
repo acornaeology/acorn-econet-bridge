@@ -22,8 +22,8 @@ rx_src_stn      = &023e
 rx_src_net      = &023f
 rx_ctrl         = &0240
 rx_port         = &0241
-l0248           = &0248
-rx_query_stn    = &0249
+rx_query_port   = &0248
+rx_query_net    = &0249
 reachable_via_b = &025a
 reachable_via_a = &035a
 tx_dst_stn      = &045a
@@ -497,34 +497,96 @@ adlc_b_tx2      = &d803
     beq rx_a_handle_80                                                ; e18b: f0 49       .I
 ; &82 -> bridge query (shares &83 path)
     cmp #&82                                                          ; e18d: c9 82       ..
-    beq ce19d                                                         ; e18f: f0 0c       ..
+    beq rx_a_handle_82                                                ; e18f: f0 0c       ..
 ; &83 -> bridge query, known-station path
     cmp #&83                                                          ; e191: c9 83       ..
     bne rx_a_forward                                                  ; e193: d0 73       .s
 ; Station Y known in reachable_via_b?
-    ldy rx_query_stn                                                  ; e195: ac 49 02    .I.
+; ***************************************************************************************
+; Side-A bridge query for a specific network (ctrl=&83)
+; 
+; Called when a received frame on side A is broadcast + port=&9C +
+; ctrl=&83. The frame is a bridge query asking 'can you reach
+; network X?', where X is carried in rx_query_net (byte 13 of the
+; payload).
+; 
+; Consults reachable_via_b[rx_query_net]. If the entry is zero, we
+; don't know how to reach that network and the query is dropped
+; (JMP main_loop via &E1D3). If non-zero, falls through to
+; rx_a_handle_82 to compose and send the reply.
+; Y = rx_query_net: network being queried
+.rx_a_handle_83
+    ldy rx_query_net                                                  ; e195: ac 49 02    .I.
+; Look up in reachable_via_b
     lda reachable_via_b,y                                             ; e198: b9 5a 02    .Z.
 ; Unknown -> skip, back to main loop
+; Unknown network -> silently drop the query
     beq ce1d3                                                         ; e19b: f0 36       .6
+; ***************************************************************************************
+; Side-A bridge general query (ctrl=&82); also &83 target path
+; 
+; Called when a received frame on side A is broadcast + port=&9C +
+; ctrl=&82 (a general bridge query), or when rx_a_handle_83 has
+; verified that the queried network is known to this Bridge. The
+; handler generates a two-frame bridge-query response, following
+; the standard Econet four-way handshake from the responder side:
+; 
+;   1. Build a reply scout via build_query_response -- addressed
+;      back to the querier on its local network, with tx_src_net
+;      patched to our net_num_b.
+; 
+;   2. Stagger the transmission using sub_ce448 with the delay
+;      counter seeded from net_num_b (so multiple bridges on the
+;      same segment don't collide responding to a broadcast query).
+; 
+;   3. CSMA, transmit the reply scout, then handshake_rx_a to
+;      receive the querier's scout-ACK.
+; 
+;   4. Rebuild the frame via build_query_response again and patch
+;      it into the response-data shape:
+;         tx_ctrl = net_num_a        "this Bridge serves side-A network"
+;         tx_port = rx_query_net     echoes the queried network
+;      The ctrl and port fields are being repurposed to carry the
+;      routing answer as two bytes of payload -- unusual but
+;      compact for a 6-byte scout-shaped frame.
+; 
+;   5. Transmit the response data frame, then handshake_rx_a for
+;      the final ACK. JMP main_loop on completion.
+; 
+; Either handshake_rx_a call can escape to main_loop if the
+; querier doesn't complete the handshake, aborting cleanly.
+; Re-arm A for listen after the received query
 ; &e19d referenced 1 time by &e18f
-.ce19d
+.rx_a_handle_82
     jsr adlc_a_listen                                                 ; e19d: 20 ff e3     ..
-    jsr sub_ce48d                                                     ; e1a0: 20 8d e4     ..
+; Build reply-scout template (unicast to querier)
+    jsr build_query_response                                          ; e1a0: 20 8d e4     ..
+; Patch src_net with our B-side network number
     lda net_num_b                                                     ; e1a3: ad 00 d0    ...
     sta tx_src_net                                                    ; e1a6: 8d 5d 04    .].
+; Seed delay counter from net_num_b (stagger)
     sta ctr24_lo                                                      ; e1a9: 8d 14 02    ...
+; Delay before transmit -- collision avoidance
     jsr sub_ce448                                                     ; e1ac: 20 48 e4     H.
+; CSMA on A
     jsr wait_adlc_a_idle                                              ; e1af: 20 dc e6     ..
+; Transmit reply scout (dst = querier)
     jsr transmit_frame_a                                              ; e1b2: 20 17 e5     ..
+; Receive scout-ACK from querier
     jsr handshake_rx_a                                                ; e1b5: 20 6e e5     n.
-    jsr sub_ce48d                                                     ; e1b8: 20 8d e4     ..
+; Rebuild frame for the data phase
+    jsr build_query_response                                          ; e1b8: 20 8d e4     ..
     lda net_num_b                                                     ; e1bb: ad 00 d0    ...
     sta tx_src_net                                                    ; e1be: 8d 5d 04    .].
+; Encode A-side network number into ctrl field
     lda net_num_a                                                     ; e1c1: ad 00 c0    ...
     sta tx_ctrl                                                       ; e1c4: 8d 5e 04    .^.
-    lda rx_query_stn                                                  ; e1c7: ad 49 02    .I.
+; Echo queried network in port field
+    lda rx_query_net                                                  ; e1c7: ad 49 02    .I.
     sta tx_port                                                       ; e1ca: 8d 5f 04    ._.
+; Transmit response data frame
     jsr transmit_frame_a                                              ; e1cd: 20 17 e5     ..
+; Receive final handshake ACK
     jsr handshake_rx_a                                                ; e1d0: 20 6e e5     n.
 ; &e1d3 referenced 1 time by &e19b
 .ce1d3
@@ -826,13 +888,13 @@ adlc_b_tx2      = &d803
     beq ce31e                                                         ; e310: f0 0c       ..
     cmp #&83                                                          ; e312: c9 83       ..
     bne rx_b_forward                                                  ; e314: d0 73       .s
-    ldy rx_query_stn                                                  ; e316: ac 49 02    .I.
+    ldy rx_query_net                                                  ; e316: ac 49 02    .I.
     lda reachable_via_a,y                                             ; e319: b9 5a 03    .Z.
     beq ce354                                                         ; e31c: f0 36       .6
 ; &e31e referenced 1 time by &e310
 .ce31e
     jsr adlc_b_listen                                                 ; e31e: 20 19 e4     ..
-    jsr sub_ce48d                                                     ; e321: 20 8d e4     ..
+    jsr build_query_response                                          ; e321: 20 8d e4     ..
     lda net_num_a                                                     ; e324: ad 00 c0    ...
     sta tx_src_net                                                    ; e327: 8d 5d 04    .].
     sta ctr24_lo                                                      ; e32a: 8d 14 02    ...
@@ -840,12 +902,12 @@ adlc_b_tx2      = &d803
     jsr wait_adlc_b_idle                                              ; e330: 20 90 e6     ..
     jsr transmit_frame_b                                              ; e333: 20 c0 e4     ..
     jsr handshake_rx_b                                                ; e336: 20 ff e5     ..
-    jsr sub_ce48d                                                     ; e339: 20 8d e4     ..
+    jsr build_query_response                                          ; e339: 20 8d e4     ..
     lda net_num_a                                                     ; e33c: ad 00 c0    ...
     sta tx_src_net                                                    ; e33f: 8d 5d 04    .].
     lda net_num_b                                                     ; e342: ad 00 d0    ...
     sta tx_ctrl                                                       ; e345: 8d 5e 04    .^.
-    lda rx_query_stn                                                  ; e348: ad 49 02    .I.
+    lda rx_query_net                                                  ; e348: ad 49 02    .I.
     sta tx_port                                                       ; e34b: 8d 5f 04    ._.
     jsr transmit_frame_b                                              ; e34e: 20 c0 e4     ..
     jsr handshake_rx_b                                                ; e351: 20 ff e5     ..
@@ -1123,7 +1185,7 @@ adlc_b_tx2      = &d803
 ; main-loop periodic re-announce path). A structurally identical
 ; cousin builder lives at sub_ce48d (&E48D) and is called from four
 ; sites; it populates the same fields with values drawn from RAM
-; variables at rx_src_stn and rx_query_stn rather than baked-in
+; variables at rx_src_stn and rx_query_net rather than baked-in
 ; constants.
 ; dst = &FFFF: broadcast station + network
 ; &e458 referenced 2 times by &e038, &e098
@@ -1158,24 +1220,55 @@ adlc_b_tx2      = &d803
     sta mem_ptr_hi                                                    ; e48a: 85 81       ..
     rts                                                               ; e48c: 60          `
 
+; ***************************************************************************************
+; Build a reply-scout frame addressed back to the querier
+; 
+; A second frame-builder (sibling of build_announce_b) used by the
+; bridge-query response path. Where build_announce_b writes a
+; broadcast-addressed template, this one builds a unicast reply:
+; 
+;   tx_dst_stn = rx_src_stn          station that sent the query
+;   tx_dst_net = 0                   local network
+;   tx_src_stn = 0                   Bridge has no station
+;   tx_src_net = 0                   (caller patches to net_num_?)
+;   tx_ctrl    = &80                 scout control byte
+;   tx_port    = rx_query_port       response port from byte 12 of query
+;   X          = 0                   no trailing payload
+; 
+; Also writes tx_end_lo=&06 / tx_end_hi=&04 and points mem_ptr at
+; &045A so a subsequent transmit_frame_? sends the 6-byte scout.
+; 
+; Called from the two query-response paths (&E1A0 and &E1B8 on
+; side A; &E321 and &E339 on side B). Each caller then patches a
+; subset of the fields before calling transmit_frame_? -- the
+; idiomatic second call in particular overwrites tx_ctrl and
+; tx_port to carry the bridge's routing answer.
+; dst_stn = rx_src_stn: reply to the querier
 ; &e48d referenced 4 times by &e1a0, &e1b8, &e321, &e339
-.sub_ce48d
+.build_query_response
     lda rx_src_stn                                                    ; e48d: ad 3e 02    .>.
     sta tx_dst_stn                                                    ; e490: 8d 5a 04    .Z.
+; dst_net = 0: reply on local network
     lda #0                                                            ; e493: a9 00       ..
     sta tx_dst_net                                                    ; e495: 8d 5b 04    .[.
+; src = (0, 0): Bridge has no station
     lda #0                                                            ; e498: a9 00       ..
     sta tx_src_stn                                                    ; e49a: 8d 5c 04    .\.
     sta tx_src_net                                                    ; e49d: 8d 5d 04    .].
+; ctrl = &80: scout
     lda #&80                                                          ; e4a0: a9 80       ..
     sta tx_ctrl                                                       ; e4a2: 8d 5e 04    .^.
-    lda l0248                                                         ; e4a5: ad 48 02    .H.
+; port = rx_query_port: from byte 12 of query
+    lda rx_query_port                                                 ; e4a5: ad 48 02    .H.
     sta tx_port                                                       ; e4a8: 8d 5f 04    ._.
+; X = 0: no trailing payload byte
     ldx #0                                                            ; e4ab: a2 00       ..
+; tx_end = &0406: 6-byte scout
     lda #6                                                            ; e4ad: a9 06       ..
     sta tx_end_lo                                                     ; e4af: 8d 00 02    ...
     lda #4                                                            ; e4b2: a9 04       ..
     sta tx_end_hi                                                     ; e4b4: 8d 01 02    ...
+; mem_ptr = &045A: frame-block base
     lda #&5a ; 'Z'                                                    ; e4b7: a9 5a       .Z
     sta mem_ptr_lo                                                    ; e4b9: 85 80       ..
     lda #4                                                            ; e4bb: a9 04       ..
@@ -2758,13 +2851,13 @@ save pydis_start, pydis_end
 ;     announce_count:           4
 ;     announce_tmr_hi:          4
 ;     announce_tmr_lo:          4
+;     build_query_response:     4
 ;     ctr24_hi:                 4
 ;     ctr24_mid:                4
 ;     rx_frame_a_bail:          4
 ;     rx_frame_b_bail:          4
-;     rx_query_stn:             4
+;     rx_query_net:             4
 ;     rx_src_net:               4
-;     sub_ce48d:                4
 ;     tx_dst_stn:               4
 ;     tx_port:                  4
 ;     wait_adlc_a_idle:         4
@@ -2816,7 +2909,6 @@ save pydis_start, pydis_end
 ;     ce081:                    1
 ;     ce15c:                    1
 ;     ce169:                    1
-;     ce19d:                    1
 ;     ce1d3:                    1
 ;     ce2dd:                    1
 ;     ce2ea:                    1
@@ -2856,7 +2948,6 @@ save pydis_start, pydis_end
 ;     cf26f:                    1
 ;     cf28c:                    1
 ;     cf291:                    1
-;     l0248:                    1
 ;     loop_ce371:               1
 ;     loop_ce428:               1
 ;     loop_ce44a:               1
@@ -2877,6 +2968,7 @@ save pydis_start, pydis_end
 ;     rx_a_forward_pair_loop:   1
 ;     rx_a_handle_80:           1
 ;     rx_a_handle_81:           1
+;     rx_a_handle_82:           1
 ;     rx_a_learn_loop:          1
 ;     rx_b_forward_ack_round:   1
 ;     rx_b_forward_done:        1
@@ -2887,6 +2979,7 @@ save pydis_start, pydis_end
 ;     rx_frame_b:               1
 ;     rx_frame_b_drain:         1
 ;     rx_frame_b_end:           1
+;     rx_query_port:            1
 ;     rx_src_stn:               1
 ;     self_test_reset_adlcs:    1
 ;     self_test_rom_checksum:   1
@@ -2898,7 +2991,6 @@ save pydis_start, pydis_end
 ;     ce081
 ;     ce15c
 ;     ce169
-;     ce19d
 ;     ce1d3
 ;     ce2dd
 ;     ce2ea
@@ -2965,7 +3057,6 @@ save pydis_start, pydis_end
 ;     l0001
 ;     l0002
 ;     l0003
-;     l0248
 ;     loop_ce371
 ;     loop_ce428
 ;     loop_ce44a
@@ -2977,7 +3068,6 @@ save pydis_start, pydis_end
 ;     loop_cf1c6
 ;     loop_cf22a
 ;     sub_ce448
-;     sub_ce48d
 
 ; Stats:
 ;     Total size (Code + Data) = 8192 bytes
