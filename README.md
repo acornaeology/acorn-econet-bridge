@@ -64,6 +64,8 @@ Writeups of interesting details uncovered during the disassembly work.
   Beebmaster's page on the Acorn Bridge, with photographs, configuration notes, and operational details.
 - [J.G. Harston's mdfs.net Econet Bridge archive](https://mdfs.net/System/ROMs/Econet/Bridge/)
   Directory listing for the Acorn Econet Bridge on mdfs.net. As of writing, the BRIDGE.S disassembly link on the page does not resolve.
+- [Motorola MC68B54P ADLC datasheet (PDF)](docs/Motorola-MC68B54P-datasheet.pdf)
+  Datasheet for the Advanced Data Link Controller used on each Econet port of the Bridge. Authoritative reference for CR1-CR4 and SR1/SR2 bit meanings.
 
 ## Credits
 
