@@ -74,6 +74,20 @@ if 0xE000 <= _nmi_addr <= 0xFFF9:
     entry(_nmi_addr)
     label(_nmi_addr, "nmi_handler")
 
+# Checksum-tuning byte at the top of the ROM-tail padding region.
+# The self-test at &F04C checks that every byte of the ROM sums to
+# &55 mod 256; without this byte, the sum would be &0F, and the
+# value &46 at this address (and only this address, the rest of
+# the tail being unwritten &FF filler) has been deliberately
+# chosen by the firmware author to bring the total up by the
+# required &46 to land on the expected &55. J.G. Harston's
+# BRIDGE.SRC describes it as "Version byte? CRC check byte?" --
+# the specific value isn't meaningful, only its role in balancing
+# the sum.
+byte(0xFFF0)
+comment(0xFFF0, "Checksum-tuning byte: balances the ROM sum to &55")
+label(0xFFF0, "rom_checksum_adjust")
+
 # Hardware vector data declarations
 word(0xFFFA)
 if 0xE000 <= _nmi_addr <= 0xFFF9:
