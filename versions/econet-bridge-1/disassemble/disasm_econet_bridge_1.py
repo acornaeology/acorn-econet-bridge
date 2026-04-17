@@ -202,7 +202,7 @@ register set at &D800-&D803. Falls through to adlc_b_listen.""")
 
 comment(0xE40A, "CR1=&C1: reset TX+RX, AC=1 (enable CR3/CR4 access)")
 comment(0xE40F, "CR4=&1E: 8-bit RX, abort extend, NRZ")
-comment(0xE414, "CR3=&00: normal, NRZ, no loop-back, no DTR")
+comment(0xE414, "CR3=&00: normal; bit 7 = 0 -> LOC/DTR low -> status LED OFF")
 
 label(0xE419, "adlc_b_listen")
 subroutine(0xE419, "adlc_b_listen", hook=None,
@@ -430,17 +430,25 @@ comment(0xF001, "Clear &03 (self-test scratch)")
 label(0xF005, "self_test_reset_adlcs")
 subroutine(0xF005, "self_test_reset_adlcs", hook=None,
     is_entry_point=False,
-    title="Forcibly reset and re-init both ADLCs",
+    title="Reset both ADLCs and light the status LED",
     description="""\
-Differs subtly from the normal adlc_*_full_reset sequences: CR2
-is programmed to &80 and back to &67, a pattern used when the
-previous chip state is unknown. Re-entered at &F26C after certain
-test paths need to reset the chips again.""")
+Byte-for-byte identical to the adlc_*_full_reset pair except for
+one crucial detail: CR3 is programmed to &80 (bit 7 set) instead
+of &00. Bit 7 of CR3 drives the MC6854's LOC/DTR output pin; on
+ADLC B (IC18) that pin drives the high side of the front-panel
+status LED. Writing &80 here lights the LED, advertising that
+self-test is in progress. ADLC A's LOC/DTR pin is not wired and
+receives the same write for code symmetry only.
+
+Re-entered at &F26C after certain test paths need to reset the
+chips again; the LED stays lit until a normal reset runs
+adlc_b_full_reset and clears CR3.""")
 
 comment(0xF005, "CR1=&C1: reset TX+RX, AC=1 (both ADLCs)")
 comment(0xF00D, "CR4=&1E (both): 8-bit RX, abort extend, NRZ")
-comment(0xF015, "CR2=&80 (both): clear status, RTS=1 (forces idle)")
-comment(0xF01F, "CR1=&82 (both): TX in reset, RX IRQ enabled")
+comment(0xF015, "CR3=&80 (both): bit 7 = 1 -> ADLC B LOC/DTR high")
+comment(0xF01A, "Same write to ADLC A: no visible effect (pin NC)")
+comment(0xF01F, "CR1=&82 (both): TX in reset, AC=0; CR3 values persist")
 comment(0xF027, "CR2=&67 (both): clear status, FC_TDRA, 2/1-byte, PSE")
 
 label(0xF02F, "self_test_zp")

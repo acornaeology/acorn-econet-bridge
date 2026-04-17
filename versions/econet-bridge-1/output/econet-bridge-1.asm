@@ -678,7 +678,7 @@ adlc_b_tx2  = &d803
 ; CR4=&1E: 8-bit RX, abort extend, NRZ
     lda #&1e                                                          ; e40f: a9 1e       ..
     sta adlc_b_tx2                                                    ; e411: 8d 03 d8    ...
-; CR3=&00: normal, NRZ, no loop-back, no DTR
+; CR3=&00: normal; bit 7 = 0 -> LOC/DTR low -> status LED OFF
     lda #0                                                            ; e414: a9 00       ..
     sta adlc_b_cr2                                                    ; e416: 8d 01 d8    ...
 ; ***************************************************************************************
@@ -1398,12 +1398,19 @@ adlc_b_tx2  = &d803
     lda #0                                                            ; f001: a9 00       ..
     sta l0003                                                         ; f003: 85 03       ..
 ; ***************************************************************************************
-; Forcibly reset and re-init both ADLCs
+; Reset both ADLCs and light the status LED
 ; 
-; Differs subtly from the normal adlc_*_full_reset sequences: CR2
-; is programmed to &80 and back to &67, a pattern used when the
-; previous chip state is unknown. Re-entered at &F26C after certain
-; test paths need to reset the chips again.
+; Byte-for-byte identical to the adlc_*_full_reset pair except for
+; one crucial detail: CR3 is programmed to &80 (bit 7 set) instead
+; of &00. Bit 7 of CR3 drives the MC6854's LOC/DTR output pin; on
+; ADLC B (IC18) that pin drives the high side of the front-panel
+; status LED. Writing &80 here lights the LED, advertising that
+; self-test is in progress. ADLC A's LOC/DTR pin is not wired and
+; receives the same write for code symmetry only.
+; 
+; Re-entered at &F26C after certain test paths need to reset the
+; chips again; the LED stays lit until a normal reset runs
+; adlc_b_full_reset and clears CR3.
 ; CR1=&C1: reset TX+RX, AC=1 (both ADLCs)
 ; &f005 referenced 1 time by &f26c
 .self_test_reset_adlcs
@@ -1414,12 +1421,13 @@ adlc_b_tx2  = &d803
     lda #&1e                                                          ; f00d: a9 1e       ..
     sta adlc_a_tx2                                                    ; f00f: 8d 03 c8    ...
     sta adlc_b_tx2                                                    ; f012: 8d 03 d8    ...
-; CR2=&80 (both): clear status, RTS=1 (forces idle)
+; CR3=&80 (both): bit 7 = 1 -> ADLC B LOC/DTR high
     lda #&80                                                          ; f015: a9 80       ..
     sta adlc_a_cr2                                                    ; f017: 8d 01 c8    ...
+; Same write to ADLC A: no visible effect (pin NC)
     lda #&80                                                          ; f01a: a9 80       ..
     sta adlc_b_cr2                                                    ; f01c: 8d 01 d8    ...
-; CR1=&82 (both): TX in reset, RX IRQ enabled
+; CR1=&82 (both): TX in reset, AC=0; CR3 values persist
     lda #&82                                                          ; f01f: a9 82       ..
     sta adlc_a_cr1                                                    ; f021: 8d 00 c8    ...
     sta adlc_b_cr1                                                    ; f024: 8d 00 d8    ...
