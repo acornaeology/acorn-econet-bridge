@@ -284,18 +284,25 @@ label(0x022A, "announce_tmr_lo")
 label(0x022B, "announce_tmr_hi")
 label(0x022C, "announce_count")
 
-# Outbound-frame control block at &045A-&0460. Populated by various
-# "frame builder" subroutines, then consumed by transmit_frame_a
-# (via mem_ptr at &80/&81 = &045A). Field names follow the Acorn
-# Econet frame-header convention — provisional until the transmit
-# routine is fully analysed.
-label(0x045A, "tx_dst_stn")   # destination station (255 = broadcast)
-label(0x045B, "tx_dst_net")   # destination network (255 = broadcast)
-label(0x045C, "tx_src_stn")   # source station (provisional)
-label(0x045D, "tx_src_net")   # source network (provisional)
-label(0x045E, "tx_ctrl")      # control byte (scout flags)
-label(0x045F, "tx_port")      # port number (protocol selector)
-label(0x0460, "tx_data0")     # optional trailing payload byte
+# Outbound-frame control block at &045A-&0460. Populated by the
+# frame-builder subroutines, then consumed by transmit_frame_a (via
+# mem_ptr at &80/&81 = &045A). Names follow the Acorn Econet scout-
+# frame convention -- but Econet has both scout and data frames,
+# and the two share a header layout only for the first four bytes
+# (dst_stn, dst_net, src_stn, src_net). In a scout frame, bytes 4
+# and 5 are ctrl and port; in a data frame, bytes 4 onward are
+# pure payload with no ctrl/port. The same buffer serves both frame
+# types in this firmware, with the caller choosing the semantics.
+# See the WhatNet query-response code in rx_a_handle_82, where the
+# "tx_ctrl" and "tx_port" slots are populated with data bytes for
+# the data half of the 4-way handshake.
+label(0x045A, "tx_dst_stn")   # byte 0: destination station
+label(0x045B, "tx_dst_net")   # byte 1: destination network
+label(0x045C, "tx_src_stn")   # byte 2: source station
+label(0x045D, "tx_src_net")   # byte 3: source network
+label(0x045E, "tx_ctrl")      # byte 4: ctrl in a scout / data0 in a data frame
+label(0x045F, "tx_port")      # byte 5: port in a scout / data1 in a data frame
+label(0x0460, "tx_data0")     # byte 6: optional scout payload
 
 # Transmit end-pointer (16-bit, consumed by transmit_frame_a). The
 # main TX loop sends byte pairs from mem_ptr upward and terminates
@@ -626,7 +633,7 @@ comment(0xE19B, "Unknown -> skip, back to main loop")
 
 label(0xE316, "rx_b_handle_83")
 subroutine(0xE316, "rx_b_handle_83", hook=None, is_entry_point=False,
-    title="Side-B bridge query for a specific network (ctrl=&83)",
+    title="Side-B IsNet query (ctrl=&83): targeted network lookup",
     description="""\
 Mirror of rx_a_handle_83 (&E195) with A/B swapped: consults
 reachable_via_a (not _b) because the frame arrived on side B.
@@ -635,27 +642,27 @@ known.""")
 
 label(0xE31E, "rx_b_handle_82")
 subroutine(0xE31E, "rx_b_handle_82", hook=None, is_entry_point=False,
-    title="Side-B bridge general query (ctrl=&82)",
+    title="Side-B WhatNet query (ctrl=&82); also IsNet response path",
     description="""\
 Mirror of rx_a_handle_82 (&E19D) with A/B swapped throughout:
-delay-stagger seeded from net_num_a, transmit via ADLC B,
-tx_src_net patched to net_num_a, response-data's ctrl encodes
-net_num_b (the Bridge's B-side network). See rx_a_handle_82
-for the full protocol description.""")
+stagger seeded from net_num_a, transmit via ADLC B, tx_src_net
+patched to net_num_a, response-data's first payload byte (at
+the tx_ctrl slot) encodes net_num_b. See rx_a_handle_82 for the
+full protocol description.""")
 
 label(0xE357, "rx_b_handle_80")
 subroutine(0xE357, "rx_b_handle_80", hook=None, is_entry_point=False,
-    title="Side-B initial bridge announcement (ctrl=&80)",
+    title="Side-B BridgeReset (ctrl=&80): learn topology from scratch",
     description="""\
 Mirror of rx_a_handle_80 (&E1D6): wipe reachable_via_* via
 init_reachable_nets, seed the re-announce timer's high byte
 from net_num_a (mirror of A-side seeding from net_num_b), set
-announce_count = 10 and announce_flag = &80 (bit 7 set = side B
-selected). Falls through to rx_b_handle_81.""")
+announce_count = 10 and announce_flag = &80 (bit 7 set = next
+outbound on side B). Falls through to rx_b_handle_81.""")
 
 label(0xE36F, "rx_b_handle_81")
 subroutine(0xE36F, "rx_b_handle_81", hook=None, is_entry_point=False,
-    title="Side-B re-announcement (ctrl=&81); learn + re-forward",
+    title="Side-B BridgeReply (ctrl=&81): learn and re-broadcast",
     description="""\
 Mirror of rx_a_handle_81 (&E1EE): reads each payload byte from
 offset 6 onward as a network number reachable via side B, marks
@@ -850,17 +857,18 @@ comment(0xE4B7, "mem_ptr = &045A: frame-block base")
 
 label(0xE195, "rx_a_handle_83")
 subroutine(0xE195, "rx_a_handle_83", hook=None, is_entry_point=False,
-    title="Side-A bridge query for a specific network (ctrl=&83)",
+    title="Side-A IsNet query (ctrl=&83): targeted network lookup",
     description="""\
 Called when a received frame on side A is broadcast + port=&9C +
-ctrl=&83. The frame is a bridge query asking 'can you reach
-network X?', where X is carried in rx_query_net (byte 13 of the
-payload).
+ctrl=&83. In JGH's BRIDGE.SRC this query type is named "IsNet" —
+the querier is asking "can you reach network X?", where X is the
+byte at offset 13 of the payload (rx_query_net).
 
 Consults reachable_via_b[rx_query_net]. If the entry is zero, we
-don't know how to reach that network and the query is dropped
-(JMP main_loop via &E1D3). If non-zero, falls through to
-rx_a_handle_82 to compose and send the reply.""")
+have no route to that network so the query is silently dropped
+(JMP main_loop via &E1D3). If non-zero, falls through to the
+shared response body at rx_a_handle_82 to transmit the reply --
+so IsNet is effectively WhatNet with an up-front routing filter.""")
 
 comment(0xE195, "Y = rx_query_net: network being queried")
 comment(0xE198, "Look up in reachable_via_b")
@@ -869,52 +877,67 @@ comment(0xE19B, "Unknown network -> silently drop the query")
 
 label(0xE19D, "rx_a_handle_82")
 subroutine(0xE19D, "rx_a_handle_82", hook=None, is_entry_point=False,
-    title="Side-A bridge general query (ctrl=&82); also &83 target path",
+    title="Side-A WhatNet query (ctrl=&82); also the IsNet response path",
     description="""\
 Called when a received frame on side A is broadcast + port=&9C +
-ctrl=&82 (a general bridge query), or when rx_a_handle_83 has
-verified that the queried network is known to this Bridge. The
-handler generates a two-frame bridge-query response, following
-the standard Econet four-way handshake from the responder side:
+ctrl=&82 (named "WhatNet" in JGH's BRIDGE.SRC — a general bridge
+query asking "which networks do you reach?"), or when
+rx_a_handle_83 has verified that a specific IsNet queried network
+is in fact reachable via side B and is re-using this response
+path.
 
-  1. Build a reply scout via build_query_response -- addressed
-     back to the querier on its local network, with tx_src_net
-     patched to our net_num_b.
+The response is a complete four-way handshake transaction, which
+the Bridge drives from the responder side as two transmissions
+(scout, then data) with an inbound ACK after each:
 
-  2. Stagger the transmission using sub_ce448 with the delay
-     counter seeded from net_num_b (so multiple bridges on the
-     same segment don't collide responding to a broadcast query).
+  1. Build a reply-scout template via build_query_response,
+     addressed back to the querier on its local network with
+     tx_src_net patched to our net_num_b.
 
-  3. CSMA, transmit the reply scout, then handshake_rx_a to
-     receive the querier's scout-ACK.
+  2. Stagger the scout transmission via stagger_delay, seeded
+     from net_num_b. Multiple bridges on the same segment will
+     all react to a broadcast query, and without the stagger
+     their responses would overlap on the wire; seeding from the
+     network number gives each bridge a deterministic but
+     distinct delay.
 
-  4. Rebuild the frame via build_query_response again and patch
-     it into the response-data shape:
-        tx_ctrl = net_num_a        "this Bridge serves side-A network"
-        tx_port = rx_query_net     echoes the queried network
-     The ctrl and port fields are being repurposed to carry the
-     routing answer as two bytes of payload -- unusual but
-     compact for a 6-byte scout-shaped frame.
+  3. CSMA, transmit the scout, then handshake_rx_a to receive
+     the scout-ACK.
 
-  5. Transmit the response data frame, then handshake_rx_a for
-     the final ACK. JMP main_loop on completion.
+  4. Rebuild the frame via build_query_response again -- this
+     time to be a *data* frame following the scout we just
+     exchanged, not a new scout. The patches that follow populate
+     the first two payload bytes of that data frame (at the byte
+     positions labelled tx_ctrl and tx_port, but those names
+     refer to scout semantics -- in a data frame those slots are
+     payload, not header, and the bytes are:
 
-Either handshake_rx_a call can escape to main_loop if the
-querier doesn't complete the handshake, aborting cleanly.""")
+        data0 = net_num_a        ... the Bridge's side-A network
+        data1 = rx_query_net     ... echo of the queried network
+
+     The answer thus consists of the dst/src quad plus two
+     payload bytes, packed into the smallest Econet frame that
+     can carry it.
+
+  5. Transmit the data frame, then handshake_rx_a for the final
+     data-ACK. JMP main_loop on completion.
+
+Either handshake_rx_a call can escape to main_loop if the querier
+doesn't keep up the handshake, aborting the conversation cleanly.""")
 
 comment(0xE19D, "Re-arm A for listen after the received query")
 comment(0xE1A0, "Build reply-scout template (unicast to querier)")
 comment(0xE1A3, "Patch src_net with our B-side network number")
-comment(0xE1A9, "Seed delay counter from net_num_b (stagger)")
+comment(0xE1A9, "Seed stagger counter from net_num_b")
 comment(0xE1AC, "Delay before transmit -- collision avoidance")
 comment(0xE1AF, "CSMA on A")
 comment(0xE1B2, "Transmit reply scout (dst = querier)")
 comment(0xE1B5, "Receive scout-ACK from querier")
-comment(0xE1B8, "Rebuild frame for the data phase")
-comment(0xE1C1, "Encode A-side network number into ctrl field")
-comment(0xE1C7, "Echo queried network in port field")
+comment(0xE1B8, "Rebuild buffer; now populating it as a data frame")
+comment(0xE1C1, "Data payload byte 0 = net_num_a")
+comment(0xE1C7, "Data payload byte 1 = echo of queried network")
 comment(0xE1CD, "Transmit response data frame")
-comment(0xE1D0, "Receive final handshake ACK")
+comment(0xE1D0, "Receive final data-ACK")
 
 
 label(0xE208, "rx_a_forward")
@@ -1012,24 +1035,28 @@ label(0xE3E1, "rx_b_forward_done")
 
 label(0xE1D6, "rx_a_handle_80")
 subroutine(0xE1D6, "rx_a_handle_80", hook=None, is_entry_point=False,
-    title="Side-A initial bridge announcement (ctrl=&80)",
+    title="Side-A BridgeReset (ctrl=&80): learn topology from scratch",
     description="""\
 Called when a received frame on side A is broadcast + port=&9C +
-ctrl=&80. An initial announcement means another bridge has just
-come up (or announced fresh topology), so:
+ctrl=&80. In JGH's BRIDGE.SRC this control byte is named
+"BridgeReset" -- a bridge on the far side is advertising a fresh
+topology, likely because it has itself just come up. We:
 
-  1. Wipe all learned routing state via init_reachable_nets -- the
-     network topology may have changed, so accumulated knowledge
-     is suspect.
+  1. Wipe all learned routing state via init_reachable_nets. The
+     topology may have changed non-monotonically, so accumulated
+     reachable_via_? entries are suspect and the safe move is to
+     discard them and relearn.
 
   2. Schedule a burst of our own re-announcements: ten cycles with
      a staggered initial timer value seeded from net_num_b. Using
-     the network number as part of the timer phase means bridges
-     on different networks won't step on each other's announces.
-     announce_flag is set to &40 (enable, bit 7 clear = side A).
+     the local network number as the timer's phase means bridges
+     on different segments aren't all re-announcing at the same
+     millisecond. announce_flag is set to &40 (enable, bit 7
+     clear = next outbound on side A).
 
-  3. Fall through to rx_a_handle_81, which processes the incoming
-     payload and learns the networks it lists.""")
+  3. Fall through to rx_a_handle_81 (the same payload-processing
+     loop runs for both BridgeReset and BridgeReply) to mark the
+     sender's known networks as reachable-via-A.""")
 
 comment(0xE1D6, "Forget learned routes (topology change)")
 comment(0xE1D9, "Seed timer high byte from our B-side net number")
@@ -1039,19 +1066,34 @@ comment(0xE1E9, "Flag = &40 (enable, side A)")
 
 label(0xE1EE, "rx_a_handle_81")
 subroutine(0xE1EE, "rx_a_handle_81", hook=None, is_entry_point=False,
-    title="Side-A re-announcement (ctrl=&81); learn + re-forward",
+    title="Side-A BridgeReply (ctrl=&81): learn and re-broadcast",
     description="""\
-Also reached via fall-through from rx_a_handle_80. Processes the
-announcement payload: each byte from offset 6 to rx_len is a
-network number reachable through the announcer (and therefore,
-from us, reachable by forwarding to side A). Mark each such
-network in reachable_via_a.
+Reached either directly as the ctrl=&81 handler ("BridgeReply" /
+"ResetReply" in JGH's source — the re-announcement that follows
+a BridgeReset) or via fall-through from rx_a_handle_80 (which
+additionally wipes routing state before the learn loop).
 
-After learning, append our own net_num_a to the payload and bump
-rx_len. Falling through to rx_a_forward then re-broadcasts the
-augmented announcement out of ADLC B, so any bridges beyond us
-on that side hear about these networks -- plus us, as one more
-hop along the route. Classic distance-vector flooding.""")
+Processes the announcement payload: each byte from offset 6 up
+to rx_len is a network number that the announcer says it can
+reach. Since the announcer is on side A, we can reach those
+networks via side A ourselves -- mark each in reachable_via_a.
+
+After the learn loop, append our own net_num_a to the payload
+and bump rx_len. Falling through to rx_a_forward re-broadcasts
+the augmented frame out of ADLC B, so any bridges beyond us on
+that side hear about the announced networks plus us as one
+further hop along the route. This is classic distance-vector
+flooding.
+
+A subtlety: JGH's BRIDGE.SRC memory-layout comments describe
+the payload as sometimes starting with the literal ASCII string
+"BRIDGE" at bytes 6-11 (in query frames). Our handler makes no
+such check -- it treats every byte from offset 6 up as a network
+number. A frame from a "newer" variant that prepended "BRIDGE"
+would have bytes &42 &52 &49 &44 &47 &45 erroneously marked as
+reachable network numbers. No evidence that any in-the-wild
+variant does this for ctrl=&80/&81; our own ROM doesn't emit the
+string in any outbound frame.""")
 
 comment(0xE1EE, "Y = 6: start of announcement payload")
 label(0xE1F0, "rx_a_learn_loop")

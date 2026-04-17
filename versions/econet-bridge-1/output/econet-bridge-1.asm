@@ -503,17 +503,18 @@ adlc_b_tx2      = &d803
     bne rx_a_forward                                                  ; e193: d0 73       .s
 ; Station Y known in reachable_via_b?
 ; ***************************************************************************************
-; Side-A bridge query for a specific network (ctrl=&83)
+; Side-A IsNet query (ctrl=&83): targeted network lookup
 ; 
 ; Called when a received frame on side A is broadcast + port=&9C +
-; ctrl=&83. The frame is a bridge query asking 'can you reach
-; network X?', where X is carried in rx_query_net (byte 13 of the
-; payload).
+; ctrl=&83. In JGH's BRIDGE.SRC this query type is named "IsNet" —
+; the querier is asking "can you reach network X?", where X is the
+; byte at offset 13 of the payload (rx_query_net).
 ; 
 ; Consults reachable_via_b[rx_query_net]. If the entry is zero, we
-; don't know how to reach that network and the query is dropped
-; (JMP main_loop via &E1D3). If non-zero, falls through to
-; rx_a_handle_82 to compose and send the reply.
+; have no route to that network so the query is silently dropped
+; (JMP main_loop via &E1D3). If non-zero, falls through to the
+; shared response body at rx_a_handle_82 to transmit the reply --
+; so IsNet is effectively WhatNet with an up-front routing filter.
 ; Y = rx_query_net: network being queried
 .rx_a_handle_83
     ldy rx_query_net                                                  ; e195: ac 49 02    .I.
@@ -523,38 +524,53 @@ adlc_b_tx2      = &d803
 ; Unknown network -> silently drop the query
     beq ce1d3                                                         ; e19b: f0 36       .6
 ; ***************************************************************************************
-; Side-A bridge general query (ctrl=&82); also &83 target path
+; Side-A WhatNet query (ctrl=&82); also the IsNet response path
 ; 
 ; Called when a received frame on side A is broadcast + port=&9C +
-; ctrl=&82 (a general bridge query), or when rx_a_handle_83 has
-; verified that the queried network is known to this Bridge. The
-; handler generates a two-frame bridge-query response, following
-; the standard Econet four-way handshake from the responder side:
+; ctrl=&82 (named "WhatNet" in JGH's BRIDGE.SRC — a general bridge
+; query asking "which networks do you reach?"), or when
+; rx_a_handle_83 has verified that a specific IsNet queried network
+; is in fact reachable via side B and is re-using this response
+; path.
 ; 
-;   1. Build a reply scout via build_query_response -- addressed
-;      back to the querier on its local network, with tx_src_net
-;      patched to our net_num_b.
+; The response is a complete four-way handshake transaction, which
+; the Bridge drives from the responder side as two transmissions
+; (scout, then data) with an inbound ACK after each:
 ; 
-;   2. Stagger the transmission using sub_ce448 with the delay
-;      counter seeded from net_num_b (so multiple bridges on the
-;      same segment don't collide responding to a broadcast query).
+;   1. Build a reply-scout template via build_query_response,
+;      addressed back to the querier on its local network with
+;      tx_src_net patched to our net_num_b.
 ; 
-;   3. CSMA, transmit the reply scout, then handshake_rx_a to
-;      receive the querier's scout-ACK.
+;   2. Stagger the scout transmission via stagger_delay, seeded
+;      from net_num_b. Multiple bridges on the same segment will
+;      all react to a broadcast query, and without the stagger
+;      their responses would overlap on the wire; seeding from the
+;      network number gives each bridge a deterministic but
+;      distinct delay.
 ; 
-;   4. Rebuild the frame via build_query_response again and patch
-;      it into the response-data shape:
-;         tx_ctrl = net_num_a        "this Bridge serves side-A network"
-;         tx_port = rx_query_net     echoes the queried network
-;      The ctrl and port fields are being repurposed to carry the
-;      routing answer as two bytes of payload -- unusual but
-;      compact for a 6-byte scout-shaped frame.
+;   3. CSMA, transmit the scout, then handshake_rx_a to receive
+;      the scout-ACK.
 ; 
-;   5. Transmit the response data frame, then handshake_rx_a for
-;      the final ACK. JMP main_loop on completion.
+;   4. Rebuild the frame via build_query_response again -- this
+;      time to be a *data* frame following the scout we just
+;      exchanged, not a new scout. The patches that follow populate
+;      the first two payload bytes of that data frame (at the byte
+;      positions labelled tx_ctrl and tx_port, but those names
+;      refer to scout semantics -- in a data frame those slots are
+;      payload, not header, and the bytes are:
 ; 
-; Either handshake_rx_a call can escape to main_loop if the
-; querier doesn't complete the handshake, aborting cleanly.
+;         data0 = net_num_a        ... the Bridge's side-A network
+;         data1 = rx_query_net     ... echo of the queried network
+; 
+;      The answer thus consists of the dst/src quad plus two
+;      payload bytes, packed into the smallest Econet frame that
+;      can carry it.
+; 
+;   5. Transmit the data frame, then handshake_rx_a for the final
+;      data-ACK. JMP main_loop on completion.
+; 
+; Either handshake_rx_a call can escape to main_loop if the querier
+; doesn't keep up the handshake, aborting the conversation cleanly.
 ; Re-arm A for listen after the received query
 ; &e19d referenced 1 time by &e18f
 .rx_a_handle_82
@@ -564,7 +580,7 @@ adlc_b_tx2      = &d803
 ; Patch src_net with our B-side network number
     lda net_num_b                                                     ; e1a3: ad 00 d0    ...
     sta tx_src_net                                                    ; e1a6: 8d 5d 04    .].
-; Seed delay counter from net_num_b (stagger)
+; Seed stagger counter from net_num_b
     sta ctr24_lo                                                      ; e1a9: 8d 14 02    ...
 ; Delay before transmit -- collision avoidance
     jsr stagger_delay                                                 ; e1ac: 20 48 e4     H.
@@ -574,43 +590,47 @@ adlc_b_tx2      = &d803
     jsr transmit_frame_a                                              ; e1b2: 20 17 e5     ..
 ; Receive scout-ACK from querier
     jsr handshake_rx_a                                                ; e1b5: 20 6e e5     n.
-; Rebuild frame for the data phase
+; Rebuild buffer; now populating it as a data frame
     jsr build_query_response                                          ; e1b8: 20 8d e4     ..
     lda net_num_b                                                     ; e1bb: ad 00 d0    ...
     sta tx_src_net                                                    ; e1be: 8d 5d 04    .].
-; Encode A-side network number into ctrl field
+; Data payload byte 0 = net_num_a
     lda net_num_a                                                     ; e1c1: ad 00 c0    ...
     sta tx_ctrl                                                       ; e1c4: 8d 5e 04    .^.
-; Echo queried network in port field
+; Data payload byte 1 = echo of queried network
     lda rx_query_net                                                  ; e1c7: ad 49 02    .I.
     sta tx_port                                                       ; e1ca: 8d 5f 04    ._.
 ; Transmit response data frame
     jsr transmit_frame_a                                              ; e1cd: 20 17 e5     ..
-; Receive final handshake ACK
+; Receive final data-ACK
     jsr handshake_rx_a                                                ; e1d0: 20 6e e5     n.
 ; &e1d3 referenced 1 time by &e19b
 .ce1d3
     jmp main_loop                                                     ; e1d3: 4c 51 e0    LQ.
 
 ; ***************************************************************************************
-; Side-A initial bridge announcement (ctrl=&80)
+; Side-A BridgeReset (ctrl=&80): learn topology from scratch
 ; 
 ; Called when a received frame on side A is broadcast + port=&9C +
-; ctrl=&80. An initial announcement means another bridge has just
-; come up (or announced fresh topology), so:
+; ctrl=&80. In JGH's BRIDGE.SRC this control byte is named
+; "BridgeReset" -- a bridge on the far side is advertising a fresh
+; topology, likely because it has itself just come up. We:
 ; 
-;   1. Wipe all learned routing state via init_reachable_nets -- the
-;      network topology may have changed, so accumulated knowledge
-;      is suspect.
+;   1. Wipe all learned routing state via init_reachable_nets. The
+;      topology may have changed non-monotonically, so accumulated
+;      reachable_via_? entries are suspect and the safe move is to
+;      discard them and relearn.
 ; 
 ;   2. Schedule a burst of our own re-announcements: ten cycles with
 ;      a staggered initial timer value seeded from net_num_b. Using
-;      the network number as part of the timer phase means bridges
-;      on different networks won't step on each other's announces.
-;      announce_flag is set to &40 (enable, bit 7 clear = side A).
+;      the local network number as the timer's phase means bridges
+;      on different segments aren't all re-announcing at the same
+;      millisecond. announce_flag is set to &40 (enable, bit 7
+;      clear = next outbound on side A).
 ; 
-;   3. Fall through to rx_a_handle_81, which processes the incoming
-;      payload and learns the networks it lists.
+;   3. Fall through to rx_a_handle_81 (the same payload-processing
+;      loop runs for both BridgeReset and BridgeReply) to mark the
+;      sender's known networks as reachable-via-A.
 ; Forget learned routes (topology change)
 ; &e1d6 referenced 1 time by &e18b
 .rx_a_handle_80
@@ -628,19 +648,34 @@ adlc_b_tx2      = &d803
     lda #&40 ; '@'                                                    ; e1e9: a9 40       .@
     sta announce_flag                                                 ; e1eb: 8d 29 02    .).
 ; ***************************************************************************************
-; Side-A re-announcement (ctrl=&81); learn + re-forward
+; Side-A BridgeReply (ctrl=&81): learn and re-broadcast
 ; 
-; Also reached via fall-through from rx_a_handle_80. Processes the
-; announcement payload: each byte from offset 6 to rx_len is a
-; network number reachable through the announcer (and therefore,
-; from us, reachable by forwarding to side A). Mark each such
-; network in reachable_via_a.
+; Reached either directly as the ctrl=&81 handler ("BridgeReply" /
+; "ResetReply" in JGH's source — the re-announcement that follows
+; a BridgeReset) or via fall-through from rx_a_handle_80 (which
+; additionally wipes routing state before the learn loop).
 ; 
-; After learning, append our own net_num_a to the payload and bump
-; rx_len. Falling through to rx_a_forward then re-broadcasts the
-; augmented announcement out of ADLC B, so any bridges beyond us
-; on that side hear about these networks -- plus us, as one more
-; hop along the route. Classic distance-vector flooding.
+; Processes the announcement payload: each byte from offset 6 up
+; to rx_len is a network number that the announcer says it can
+; reach. Since the announcer is on side A, we can reach those
+; networks via side A ourselves -- mark each in reachable_via_a.
+; 
+; After the learn loop, append our own net_num_a to the payload
+; and bump rx_len. Falling through to rx_a_forward re-broadcasts
+; the augmented frame out of ADLC B, so any bridges beyond us on
+; that side hear about the announced networks plus us as one
+; further hop along the route. This is classic distance-vector
+; flooding.
+; 
+; A subtlety: JGH's BRIDGE.SRC memory-layout comments describe
+; the payload as sometimes starting with the literal ASCII string
+; "BRIDGE" at bytes 6-11 (in query frames). Our handler makes no
+; such check -- it treats every byte from offset 6 up as a network
+; number. A frame from a "newer" variant that prepended "BRIDGE"
+; would have bytes &42 &52 &49 &44 &47 &45 erroneously marked as
+; reachable network numbers. No evidence that any in-the-wild
+; variant does this for ctrl=&80/&81; our own ROM doesn't emit the
+; string in any outbound frame.
 ; Y = 6: start of announcement payload
 ; &e1ee referenced 1 time by &e187
 .rx_a_handle_81
@@ -889,7 +924,7 @@ adlc_b_tx2      = &d803
     cmp #&83                                                          ; e312: c9 83       ..
     bne rx_b_forward                                                  ; e314: d0 73       .s
 ; ***************************************************************************************
-; Side-B bridge query for a specific network (ctrl=&83)
+; Side-B IsNet query (ctrl=&83): targeted network lookup
 ; 
 ; Mirror of rx_a_handle_83 (&E195) with A/B swapped: consults
 ; reachable_via_a (not _b) because the frame arrived on side B.
@@ -900,13 +935,13 @@ adlc_b_tx2      = &d803
     lda reachable_via_a,y                                             ; e319: b9 5a 03    .Z.
     beq ce354                                                         ; e31c: f0 36       .6
 ; ***************************************************************************************
-; Side-B bridge general query (ctrl=&82)
+; Side-B WhatNet query (ctrl=&82); also IsNet response path
 ; 
 ; Mirror of rx_a_handle_82 (&E19D) with A/B swapped throughout:
-; delay-stagger seeded from net_num_a, transmit via ADLC B,
-; tx_src_net patched to net_num_a, response-data's ctrl encodes
-; net_num_b (the Bridge's B-side network). See rx_a_handle_82
-; for the full protocol description.
+; stagger seeded from net_num_a, transmit via ADLC B, tx_src_net
+; patched to net_num_a, response-data's first payload byte (at
+; the tx_ctrl slot) encodes net_num_b. See rx_a_handle_82 for the
+; full protocol description.
 ; &e31e referenced 1 time by &e310
 .rx_b_handle_82
     jsr adlc_b_listen                                                 ; e31e: 20 19 e4     ..
@@ -932,13 +967,13 @@ adlc_b_tx2      = &d803
     jmp main_loop                                                     ; e354: 4c 51 e0    LQ.
 
 ; ***************************************************************************************
-; Side-B initial bridge announcement (ctrl=&80)
+; Side-B BridgeReset (ctrl=&80): learn topology from scratch
 ; 
 ; Mirror of rx_a_handle_80 (&E1D6): wipe reachable_via_* via
 ; init_reachable_nets, seed the re-announce timer's high byte
 ; from net_num_a (mirror of A-side seeding from net_num_b), set
-; announce_count = 10 and announce_flag = &80 (bit 7 set = side B
-; selected). Falls through to rx_b_handle_81.
+; announce_count = 10 and announce_flag = &80 (bit 7 set = next
+; outbound on side B). Falls through to rx_b_handle_81.
 ; &e357 referenced 1 time by &e30c
 .rx_b_handle_80
     jsr init_reachable_nets                                           ; e357: 20 24 e4     $.
@@ -951,7 +986,7 @@ adlc_b_tx2      = &d803
     lda #&80                                                          ; e36a: a9 80       ..
     sta announce_flag                                                 ; e36c: 8d 29 02    .).
 ; ***************************************************************************************
-; Side-B re-announcement (ctrl=&81); learn + re-forward
+; Side-B BridgeReply (ctrl=&81): learn and re-broadcast
 ; 
 ; Mirror of rx_a_handle_81 (&E1EE): reads each payload byte from
 ; offset 6 onward as a network number reachable via side B, marks
