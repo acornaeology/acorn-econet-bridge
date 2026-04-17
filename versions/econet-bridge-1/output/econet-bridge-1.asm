@@ -1466,109 +1466,84 @@ adlc_b_tx2      = &d803
 ; Called from five sites: &E1B5 and &E1D0 (rx_a_handle_82/83 query
 ; paths), &E254 and &E3DB (forward tails), and &E3CF (also a forward
 ; tail).
-; CR1 = &82: TX in reset, RX IRQs enabled
 ; &e56e referenced 5 times by &e1b5, &e1d0, &e254, &e3cf, &e3db
 .handshake_rx_a
-    lda #&82                                                          ; e56e: a9 82       ..
-    sta adlc_a_cr1                                                    ; e570: 8d 00 c8    ...
-; A = &01: mask SR2 bit 0 (AP)
-    lda #1                                                            ; e573: a9 01       ..
-; Wait for the first RX event
-    jsr wait_adlc_a_irq                                               ; e575: 20 e4 e3     ..
-    bit adlc_a_cr2                                                    ; e578: 2c 01 c8    ,..
-; No AP: nothing arrived, escape to main
-    beq ce5b1                                                         ; e57b: f0 34       .4
-; Read byte 0: destination station
-    lda adlc_a_tx                                                     ; e57d: ad 02 c8    ...
-    sta tx_dst_stn                                                    ; e580: 8d 5a 04    .Z.
-    jsr wait_adlc_a_irq                                               ; e583: 20 e4 e3     ..
-    bit adlc_a_cr2                                                    ; e586: 2c 01 c8    ,..
-; Second IRQ gone -> frame truncated, escape
-    bpl ce5b1                                                         ; e589: 10 26       .&
-; Read byte 1: destination network
-    lda adlc_a_tx                                                     ; e58b: ad 02 c8    ...
-    sta tx_dst_net                                                    ; e58e: 8d 5b 04    .[.
-; Y = 2: continue draining pairs into (&045A)+Y
-    ldy #2                                                            ; e591: a0 02       ..
+    lda #&82                                                          ; e56e: a9 82       ..             ; A = &82: TX in reset, RX IRQs enabled
+    sta adlc_a_cr1                                                    ; e570: 8d 00 c8    ...            ; Re-arm ADLC A for the incoming handshake frame
+    lda #1                                                            ; e573: a9 01       ..             ; A = &01: SR2 mask for AP (Address Present)
+    jsr wait_adlc_a_irq                                               ; e575: 20 e4 e3     ..            ; Block until ADLC A raises its first IRQ
+    bit adlc_a_cr2                                                    ; e578: 2c 01 c8    ,..            ; BIT SR2 -- test AP bit against mask in A
+    beq handshake_rx_a_escape                                         ; e57b: f0 34       .4             ; No AP: nothing arrived, escape to main
+    lda adlc_a_tx                                                     ; e57d: ad 02 c8    ...            ; Read byte 0 of the handshake frame (dst_stn)
+    sta tx_dst_stn                                                    ; e580: 8d 5a 04    .Z.            ; Stage into tx buffer for onward transmission
+    jsr wait_adlc_a_irq                                               ; e583: 20 e4 e3     ..            ; Wait for the second RX IRQ (next byte ready)
+    bit adlc_a_cr2                                                    ; e586: 2c 01 c8    ,..            ; BIT SR2 -- RDA (bit 7) still set?
+    bpl handshake_rx_a_escape                                         ; e589: 10 26       .&             ; RDA cleared mid-frame: truncated, escape
+    lda adlc_a_tx                                                     ; e58b: ad 02 c8    ...            ; Read byte 1: destination network
+    sta tx_dst_net                                                    ; e58e: 8d 5b 04    .[.            ; Stage dst_net into the forward buffer
+    ldy #2                                                            ; e591: a0 02       ..             ; Y = 2: start draining pair-payload into (mem_ptr_lo),Y
 ; &e593 referenced 2 times by &e5a7, &e5af
-.ce593
-    jsr wait_adlc_a_irq                                               ; e593: 20 e4 e3     ..
-    bit adlc_a_cr2                                                    ; e596: 2c 01 c8    ,..
-; End-of-frame detected mid-pair
-    bpl ce5b6                                                         ; e599: 10 1b       ..
-    lda adlc_a_tx                                                     ; e59b: ad 02 c8    ...
-    sta (mem_ptr_lo),y                                                ; e59e: 91 80       ..
-    iny                                                               ; e5a0: c8          .
-    lda adlc_a_tx                                                     ; e5a1: ad 02 c8    ...
-    sta (mem_ptr_lo),y                                                ; e5a4: 91 80       ..
-    iny                                                               ; e5a6: c8          .
-    bne ce593                                                         ; e5a7: d0 ea       ..
-; Advance to next page of the staging buffer
-    inc mem_ptr_hi                                                    ; e5a9: e6 81       ..
-    lda mem_ptr_hi                                                    ; e5ab: a5 81       ..
-; Stop if we would overrun available RAM
-    cmp top_ram_page                                                  ; e5ad: c5 82       ..
-    bcc ce593                                                         ; e5af: 90 e2       ..
-; Escape to main (PLA/PLA/JMP pattern)
+.handshake_rx_a_pair_loop
+    jsr wait_adlc_a_irq                                               ; e593: 20 e4 e3     ..            ; Wait for the next RX byte
+    bit adlc_a_cr2                                                    ; e596: 2c 01 c8    ,..            ; BIT SR2 -- RDA still asserted?
+    bpl handshake_rx_a_drained                                        ; e599: 10 1b       ..             ; End-of-frame detected mid-pair -- jump to FV check
+    lda adlc_a_tx                                                     ; e59b: ad 02 c8    ...            ; Read even-indexed payload byte
+    sta (mem_ptr_lo),y                                                ; e59e: 91 80       ..             ; Store into (mem_ptr_lo)+Y in the staging buffer
+    iny                                                               ; e5a0: c8          .              ; Advance Y to odd slot
+    lda adlc_a_tx                                                     ; e5a1: ad 02 c8    ...            ; Read odd-indexed payload byte (no IRQ wait: paired)
+    sta (mem_ptr_lo),y                                                ; e5a4: 91 80       ..             ; Store into (mem_ptr_lo)+Y
+    iny                                                               ; e5a6: c8          .              ; Advance Y; wraps to 0 after 256 bytes
+    bne handshake_rx_a_pair_loop                                      ; e5a7: d0 ea       ..             ; Y didn't wrap -- stay in this page
+    inc mem_ptr_hi                                                    ; e5a9: e6 81       ..             ; Y wrapped: advance mem_ptr_hi to next page
+    lda mem_ptr_hi                                                    ; e5ab: a5 81       ..             ; Reload new page number for bounds test
+    cmp top_ram_page                                                  ; e5ad: c5 82       ..             ; Compare against top_ram_page (set by boot RAM test)
+    bcc handshake_rx_a_pair_loop                                      ; e5af: 90 e2       ..             ; Still room -- keep draining into the next page
 ; &e5b1 referenced 5 times by &e57b, &e589, &e5c5, &e5e4, &e5e9
-.ce5b1
-    pla                                                               ; e5b1: 68          h
-    pla                                                               ; e5b2: 68          h
-    jmp main_loop                                                     ; e5b3: 4c 51 e0    LQ.
+.handshake_rx_a_escape
+    pla                                                               ; e5b1: 68          h              ; Drop caller's return address (lo)
+    pla                                                               ; e5b2: 68          h              ; Drop caller's return address (hi)
+    jmp main_loop                                                     ; e5b3: 4c 51 e0    LQ.            ; Abandon handshake and rejoin main_loop
 
-; CR1=0, CR2=&84: halt chip post-drain
 ; &e5b6 referenced 1 time by &e599
-.ce5b6
-    lda #0                                                            ; e5b6: a9 00       ..
-    sta adlc_a_cr1                                                    ; e5b8: 8d 00 c8    ...
-    lda #&84                                                          ; e5bb: a9 84       ..
-    sta adlc_a_cr2                                                    ; e5bd: 8d 01 c8    ...
-    lda #2                                                            ; e5c0: a9 02       ..
-    bit adlc_a_cr2                                                    ; e5c2: 2c 01 c8    ,..
-; No Frame Valid -> corrupt/short, escape
-    beq ce5b1                                                         ; e5c5: f0 ea       ..
-; FV set but no RDA -> drained, proceed
-    bpl ce5cf                                                         ; e5c7: 10 06       ..
-; One trailing byte remained
-    lda adlc_a_tx                                                     ; e5c9: ad 02 c8    ...
-    sta (mem_ptr_lo),y                                                ; e5cc: 91 80       ..
-    iny                                                               ; e5ce: c8          .
-; Finalise tx_end_lo = byte count (rounded even)
+.handshake_rx_a_drained
+    lda #0                                                            ; e5b6: a9 00       ..             ; A = &00: halt ADLC A
+    sta adlc_a_cr1                                                    ; e5b8: 8d 00 c8    ...            ; CR1 = 0: disable TX and RX IRQs
+    lda #&84                                                          ; e5bb: a9 84       ..             ; A = &84: clear-RX-status + FV-clear bits
+    sta adlc_a_cr2                                                    ; e5bd: 8d 01 c8    ...            ; Commit CR2: acknowledge the end-of-frame
+    lda #2                                                            ; e5c0: a9 02       ..             ; A = &02: mask SR2 bit 1 (Frame Valid)
+    bit adlc_a_cr2                                                    ; e5c2: 2c 01 c8    ,..            ; BIT SR2 -- test FV and RDA bits together
+    beq handshake_rx_a_escape                                         ; e5c5: f0 ea       ..             ; FV clear -> frame was corrupt/short, escape
+    bpl handshake_rx_a_finalise_len                                   ; e5c7: 10 06       ..             ; FV set but no RDA -> clean end, finalise length
+    lda adlc_a_tx                                                     ; e5c9: ad 02 c8    ...            ; FV+RDA both set: one trailing byte still pending
+    sta (mem_ptr_lo),y                                                ; e5cc: 91 80       ..             ; Store the odd trailing byte into the staging buffer
+    iny                                                               ; e5ce: c8          .              ; Advance Y to cover that final byte
 ; &e5cf referenced 1 time by &e5c7
-.ce5cf
-    tya                                                               ; e5cf: 98          .
-    tax                                                               ; e5d0: aa          .
-    and #&fe                                                          ; e5d1: 29 fe       ).
-    sta tx_end_lo                                                     ; e5d3: 8d 00 02    ...
-; If src_net was zero, normalise to net_num_a
-    lda tx_src_net                                                    ; e5d6: ad 5d 04    .].
-    bne ce5e1                                                         ; e5d9: d0 06       ..
-    lda net_num_a                                                     ; e5db: ad 00 c0    ...
-    sta tx_src_net                                                    ; e5de: 8d 5d 04    .].
-; Forwardability check on tx_dst_net
+.handshake_rx_a_finalise_len
+    tya                                                               ; e5cf: 98          .              ; A = Y (current byte offset in page)
+    tax                                                               ; e5d0: aa          .              ; X = A: preserve raw length for odd-length callers
+    and #&fe                                                          ; e5d1: 29 fe       ).             ; Mask low bit: round length DOWN to even
+    sta tx_end_lo                                                     ; e5d3: 8d 00 02    ...            ; Store rounded tx_end_lo
+    lda tx_src_net                                                    ; e5d6: ad 5d 04    .].            ; Load src_net from the just-drained frame
+    bne handshake_rx_a_route_check                                    ; e5d9: d0 06       ..             ; Non-zero -> sender supplied src_net, keep it
+    lda net_num_a                                                     ; e5db: ad 00 c0    ...            ; Sender left src_net as 0 ('my local net')
+    sta tx_src_net                                                    ; e5de: 8d 5d 04    .].            ; Substitute our own A-side network number
 ; &e5e1 referenced 1 time by &e5d9
-.ce5e1
-    ldy tx_dst_net                                                    ; e5e1: ac 5b 04    .[.
-; dst_net = 0 -> reject
-    beq ce5b1                                                         ; e5e4: f0 cb       ..
-; Not reachable via side B -> reject
-    lda reachable_via_b,y                                             ; e5e6: b9 5a 02    .Z.
-    beq ce5b1                                                         ; e5e9: f0 c6       ..
-; dst_net = net_num_b -> frame is local on B
-    cpy net_num_b                                                     ; e5eb: cc 00 d0    ...
-    bne ce5f5                                                         ; e5ee: d0 05       ..
-; ...normalise to 0 for the outbound frame
-    lda #0                                                            ; e5f0: a9 00       ..
-    sta tx_dst_net                                                    ; e5f2: 8d 5b 04    .[.
-; tx_end_hi = final mem_ptr_hi (multi-page)
+.handshake_rx_a_route_check
+    ldy tx_dst_net                                                    ; e5e1: ac 5b 04    .[.            ; Load dst_net into Y for routing lookup
+    beq handshake_rx_a_escape                                         ; e5e4: f0 cb       ..             ; dst_net = 0 (unspecified) -> reject, escape
+    lda reachable_via_b,y                                             ; e5e6: b9 5a 02    .Z.            ; Probe reachable_via_b[dst_net]
+    beq handshake_rx_a_escape                                         ; e5e9: f0 c6       ..             ; No route via side B -> reject, escape
+    cpy net_num_b                                                     ; e5eb: cc 00 d0    ...            ; Compare dst_net with our B-side net number
+    bne handshake_rx_a_end                                            ; e5ee: d0 05       ..             ; Not us -> leave dst_net as-is, skip the rewrite
+    lda #0                                                            ; e5f0: a9 00       ..             ; Frame is for the B-side's local network...
+    sta tx_dst_net                                                    ; e5f2: 8d 5b 04    .[.            ; ...normalise dst_net to 0 for the outbound header
 ; &e5f5 referenced 1 time by &e5ee
-.ce5f5
-    lda mem_ptr_hi                                                    ; e5f5: a5 81       ..
-    sta tx_end_hi                                                     ; e5f7: 8d 01 02    ...
-; Reset mem_ptr_hi so transmit reads from &045A
-    lda #4                                                            ; e5fa: a9 04       ..
-    sta mem_ptr_hi                                                    ; e5fc: 85 81       ..
-    rts                                                               ; e5fe: 60          `
+.handshake_rx_a_end
+    lda mem_ptr_hi                                                    ; e5f5: a5 81       ..             ; Read final mem_ptr_hi (last page written)
+    sta tx_end_hi                                                     ; e5f7: 8d 01 02    ...            ; Record as tx_end_hi (multi-page frames need this)
+    lda #4                                                            ; e5fa: a9 04       ..             ; A = &04: reset mem_ptr_hi back to &045A page...
+    sta mem_ptr_hi                                                    ; e5fc: 85 81       ..             ; ...so the transmit path walks the buffer from byte 0
+    rts                                                               ; e5fe: 60          `              ; Return: frame staged, transmitter can send it verbatim
 
 ; ***************************************************************************************
 ; Receive a handshake frame on ADLC B and stage it for forward
@@ -1582,82 +1557,82 @@ adlc_b_tx2      = &d803
 ; See handshake_rx_a for the per-instruction explanation.
 ; &e5ff referenced 5 times by &e24e, &e25a, &e336, &e351, &e3d5
 .handshake_rx_b
-    lda #&82                                                          ; e5ff: a9 82       ..
-    sta adlc_b_cr1                                                    ; e601: 8d 00 d8    ...
-    lda #1                                                            ; e604: a9 01       ..
-    jsr wait_adlc_b_irq                                               ; e606: 20 ea e3     ..
-    bit adlc_b_cr2                                                    ; e609: 2c 01 d8    ,..
-    beq ce642                                                         ; e60c: f0 34       .4
-    lda adlc_b_tx                                                     ; e60e: ad 02 d8    ...
-    sta tx_dst_stn                                                    ; e611: 8d 5a 04    .Z.
-    jsr wait_adlc_b_irq                                               ; e614: 20 ea e3     ..
-    bit adlc_b_cr2                                                    ; e617: 2c 01 d8    ,..
-    bpl ce642                                                         ; e61a: 10 26       .&
-    lda adlc_b_tx                                                     ; e61c: ad 02 d8    ...
-    sta tx_dst_net                                                    ; e61f: 8d 5b 04    .[.
-    ldy #2                                                            ; e622: a0 02       ..
+    lda #&82                                                          ; e5ff: a9 82       ..             ; A = &82: TX in reset, RX IRQs enabled
+    sta adlc_b_cr1                                                    ; e601: 8d 00 d8    ...            ; Re-arm ADLC B for the incoming handshake frame
+    lda #1                                                            ; e604: a9 01       ..             ; A = &01: SR2 mask for AP (Address Present)
+    jsr wait_adlc_b_irq                                               ; e606: 20 ea e3     ..            ; Block until ADLC B raises its first IRQ
+    bit adlc_b_cr2                                                    ; e609: 2c 01 d8    ,..            ; BIT SR2 -- test AP bit against mask in A
+    beq handshake_rx_b_escape                                         ; e60c: f0 34       .4             ; No AP: nothing arrived, escape to main
+    lda adlc_b_tx                                                     ; e60e: ad 02 d8    ...            ; Read byte 0 of the handshake frame (dst_stn)
+    sta tx_dst_stn                                                    ; e611: 8d 5a 04    .Z.            ; Stage into tx buffer for onward transmission
+    jsr wait_adlc_b_irq                                               ; e614: 20 ea e3     ..            ; Wait for the second RX IRQ (next byte ready)
+    bit adlc_b_cr2                                                    ; e617: 2c 01 d8    ,..            ; BIT SR2 -- RDA (bit 7) still set?
+    bpl handshake_rx_b_escape                                         ; e61a: 10 26       .&             ; RDA cleared mid-frame: truncated, escape
+    lda adlc_b_tx                                                     ; e61c: ad 02 d8    ...            ; Read byte 1: destination network
+    sta tx_dst_net                                                    ; e61f: 8d 5b 04    .[.            ; Stage dst_net into the forward buffer
+    ldy #2                                                            ; e622: a0 02       ..             ; Y = 2: start draining pair-payload into (mem_ptr_lo),Y
 ; &e624 referenced 2 times by &e638, &e640
-.ce624
-    jsr wait_adlc_b_irq                                               ; e624: 20 ea e3     ..
-    bit adlc_b_cr2                                                    ; e627: 2c 01 d8    ,..
-    bpl ce647                                                         ; e62a: 10 1b       ..
-    lda adlc_b_tx                                                     ; e62c: ad 02 d8    ...
-    sta (mem_ptr_lo),y                                                ; e62f: 91 80       ..
-    iny                                                               ; e631: c8          .
-    lda adlc_b_tx                                                     ; e632: ad 02 d8    ...
-    sta (mem_ptr_lo),y                                                ; e635: 91 80       ..
-    iny                                                               ; e637: c8          .
-    bne ce624                                                         ; e638: d0 ea       ..
-    inc mem_ptr_hi                                                    ; e63a: e6 81       ..
-    lda mem_ptr_hi                                                    ; e63c: a5 81       ..
-    cmp top_ram_page                                                  ; e63e: c5 82       ..
-    bcc ce624                                                         ; e640: 90 e2       ..
+.handshake_rx_b_pair_loop
+    jsr wait_adlc_b_irq                                               ; e624: 20 ea e3     ..            ; Wait for the next RX byte
+    bit adlc_b_cr2                                                    ; e627: 2c 01 d8    ,..            ; BIT SR2 -- RDA still asserted?
+    bpl handshake_rx_b_drained                                        ; e62a: 10 1b       ..             ; End-of-frame detected mid-pair -- jump to FV check
+    lda adlc_b_tx                                                     ; e62c: ad 02 d8    ...            ; Read even-indexed payload byte
+    sta (mem_ptr_lo),y                                                ; e62f: 91 80       ..             ; Store into (mem_ptr_lo)+Y in the staging buffer
+    iny                                                               ; e631: c8          .              ; Advance Y to odd slot
+    lda adlc_b_tx                                                     ; e632: ad 02 d8    ...            ; Read odd-indexed payload byte (no IRQ wait: paired)
+    sta (mem_ptr_lo),y                                                ; e635: 91 80       ..             ; Store into (mem_ptr_lo)+Y
+    iny                                                               ; e637: c8          .              ; Advance Y; wraps to 0 after 256 bytes
+    bne handshake_rx_b_pair_loop                                      ; e638: d0 ea       ..             ; Y didn't wrap -- stay in this page
+    inc mem_ptr_hi                                                    ; e63a: e6 81       ..             ; Y wrapped: advance mem_ptr_hi to next page
+    lda mem_ptr_hi                                                    ; e63c: a5 81       ..             ; Reload new page number for bounds test
+    cmp top_ram_page                                                  ; e63e: c5 82       ..             ; Compare against top_ram_page (set by boot RAM test)
+    bcc handshake_rx_b_pair_loop                                      ; e640: 90 e2       ..             ; Still room -- keep draining into the next page
 ; &e642 referenced 5 times by &e60c, &e61a, &e656, &e675, &e67a
-.ce642
-    pla                                                               ; e642: 68          h
-    pla                                                               ; e643: 68          h
-    jmp main_loop                                                     ; e644: 4c 51 e0    LQ.
+.handshake_rx_b_escape
+    pla                                                               ; e642: 68          h              ; Drop caller's return address (lo)
+    pla                                                               ; e643: 68          h              ; Drop caller's return address (hi)
+    jmp main_loop                                                     ; e644: 4c 51 e0    LQ.            ; Abandon handshake and rejoin main_loop
 
 ; &e647 referenced 1 time by &e62a
-.ce647
-    lda #0                                                            ; e647: a9 00       ..
-    sta adlc_b_cr1                                                    ; e649: 8d 00 d8    ...
-    lda #&84                                                          ; e64c: a9 84       ..
-    sta adlc_b_cr2                                                    ; e64e: 8d 01 d8    ...
-    lda #2                                                            ; e651: a9 02       ..
-    bit adlc_b_cr2                                                    ; e653: 2c 01 d8    ,..
-    beq ce642                                                         ; e656: f0 ea       ..
-    bpl ce660                                                         ; e658: 10 06       ..
-    lda adlc_b_tx                                                     ; e65a: ad 02 d8    ...
-    sta (mem_ptr_lo),y                                                ; e65d: 91 80       ..
-    iny                                                               ; e65f: c8          .
+.handshake_rx_b_drained
+    lda #0                                                            ; e647: a9 00       ..             ; A = &00: halt ADLC B
+    sta adlc_b_cr1                                                    ; e649: 8d 00 d8    ...            ; CR1 = 0: disable TX and RX IRQs
+    lda #&84                                                          ; e64c: a9 84       ..             ; A = &84: clear-RX-status + FV-clear bits
+    sta adlc_b_cr2                                                    ; e64e: 8d 01 d8    ...            ; Commit CR2: acknowledge the end-of-frame
+    lda #2                                                            ; e651: a9 02       ..             ; A = &02: mask SR2 bit 1 (Frame Valid)
+    bit adlc_b_cr2                                                    ; e653: 2c 01 d8    ,..            ; BIT SR2 -- test FV and RDA bits together
+    beq handshake_rx_b_escape                                         ; e656: f0 ea       ..             ; FV clear -> frame was corrupt/short, escape
+    bpl handshake_rx_b_finalise_len                                   ; e658: 10 06       ..             ; FV set but no RDA -> clean end, finalise length
+    lda adlc_b_tx                                                     ; e65a: ad 02 d8    ...            ; FV+RDA both set: one trailing byte still pending
+    sta (mem_ptr_lo),y                                                ; e65d: 91 80       ..             ; Store the odd trailing byte into the staging buffer
+    iny                                                               ; e65f: c8          .              ; Advance Y to cover that final byte
 ; &e660 referenced 1 time by &e658
-.ce660
-    tya                                                               ; e660: 98          .
-    tax                                                               ; e661: aa          .
-    and #&fe                                                          ; e662: 29 fe       ).
-    sta tx_end_lo                                                     ; e664: 8d 00 02    ...
-    lda tx_src_net                                                    ; e667: ad 5d 04    .].
-    bne ce672                                                         ; e66a: d0 06       ..
-    lda net_num_b                                                     ; e66c: ad 00 d0    ...
-    sta tx_src_net                                                    ; e66f: 8d 5d 04    .].
+.handshake_rx_b_finalise_len
+    tya                                                               ; e660: 98          .              ; A = Y (current byte offset in page)
+    tax                                                               ; e661: aa          .              ; X = A: preserve raw length for odd-length callers
+    and #&fe                                                          ; e662: 29 fe       ).             ; Mask low bit: round length DOWN to even
+    sta tx_end_lo                                                     ; e664: 8d 00 02    ...            ; Store rounded tx_end_lo
+    lda tx_src_net                                                    ; e667: ad 5d 04    .].            ; Load src_net from the just-drained frame
+    bne handshake_rx_b_route_check                                    ; e66a: d0 06       ..             ; Non-zero -> sender supplied src_net, keep it
+    lda net_num_b                                                     ; e66c: ad 00 d0    ...            ; Sender left src_net as 0 ('my local net')
+    sta tx_src_net                                                    ; e66f: 8d 5d 04    .].            ; Substitute our own B-side network number
 ; &e672 referenced 1 time by &e66a
-.ce672
-    ldy tx_dst_net                                                    ; e672: ac 5b 04    .[.
-    beq ce642                                                         ; e675: f0 cb       ..
-    lda reachable_via_a,y                                             ; e677: b9 5a 03    .Z.
-    beq ce642                                                         ; e67a: f0 c6       ..
-    cpy net_num_a                                                     ; e67c: cc 00 c0    ...
-    bne ce686                                                         ; e67f: d0 05       ..
-    lda #0                                                            ; e681: a9 00       ..
-    sta tx_dst_net                                                    ; e683: 8d 5b 04    .[.
+.handshake_rx_b_route_check
+    ldy tx_dst_net                                                    ; e672: ac 5b 04    .[.            ; Load dst_net into Y for routing lookup
+    beq handshake_rx_b_escape                                         ; e675: f0 cb       ..             ; dst_net = 0 (unspecified) -> reject, escape
+    lda reachable_via_a,y                                             ; e677: b9 5a 03    .Z.            ; Probe reachable_via_a[dst_net]
+    beq handshake_rx_b_escape                                         ; e67a: f0 c6       ..             ; No route via side A -> reject, escape
+    cpy net_num_a                                                     ; e67c: cc 00 c0    ...            ; Compare dst_net with our A-side net number
+    bne handshake_rx_b_end                                            ; e67f: d0 05       ..             ; Not us -> leave dst_net as-is, skip the rewrite
+    lda #0                                                            ; e681: a9 00       ..             ; Frame is for the A-side's local network...
+    sta tx_dst_net                                                    ; e683: 8d 5b 04    .[.            ; ...normalise dst_net to 0 for the outbound header
 ; &e686 referenced 1 time by &e67f
-.ce686
-    lda mem_ptr_hi                                                    ; e686: a5 81       ..
-    sta tx_end_hi                                                     ; e688: 8d 01 02    ...
-    lda #4                                                            ; e68b: a9 04       ..
-    sta mem_ptr_hi                                                    ; e68d: 85 81       ..
-    rts                                                               ; e68f: 60          `
+.handshake_rx_b_end
+    lda mem_ptr_hi                                                    ; e686: a5 81       ..             ; Read final mem_ptr_hi (last page written)
+    sta tx_end_hi                                                     ; e688: 8d 01 02    ...            ; Record as tx_end_hi (multi-page frames need this)
+    lda #4                                                            ; e68b: a9 04       ..             ; A = &04: reset mem_ptr_hi back to &045A page...
+    sta mem_ptr_hi                                                    ; e68d: 85 81       ..             ; ...so the transmit path walks the buffer from byte 0
+    rts                                                               ; e68f: 60          `              ; Return: frame staged, transmitter can send it verbatim
 
 ; ***************************************************************************************
 ; Wait for ADLC B's line to go idle (CSMA) or escape
@@ -2928,10 +2903,10 @@ save pydis_start, pydis_end
 ;     self_test_ram_fail_jump:       6
 ;     tx_end_hi:                     6
 ;     tx_end_lo:                     6
-;     ce5b1:                         5
-;     ce642:                         5
 ;     handshake_rx_a:                5
+;     handshake_rx_a_escape:         5
 ;     handshake_rx_b:                5
+;     handshake_rx_b_escape:         5
 ;     main_loop_poll:                5
 ;     tx_ctrl:                       5
 ;     announce_count:                4
@@ -2961,8 +2936,8 @@ save pydis_start, pydis_end
 ;     adlc_b_listen:                 2
 ;     adlc_b_tx2:                    2
 ;     build_announce_b:              2
-;     ce593:                         2
-;     ce624:                         2
+;     handshake_rx_a_pair_loop:      2
+;     handshake_rx_b_pair_loop:      2
 ;     ram_test_fail_long_delay:      2
 ;     ram_test_fail_short_delay:     2
 ;     re_announce_done:              2
@@ -2996,18 +2971,18 @@ save pydis_start, pydis_end
 ;     ce2dd:                         1
 ;     ce2ea:                         1
 ;     ce354:                         1
-;     ce5b6:                         1
-;     ce5cf:                         1
-;     ce5e1:                         1
-;     ce5f5:                         1
-;     ce647:                         1
-;     ce660:                         1
-;     ce672:                         1
-;     ce686:                         1
 ;     cf156:                         1
 ;     cf15c:                         1
 ;     cf1f7:                         1
 ;     cf1fd:                         1
+;     handshake_rx_a_drained:        1
+;     handshake_rx_a_end:            1
+;     handshake_rx_a_finalise_len:   1
+;     handshake_rx_a_route_check:    1
+;     handshake_rx_b_drained:        1
+;     handshake_rx_b_end:            1
+;     handshake_rx_b_finalise_len:   1
+;     handshake_rx_b_route_check:    1
 ;     init_reachable_nets_clear:     1
 ;     loop_cf125:                    1
 ;     loop_cf189:                    1
@@ -3078,18 +3053,6 @@ save pydis_start, pydis_end
 ;     ce2dd
 ;     ce2ea
 ;     ce354
-;     ce593
-;     ce5b1
-;     ce5b6
-;     ce5cf
-;     ce5e1
-;     ce5f5
-;     ce624
-;     ce642
-;     ce647
-;     ce660
-;     ce672
-;     ce686
 ;     cf151
 ;     cf156
 ;     cf15c
