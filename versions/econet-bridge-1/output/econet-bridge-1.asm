@@ -516,7 +516,7 @@ adlc_b_tx2      = &d803
     jsr sub_ce448                                                     ; e1ac: 20 48 e4     H.
     jsr wait_adlc_a_idle                                              ; e1af: 20 dc e6     ..
     jsr transmit_frame_a                                              ; e1b2: 20 17 e5     ..
-    jsr sub_ce56e                                                     ; e1b5: 20 6e e5     n.
+    jsr handshake_rx_a                                                ; e1b5: 20 6e e5     n.
     jsr sub_ce48d                                                     ; e1b8: 20 8d e4     ..
     lda net_num_b                                                     ; e1bb: ad 00 d0    ...
     sta tx_src_net                                                    ; e1be: 8d 5d 04    .].
@@ -525,7 +525,7 @@ adlc_b_tx2      = &d803
     lda rx_query_stn                                                  ; e1c7: ad 49 02    .I.
     sta tx_port                                                       ; e1ca: 8d 5f 04    ._.
     jsr transmit_frame_a                                              ; e1cd: 20 17 e5     ..
-    jsr sub_ce56e                                                     ; e1d0: 20 6e e5     n.
+    jsr handshake_rx_a                                                ; e1d0: 20 6e e5     n.
 ; &e1d3 referenced 1 time by &e19b
 .ce1d3
     jmp main_loop                                                     ; e1d3: 4c 51 e0    LQ.
@@ -637,11 +637,11 @@ adlc_b_tx2      = &d803
     sta mem_ptr_lo                                                    ; e248: 85 80       ..
     lda #4                                                            ; e24a: a9 04       ..
     sta mem_ptr_hi                                                    ; e24c: 85 81       ..
-    jsr sub_ce5ff                                                     ; e24e: 20 ff e5     ..
+    jsr handshake_rx_b                                                ; e24e: 20 ff e5     ..
     jsr transmit_frame_a                                              ; e251: 20 17 e5     ..
-    jsr sub_ce56e                                                     ; e254: 20 6e e5     n.
+    jsr handshake_rx_a                                                ; e254: 20 6e e5     n.
     jsr transmit_frame_b                                              ; e257: 20 c0 e4     ..
-    jsr sub_ce5ff                                                     ; e25a: 20 ff e5     ..
+    jsr handshake_rx_b                                                ; e25a: 20 ff e5     ..
     jsr transmit_frame_a                                              ; e25d: 20 17 e5     ..
 ; &e260 referenced 1 time by &e21c
 .ce260
@@ -772,7 +772,7 @@ adlc_b_tx2      = &d803
     jsr sub_ce448                                                     ; e32d: 20 48 e4     H.
     jsr wait_adlc_b_idle                                              ; e330: 20 90 e6     ..
     jsr transmit_frame_b                                              ; e333: 20 c0 e4     ..
-    jsr sub_ce5ff                                                     ; e336: 20 ff e5     ..
+    jsr handshake_rx_b                                                ; e336: 20 ff e5     ..
     jsr sub_ce48d                                                     ; e339: 20 8d e4     ..
     lda net_num_a                                                     ; e33c: ad 00 c0    ...
     sta tx_src_net                                                    ; e33f: 8d 5d 04    .].
@@ -781,7 +781,7 @@ adlc_b_tx2      = &d803
     lda rx_query_stn                                                  ; e348: ad 49 02    .I.
     sta tx_port                                                       ; e34b: 8d 5f 04    ._.
     jsr transmit_frame_b                                              ; e34e: 20 c0 e4     ..
-    jsr sub_ce5ff                                                     ; e351: 20 ff e5     ..
+    jsr handshake_rx_b                                                ; e351: 20 ff e5     ..
 ; &e354 referenced 1 time by &e31c
 .ce354
     jmp main_loop                                                     ; e354: 4c 51 e0    LQ.
@@ -848,11 +848,11 @@ adlc_b_tx2      = &d803
     sta mem_ptr_lo                                                    ; e3c9: 85 80       ..
     lda #4                                                            ; e3cb: a9 04       ..
     sta mem_ptr_hi                                                    ; e3cd: 85 81       ..
-    jsr sub_ce56e                                                     ; e3cf: 20 6e e5     n.
+    jsr handshake_rx_a                                                ; e3cf: 20 6e e5     n.
     jsr transmit_frame_b                                              ; e3d2: 20 c0 e4     ..
-    jsr sub_ce5ff                                                     ; e3d5: 20 ff e5     ..
+    jsr handshake_rx_b                                                ; e3d5: 20 ff e5     ..
     jsr transmit_frame_a                                              ; e3d8: 20 17 e5     ..
-    jsr sub_ce56e                                                     ; e3db: 20 6e e5     n.
+    jsr handshake_rx_a                                                ; e3db: 20 6e e5     n.
     jsr transmit_frame_b                                              ; e3de: 20 c0 e4     ..
 ; &e3e1 referenced 1 time by &e39d
 .ce3e1
@@ -1269,26 +1269,74 @@ adlc_b_tx2      = &d803
     sta mem_ptr_hi                                                    ; e56b: 85 81       ..
     rts                                                               ; e56d: 60          `
 
+; ***************************************************************************************
+; Receive a handshake frame on ADLC A and stage it for forward
+; 
+; The receive half of four-way-handshake bridging for the A side.
+; Enables RX on ADLC A, drains an inbound frame byte-by-byte into
+; the outbound buffer starting at tx_dst_stn (&045A), then sets up
+; tx_end_lo/hi so the next call to transmit_frame_b transmits the
+; just-received frame out of the other port verbatim.
+; 
+; The drain is capped at `top_ram_page` (set by the boot RAM test)
+; so very long frames fill available RAM and no further.
+; 
+; After the drain, does three pieces of address fix-up on the
+; now-staged frame:
+; 
+;   * If tx_src_net (byte 3 of the frame) is zero, fill it with
+;     net_num_a. Many Econet senders leave src_net as zero to mean
+;     "my local network"; the Bridge makes that explicit before
+;     forwarding.
+; 
+;   * Reject the frame if tx_dst_net is zero (no destination
+;     network declared) or if reachable_via_b has no entry for
+;     that network (we don't know a route).
+; 
+;   * If tx_dst_net equals net_num_b (our own B-side network),
+;     normalise it to zero -- from side B's perspective the frame
+;     is now "local".
+; 
+; On any of the "reject" paths above, and on any sub-step that
+; fails (no AP/RDA, no Frame Valid, no response at all), takes
+; the standard escape-to-main-loop exit: PLA/PLA/JMP main_loop.
+; 
+; On success, return to the caller with mem_ptr / tx_end_lo / tx_end_hi
+; ready for transmit_frame_b (or transmit_frame_a in the reverse
+; direction for queries). Mirror of handshake_rx_b (&E5FF).
+; 
+; Called from five sites: &E1B5 and &E1D0 (rx_a_handle_82/83 query
+; paths), &E254 and &E3DB (forward tails), and &E3CF (also a forward
+; tail).
+; CR1 = &82: TX in reset, RX IRQs enabled
 ; &e56e referenced 5 times by &e1b5, &e1d0, &e254, &e3cf, &e3db
-.sub_ce56e
+.handshake_rx_a
     lda #&82                                                          ; e56e: a9 82       ..
     sta adlc_a_cr1                                                    ; e570: 8d 00 c8    ...
+; A = &01: mask SR2 bit 0 (AP)
     lda #1                                                            ; e573: a9 01       ..
+; Wait for the first RX event
     jsr wait_adlc_a_irq                                               ; e575: 20 e4 e3     ..
     bit adlc_a_cr2                                                    ; e578: 2c 01 c8    ,..
+; No AP: nothing arrived, escape to main
     beq ce5b1                                                         ; e57b: f0 34       .4
+; Read byte 0: destination station
     lda adlc_a_tx                                                     ; e57d: ad 02 c8    ...
     sta tx_dst_stn                                                    ; e580: 8d 5a 04    .Z.
     jsr wait_adlc_a_irq                                               ; e583: 20 e4 e3     ..
     bit adlc_a_cr2                                                    ; e586: 2c 01 c8    ,..
+; Second IRQ gone -> frame truncated, escape
     bpl ce5b1                                                         ; e589: 10 26       .&
+; Read byte 1: destination network
     lda adlc_a_tx                                                     ; e58b: ad 02 c8    ...
     sta tx_dst_net                                                    ; e58e: 8d 5b 04    .[.
+; Y = 2: continue draining pairs into (&045A)+Y
     ldy #2                                                            ; e591: a0 02       ..
 ; &e593 referenced 2 times by &e5a7, &e5af
 .ce593
     jsr wait_adlc_a_irq                                               ; e593: 20 e4 e3     ..
     bit adlc_a_cr2                                                    ; e596: 2c 01 c8    ,..
+; End-of-frame detected mid-pair
     bpl ce5b6                                                         ; e599: 10 1b       ..
     lda adlc_a_tx                                                     ; e59b: ad 02 c8    ...
     sta (mem_ptr_lo),y                                                ; e59e: 91 80       ..
@@ -1297,16 +1345,20 @@ adlc_b_tx2      = &d803
     sta (mem_ptr_lo),y                                                ; e5a4: 91 80       ..
     iny                                                               ; e5a6: c8          .
     bne ce593                                                         ; e5a7: d0 ea       ..
+; Advance to next page of the staging buffer
     inc mem_ptr_hi                                                    ; e5a9: e6 81       ..
     lda mem_ptr_hi                                                    ; e5ab: a5 81       ..
+; Stop if we would overrun available RAM
     cmp top_ram_page                                                  ; e5ad: c5 82       ..
     bcc ce593                                                         ; e5af: 90 e2       ..
+; Escape to main (PLA/PLA/JMP pattern)
 ; &e5b1 referenced 5 times by &e57b, &e589, &e5c5, &e5e4, &e5e9
 .ce5b1
     pla                                                               ; e5b1: 68          h
     pla                                                               ; e5b2: 68          h
     jmp main_loop                                                     ; e5b3: 4c 51 e0    LQ.
 
+; CR1=0, CR2=&84: halt chip post-drain
 ; &e5b6 referenced 1 time by &e599
 .ce5b6
     lda #0                                                            ; e5b6: a9 00       ..
@@ -1315,41 +1367,63 @@ adlc_b_tx2      = &d803
     sta adlc_a_cr2                                                    ; e5bd: 8d 01 c8    ...
     lda #2                                                            ; e5c0: a9 02       ..
     bit adlc_a_cr2                                                    ; e5c2: 2c 01 c8    ,..
+; No Frame Valid -> corrupt/short, escape
     beq ce5b1                                                         ; e5c5: f0 ea       ..
+; FV set but no RDA -> drained, proceed
     bpl ce5cf                                                         ; e5c7: 10 06       ..
+; One trailing byte remained
     lda adlc_a_tx                                                     ; e5c9: ad 02 c8    ...
     sta (mem_ptr_lo),y                                                ; e5cc: 91 80       ..
     iny                                                               ; e5ce: c8          .
+; Finalise tx_end_lo = byte count (rounded even)
 ; &e5cf referenced 1 time by &e5c7
 .ce5cf
     tya                                                               ; e5cf: 98          .
     tax                                                               ; e5d0: aa          .
     and #&fe                                                          ; e5d1: 29 fe       ).
     sta tx_end_lo                                                     ; e5d3: 8d 00 02    ...
+; If src_net was zero, normalise to net_num_a
     lda tx_src_net                                                    ; e5d6: ad 5d 04    .].
     bne ce5e1                                                         ; e5d9: d0 06       ..
     lda net_num_a                                                     ; e5db: ad 00 c0    ...
     sta tx_src_net                                                    ; e5de: 8d 5d 04    .].
+; Forwardability check on tx_dst_net
 ; &e5e1 referenced 1 time by &e5d9
 .ce5e1
     ldy tx_dst_net                                                    ; e5e1: ac 5b 04    .[.
+; dst_net = 0 -> reject
     beq ce5b1                                                         ; e5e4: f0 cb       ..
+; Not reachable via side B -> reject
     lda reachable_via_b,y                                             ; e5e6: b9 5a 02    .Z.
     beq ce5b1                                                         ; e5e9: f0 c6       ..
+; dst_net = net_num_b -> frame is local on B
     cpy net_num_b                                                     ; e5eb: cc 00 d0    ...
     bne ce5f5                                                         ; e5ee: d0 05       ..
+; ...normalise to 0 for the outbound frame
     lda #0                                                            ; e5f0: a9 00       ..
     sta tx_dst_net                                                    ; e5f2: 8d 5b 04    .[.
+; tx_end_hi = final mem_ptr_hi (multi-page)
 ; &e5f5 referenced 1 time by &e5ee
 .ce5f5
     lda mem_ptr_hi                                                    ; e5f5: a5 81       ..
     sta tx_end_hi                                                     ; e5f7: 8d 01 02    ...
+; Reset mem_ptr_hi so transmit reads from &045A
     lda #4                                                            ; e5fa: a9 04       ..
     sta mem_ptr_hi                                                    ; e5fc: 85 81       ..
     rts                                                               ; e5fe: 60          `
 
+; ***************************************************************************************
+; Receive a handshake frame on ADLC B and stage it for forward
+; 
+; Byte-for-byte mirror of handshake_rx_a (&E56E) with adlc_a_*
+; replaced by adlc_b_* and the A/B network-number swaps in the
+; address normalisation: src_net defaults to net_num_b, and the
+; forwardability check is against reachable_via_a.
+; 
+; Called from five sites: &E24E, &E25A, &E336, &E351, &E3D5.
+; See handshake_rx_a for the per-instruction explanation.
 ; &e5ff referenced 5 times by &e24e, &e25a, &e336, &e351, &e3d5
-.sub_ce5ff
+.handshake_rx_b
     lda #&82                                                          ; e5ff: a9 82       ..
     sta adlc_b_cr1                                                    ; e601: 8d 00 d8    ...
     lda #1                                                            ; e604: a9 01       ..
@@ -2598,9 +2672,9 @@ save pydis_start, pydis_end
 ;     tx_end_lo:                6
 ;     ce5b1:                    5
 ;     ce642:                    5
+;     handshake_rx_a:           5
+;     handshake_rx_b:           5
 ;     main_loop_poll:           5
-;     sub_ce56e:                5
-;     sub_ce5ff:                5
 ;     tx_ctrl:                  5
 ;     announce_count:           4
 ;     announce_tmr_hi:          4
@@ -2833,8 +2907,6 @@ save pydis_start, pydis_end
 ;     loop_cf22a
 ;     sub_ce448
 ;     sub_ce48d
-;     sub_ce56e
-;     sub_ce5ff
 
 ; Stats:
 ;     Total size (Code + Data) = 8192 bytes

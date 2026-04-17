@@ -649,6 +649,89 @@ label(0xE2C8, "rx_b_to_forward")
 label(0xE2CB, "rx_frame_b_dispatch")
 
 
+label(0xE56E, "handshake_rx_a")
+subroutine(0xE56E, "handshake_rx_a", hook=None,
+    title="Receive a handshake frame on ADLC A and stage it for forward",
+    description="""\
+The receive half of four-way-handshake bridging for the A side.
+Enables RX on ADLC A, drains an inbound frame byte-by-byte into
+the outbound buffer starting at tx_dst_stn (&045A), then sets up
+tx_end_lo/hi so the next call to transmit_frame_b transmits the
+just-received frame out of the other port verbatim.
+
+The drain is capped at `top_ram_page` (set by the boot RAM test)
+so very long frames fill available RAM and no further.
+
+After the drain, does three pieces of address fix-up on the
+now-staged frame:
+
+  * If tx_src_net (byte 3 of the frame) is zero, fill it with
+    net_num_a. Many Econet senders leave src_net as zero to mean
+    "my local network"; the Bridge makes that explicit before
+    forwarding.
+
+  * Reject the frame if tx_dst_net is zero (no destination
+    network declared) or if reachable_via_b has no entry for
+    that network (we don't know a route).
+
+  * If tx_dst_net equals net_num_b (our own B-side network),
+    normalise it to zero -- from side B's perspective the frame
+    is now "local".
+
+On any of the "reject" paths above, and on any sub-step that
+fails (no AP/RDA, no Frame Valid, no response at all), takes
+the standard escape-to-main-loop exit: PLA/PLA/JMP main_loop.
+
+On success, return to the caller with mem_ptr / tx_end_lo / tx_end_hi
+ready for transmit_frame_b (or transmit_frame_a in the reverse
+direction for queries). Mirror of handshake_rx_b (&E5FF).
+
+Called from five sites: &E1B5 and &E1D0 (rx_a_handle_82/83 query
+paths), &E254 and &E3DB (forward tails), and &E3CF (also a forward
+tail).""")
+
+comment(0xE56E, "CR1 = &82: TX in reset, RX IRQs enabled")
+comment(0xE573, "A = &01: mask SR2 bit 0 (AP)")
+comment(0xE575, "Wait for the first RX event")
+comment(0xE57B, "No AP: nothing arrived, escape to main")
+comment(0xE57D, "Read byte 0: destination station")
+comment(0xE589, "Second IRQ gone -> frame truncated, escape")
+comment(0xE58B, "Read byte 1: destination network")
+comment(0xE591, "Y = 2: continue draining pairs into (&045A)+Y")
+comment(0xE599, "End-of-frame detected mid-pair")
+comment(0xE5A9, "Advance to next page of the staging buffer")
+comment(0xE5AD, "Stop if we would overrun available RAM")
+
+comment(0xE5B1, "Escape to main (PLA/PLA/JMP pattern)")
+
+comment(0xE5B6, "CR1=0, CR2=&84: halt chip post-drain")
+comment(0xE5C5, "No Frame Valid -> corrupt/short, escape")
+comment(0xE5C7, "FV set but no RDA -> drained, proceed")
+comment(0xE5C9, "One trailing byte remained")
+comment(0xE5CF, "Finalise tx_end_lo = byte count (rounded even)")
+comment(0xE5D6, "If src_net was zero, normalise to net_num_a")
+comment(0xE5E1, "Forwardability check on tx_dst_net")
+comment(0xE5E4, "dst_net = 0 -> reject")
+comment(0xE5E6, "Not reachable via side B -> reject")
+comment(0xE5EB, "dst_net = net_num_b -> frame is local on B")
+comment(0xE5F0, "...normalise to 0 for the outbound frame")
+comment(0xE5F5, "tx_end_hi = final mem_ptr_hi (multi-page)")
+comment(0xE5FA, "Reset mem_ptr_hi so transmit reads from &045A")
+
+
+label(0xE5FF, "handshake_rx_b")
+subroutine(0xE5FF, "handshake_rx_b", hook=None,
+    title="Receive a handshake frame on ADLC B and stage it for forward",
+    description="""\
+Byte-for-byte mirror of handshake_rx_a (&E56E) with adlc_a_*
+replaced by adlc_b_* and the A/B network-number swaps in the
+address normalisation: src_net defaults to net_num_b, and the
+forwardability check is against reachable_via_a.
+
+Called from five sites: &E24E, &E25A, &E336, &E351, &E3D5.
+See handshake_rx_a for the per-instruction explanation.""")
+
+
 label(0xE1D6, "rx_a_handle_80")
 subroutine(0xE1D6, "rx_a_handle_80", hook=None, is_entry_point=False,
     title="Side-A initial bridge announcement (ctrl=&80)",
