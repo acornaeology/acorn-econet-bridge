@@ -120,6 +120,7 @@ The writeups in `docs/analysis/` cover specific aspects in depth:
 - [*One frame, two broadcasts*](two-broadcasts-one-template.md) — how the reset-time announcement re-uses a single buffer.
 - [*The Econet Bridge has no station address*](bridge-has-no-station-number.md) — why the Bridge sits on each segment without claiming a station number, and what the `&18` firmware marker in outbound frames is for.
 - [*Bridging the four-way handshake*](four-way-handshake-bridging.md) — how `rx_a_forward` implements full Econet scout/ACK/data/ACK forwarding through a sequence of receive-and-stage + transmit pairs.
+- [*Frame-buffer capacity and the dynamic RAM ceiling*](frame-buffer-capacity-and-ram-sizing.md) — how much frame a standard 8 KiB bridge can absorb, and what the firmware would do if more RAM were fitted.
 - [*The self-test LED*](led-self-test-indicator.md) — how one ADLC output pin encodes four distinct functional states.
 
 
