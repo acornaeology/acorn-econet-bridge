@@ -5,7 +5,7 @@ A close reading of a thirteen-instruction loop in the Acorn Econet Bridge ROM th
 
 ## The code
 
-The Bridge boots with its RAM size unknown — the Econet Bridge board can be populated either with one 8 KiB 6264 chip, or with four 2 KiB 6116 chips (selected by soldered links), and the firmware is expected to discover how much RAM it has at power-on. The [reset handler](address:E000@1?hex) dispatches to this short routine [`ram_test`](address:E00B@1?hex):
+The Bridge boots with its RAM size unknown — the Econet Bridge board can be populated either with one 8 KiB 6264 chip, or with four 2 KiB 6116 chips (selected by soldered links), and the firmware is expected to discover how much RAM it has at power-on. The [reset handler](address:E000@variant_1?hex) dispatches to this short routine [`ram_test`](address:E00B@variant_1?hex):
 
 ```
                 ldy #0
@@ -103,5 +103,5 @@ The routine reassembles to thirteen instructions and runs in a fraction of a mil
 
 ## Cross-references
 
-- `top_ram_page` (`&82`) is consumed downstream by workspace initialisation — the reset handler [at `&E02D`](address:E02D@1) onward carries the value forward.
+- `top_ram_page` (`&82`) is consumed downstream by workspace initialisation — the reset handler [at `&E02D`](address:E02D@variant_1) onward carries the value forward.
 - The Bridge's board layout — including the RAM-population option links that make this dynamic sizing necessary — is documented in [Ian Stocks's reverse-engineered schematic](https://stardot.org.uk/forums/download/file.php?id=26508).

@@ -12,9 +12,9 @@ Requires [uv](https://docs.astral.sh/uv/) and [beebasm](https://github.com/stard
 
 ```sh
 uv sync                                            # Install dependencies
-uv run acorn-econet-bridge-disasm-tool disassemble 1  # Generate .asm and .json from ROM
-uv run acorn-econet-bridge-disasm-tool lint 1         # Validate annotation addresses
-uv run acorn-econet-bridge-disasm-tool verify 1       # Reassemble and byte-compare against original ROM
+uv run acorn-econet-bridge-disasm-tool disassemble variant_1  # Generate .asm and .json from ROM
+uv run acorn-econet-bridge-disasm-tool lint variant_1         # Validate annotation addresses
+uv run acorn-econet-bridge-disasm-tool verify variant_1       # Reassemble and byte-compare against original ROM
 ```
 
 Verification is the primary correctness check: the generated assembly must reassemble to a byte-identical copy of the original ROM. Lint validates that all annotation addresses (comments, subroutines, labels) reference valid item addresses in the py8dis output. CI runs `disassemble`, `lint`, then `verify` on every push.
@@ -27,7 +27,7 @@ Verification is the primary correctness check: the generated assembly must reass
 
 ### Disassembly driver
 
-`versions/econet-bridge-1/disassemble/disasm_econet_bridge_1.py` — the main annotation file. Configures py8dis with labels, constants, subroutine descriptions, comments, and relocated code blocks using py8dis's DSL (`label()`, `constant()`, `comment()`, `subroutine()`, `move()`, `hook_subroutine()`). This is where most development work happens.
+`versions/econet-bridge-variant_1/disassemble/disasm_econet_bridge_variant_1.py` — the main annotation file. Configures py8dis with labels, constants, subroutine descriptions, comments, and relocated code blocks using py8dis's DSL (`label()`, `constant()`, `comment()`, `subroutine()`, `move()`, `hook_subroutine()`). This is where most development work happens.
 
 ### Lint
 
@@ -44,7 +44,7 @@ Each ROM version lives under `versions/econet-bridge-<version>/`. Subdirectories
 - `disassemble/` — py8dis driver script
 - `output/` — generated assembly (`.asm`) and structured data (`.json`)
 
-Version IDs in `acornaeology.json` and CLI arguments are bare numbers (`1`). The `resolve_version_dirpath()` helper in `src/disasm_tools/paths.py` maps them to the directory using the `econet-bridge` prefix.
+Version IDs identify a specific board variant: the first is `variant_1`. (Two ROM variants are known to exist in the wild; the relationship between them hasn't been established, and neither carries a version number inside the image itself, so we label them by discovery order rather than by any embedded version or model number.) The `resolve_version_dirpath()` helper in `src/disasm_tools/paths.py` maps version IDs to the matching `versions/econet-bridge-{version_id}` directory.
 
 ### Glossary
 

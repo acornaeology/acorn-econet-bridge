@@ -38,7 +38,7 @@ class Instruction:
 @dataclass
 class RomData:
     """An opcode-sweep of a ROM binary, paired with a load address."""
-    label: str              # human-readable label (e.g. "econet-bridge-1")
+    label: str              # human-readable label (e.g. "econet-bridge-variant_1")
     load_addr: int          # address at which the ROM is mapped
     data: bytes             # raw ROM contents
     instructions: list      # list[Instruction] from linear sweep
@@ -230,7 +230,7 @@ def main(argv=None):
         "primary",
         help=(
             "Primary ROM spec: [label=]path@load-addr, e.g. "
-            "econet=versions/econet-bridge-1/rom/econet-bridge-1.rom@&E000"
+            "econet=versions/econet-bridge-variant_1/rom/econet-bridge-variant_1.rom@&E000"
         ),
     )
     parser.add_argument(

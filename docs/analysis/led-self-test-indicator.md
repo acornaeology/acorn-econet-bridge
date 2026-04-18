@@ -22,7 +22,7 @@ A full-ROM search for every write to CR3 on ADLC B — the ADLC with the LED —
 
 The surrounding sequences are otherwise byte-for-byte identical: both write `CR1 = &C1` (reset with AC=1), then `CR4 = &1E`, then their respective CR3 value, then `CR1 = &82`, then `CR2 = &67`. The only behavioural difference between the "run-time" reset and the "self-test" reset is the bit that drives the LED.
 
-In normal operation, the ADLC is initialised via `adlc_b_full_reset` and CR3 stays at zero for the life of the session. The LED therefore stays dark. When the operator presses the self-test push-button on the 6502 `~IRQ` line, the IRQ/BRK vector lands at [`self_test`](address:F000@1?hex), which runs `self_test_reset_adlcs` — and the LED comes on. It stays on for the duration of the self-test, since nothing else touches CR3 until a reset runs the normal `adlc_b_full_reset` sequence again.
+In normal operation, the ADLC is initialised via `adlc_b_full_reset` and CR3 stays at zero for the life of the session. The LED therefore stays dark. When the operator presses the self-test push-button on the 6502 `~IRQ` line, the IRQ/BRK vector lands at [`self_test`](address:F000@variant_1?hex), which runs `self_test_reset_adlcs` — and the LED comes on. It stays on for the duration of the self-test, since nothing else touches CR3 until a reset runs the normal `adlc_b_full_reset` sequence again.
 
 The LED is therefore exactly one thing: a self-test-in-progress indicator.
 

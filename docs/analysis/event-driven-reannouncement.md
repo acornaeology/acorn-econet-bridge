@@ -22,10 +22,10 @@ A full scan of the ROM shows `announce_flag` is written at exactly four sites:
 
 | Site | Value | Location |
 |---|---|---|
-| [`&E035`](address:E035@1) | `&00` | Inside the reset handler — clears the flag at boot. |
-| [`&E0C4`](address:E0C4@1) | `&00` | Inside [`re_announce_done`](address:E0C2@1?hex) — clears the flag when `announce_count` hits zero. |
-| [`&E1EB`](address:E1EB@1) | `&40` | Inside [`rx_a_handle_80`](address:E1D6@1?hex) — sets the flag after receiving a BridgeReset on side A. |
-| [`&E36C`](address:E36C@1) | `&80` | Inside [`rx_b_handle_80`](address:E357@1?hex) — sets it after receiving a BridgeReset on side B. |
+| [`&E035`](address:E035@variant_1) | `&00` | Inside the reset handler — clears the flag at boot. |
+| [`&E0C4`](address:E0C4@variant_1) | `&00` | Inside [`re_announce_done`](address:E0C2@variant_1?hex) — clears the flag when `announce_count` hits zero. |
+| [`&E1EB`](address:E1EB@variant_1) | `&40` | Inside [`rx_a_handle_80`](address:E1D6@variant_1?hex) — sets the flag after receiving a BridgeReset on side A. |
+| [`&E36C`](address:E36C@variant_1) | `&80` | Inside [`rx_b_handle_80`](address:E357@variant_1?hex) — sets it after receiving a BridgeReset on side B. |
 
 Every write that _sets_ the flag non-zero is a response to having received a BridgeReset (`ctrl=&80`) from another bridge. No other receive-handler touches the flag. No timer, no interrupt, no startup path sets it. The main loop's idle path reads the flag and acts on it, but never writes it.
 
@@ -149,8 +149,8 @@ For a workgroup local-area network with a dozen bridges at most, operating over 
 ## Cross-references
 
 - `announce_flag` / `announce_tmr_lo/hi` / `announce_count` label header at the top of the driver script — documents the whole state machine.
-- [`rx_a_handle_80`](address:E1D6@1?hex) and [`rx_b_handle_80`](address:E357@1?hex) — the only two routines that set the flag.
-- [`re_announce`](address:E098@1?hex) — the action that runs when the flag is set and the timer fires.
-- [`re_announce_done`](address:E0C2@1?hex) — clears the flag when the burst is complete.
+- [`rx_a_handle_80`](address:E1D6@variant_1?hex) and [`rx_b_handle_80`](address:E357@variant_1?hex) — the only two routines that set the flag.
+- [`re_announce`](address:E098@variant_1?hex) — the action that runs when the flag is set and the timer fires.
+- [`re_announce_done`](address:E0C2@variant_1?hex) — clears the flag when the burst is complete.
 - [The Bridge architecture overview](bridge-architecture-overview.md) — context.
 - [One frame, two broadcasts](two-broadcasts-one-template.md) — the boot-time dual-broadcast of BridgeReset that's the _only_ unprompted announcement a bridge ever emits.

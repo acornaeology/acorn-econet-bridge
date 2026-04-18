@@ -37,15 +37,15 @@ Notably absent:
 
 ## Boot
 
-The [reset handler](address:E000@1?hex) runs the following sequence end-to-end:
+The [reset handler](address:E000@variant_1?hex) runs the following sequence end-to-end:
 
-1. **Initialise the routing tables.** [`init_reachable_nets`](address:E424@1?hex) clears two 256-byte tables at `&025A` (`reachable_via_b`) and `&035A` (`reachable_via_a`), then marks the Bridge's own two network numbers and the broadcast slot (`255`) as known. See below for what these tables mean.
+1. **Initialise the routing tables.** [`init_reachable_nets`](address:E424@variant_1?hex) clears two 256-byte tables at `&025A` (`reachable_via_b`) and `&035A` (`reachable_via_a`), then marks the Bridge's own two network numbers and the broadcast slot (`255`) as known. See below for what these tables mean.
 
-2. **Initialise both ADLCs.** [`adlc_a_full_reset`](address:E3F0@1?hex) and [`adlc_b_full_reset`](address:E40A@1?hex) each send the standard sequence `CR1=&C1`, `CR4=&1E`, `CR3=&00`, `CR1=&82`, `CR2=&67` to their ADLC — reset both sections, configure 8-bit NRZ, then enter idle listen mode.
+2. **Initialise both ADLCs.** [`adlc_a_full_reset`](address:E3F0@variant_1?hex) and [`adlc_b_full_reset`](address:E40A@variant_1?hex) each send the standard sequence `CR1=&C1`, `CR4=&1E`, `CR3=&00`, `CR1=&82`, `CR2=&67` to their ADLC — reset both sections, configure 8-bit NRZ, then enter idle listen mode.
 
-3. **Size the RAM.** [`ram_test`](address:E00B@1?hex) scans pages from `&1800` upward, writing `&AA` and `&55` patterns to each and reading them back; the last page that verifies is recorded at `&82` as `top_ram_page`. The test uses an `INC $00` between each write and read as a defence against data-bus residue and address-line aliasing — see [*Anti-aliasing in the Econet Bridge's RAM test*](ram-test-anti-aliasing.md).
+3. **Size the RAM.** [`ram_test`](address:E00B@variant_1?hex) scans pages from `&1800` upward, writing `&AA` and `&55` patterns to each and reading them back; the last page that verifies is recorded at `&82` as `top_ram_page`. The test uses an `INC $00` between each write and read as a defence against data-bus residue and address-line aliasing — see [*Anti-aliasing in the Econet Bridge's RAM test*](ram-test-anti-aliasing.md).
 
-4. **Announce presence on both sides.** [`build_announce_b`](address:E458@1?hex) constructs a bridge-announcement frame addressed as a full broadcast (`dst_stn = dst_net = &FF`) with control byte `&80`, port `&9C`, and a single payload byte giving the Bridge's *other-side* network number. The same frame is then transmitted first on side A (payload = `net_num_b`) and then on side B (after patching the payload to `net_num_a`). See [*One frame, two broadcasts*](two-broadcasts-one-template.md).
+4. **Announce presence on both sides.** [`build_announce_b`](address:E458@variant_1?hex) constructs a bridge-announcement frame addressed as a full broadcast (`dst_stn = dst_net = &FF`) with control byte `&80`, port `&9C`, and a single payload byte giving the Bridge's *other-side* network number. The same frame is then transmitted first on side A (payload = `net_num_b`) and then on side B (after patching the payload to `net_num_a`). See [*One frame, two broadcasts*](two-broadcasts-one-template.md).
 
 5. **Fall through to the main loop.** No "boot complete" flag, no observable boundary between reset and steady state; execution just continues into the main loop.
 
@@ -54,11 +54,11 @@ If any of the final `wait_adlc_*_idle` or `transmit_frame_*` calls takes its tim
 
 ## Steady state: the main loop
 
-The [main loop](address:E051@1?hex) is small. Its header re-arms both ADLCs (clearing any lingering status from a previous frame), then enters a tight polling loop at [`main_loop_poll`](address:E079@1?hex) that tests SR1 bit 7 — the IRQ summary — on each chip in turn:
+The [main loop](address:E051@variant_1?hex) is small. Its header re-arms both ADLCs (clearing any lingering status from a previous frame), then enters a tight polling loop at [`main_loop_poll`](address:E079@variant_1?hex) that tests SR1 bit 7 — the IRQ summary — on each chip in turn:
 
-- If ADLC B has raised IRQ, jump to [`rx_frame_b`](address:E263@1?hex).
-- Otherwise, if ADLC A has raised IRQ, jump to [`rx_frame_a`](address:E0E2@1?hex).
-- Otherwise, enter the idle path at [`main_loop_idle`](address:E089@1?hex).
+- If ADLC B has raised IRQ, jump to [`rx_frame_b`](address:E263@variant_1?hex).
+- Otherwise, if ADLC A has raised IRQ, jump to [`rx_frame_a`](address:E0E2@variant_1?hex).
+- Otherwise, enter the idle path at [`main_loop_idle`](address:E089@variant_1?hex).
 
 The idle path decrements a 16-bit timer (`announce_tmr_lo/hi`). When the timer reaches zero, it invokes the re-announcement code, which rebuilds and retransmits the bridge-announcement frame — on side A if `announce_flag`'s bit 7 is clear, on side B otherwise — and decrements a counter. Once the counter runs out, `announce_flag` is cleared and the idle path goes quiet until something else re-enables it.
 
@@ -75,7 +75,7 @@ When an ADLC IRQ fires, one of the two `rx_frame_?` handlers runs. Each has the 
 
 3. **Dispatch.** If the destination is `(&FF, &FF)` — a full broadcast — *and* the port is `&9C` (the bridge-protocol port), the control byte is used to dispatch to a bridge-protocol handler (`&80`, `&81`, `&82`, `&83`). Anything else falls to the forwarding path.
 
-The forwarding path — [`rx_a_forward`](address:E208@1?hex) / [`rx_b_forward`](address:E389@1?hex) — is where the real work happens, and where the architecture gets genuinely clever: see [*Bridging the four-way handshake*](four-way-handshake-bridging.md) for how the Bridge implements Econet's scout/ACK/data/ACK transaction across two segments.
+The forwarding path — [`rx_a_forward`](address:E208@variant_1?hex) / [`rx_b_forward`](address:E389@variant_1?hex) — is where the real work happens, and where the architecture gets genuinely clever: see [*Bridging the four-way handshake*](four-way-handshake-bridging.md) for how the Bridge implements Econet's scout/ACK/data/ACK transaction across two segments.
 
 
 ## The bridge protocol
@@ -86,7 +86,7 @@ Four control-byte values on port `&9C` define the bridge protocol:
 
 - **`&81` — re-announcement.** Payload is a variable-length list of network numbers the sender can reach. Each recipient records these in its routing table as "reachable via this side", appends its own network number to the payload, and re-broadcasts the augmented frame on the other side. The result is a distance-vector flood: every bridge in the mesh eventually hears about every network, and about every bridge in between.
 
-- **`&82` — general query ("any bridges?").** A station or bridge uses this to ask "who's out there?". Every bridge that hears the query responds with a two-frame exchange (scout then data) telling the querier which network the bridge serves on each side. The response transmissions are delay-staggered by the bridge's own network number via [`stagger_delay`](address:E448@1?hex), so multiple bridges don't respond at the same millisecond.
+- **`&82` — general query ("any bridges?").** A station or bridge uses this to ask "who's out there?". Every bridge that hears the query responds with a two-frame exchange (scout then data) telling the querier which network the bridge serves on each side. The response transmissions are delay-staggered by the bridge's own network number via [`stagger_delay`](address:E448@variant_1?hex), so multiple bridges don't respond at the same millisecond.
 
 - **`&83` — targeted query ("can you reach network X?").** Like `&82` but with a specific network number (`rx_query_net`, at offset 13 of the query payload); only bridges that have that network in their `reachable_via_?` table bother to respond.
 

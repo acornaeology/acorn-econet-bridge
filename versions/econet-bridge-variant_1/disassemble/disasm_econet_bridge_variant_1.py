@@ -27,7 +27,7 @@ _script_dirpath = Path(__file__).resolve().parent
 _version_dirpath = _script_dirpath.parent
 _rom_filepath = os.environ.get(
     "ACORN_ECONET_BRIDGE_ROM",
-    str(_version_dirpath / "rom" / "econet-bridge-1.rom"),
+    str(_version_dirpath / "rom" / "econet-bridge-variant_1.rom"),
 )
 _output_dirpath = Path(os.environ.get(
     "ACORN_ECONET_BRIDGE_OUTPUT",
@@ -3065,13 +3065,13 @@ comment(0xF308, "Jump back to start another N-pulse burst forever", inline=True)
 output = go(print_output=False)
 
 _output_dirpath.mkdir(parents=True, exist_ok=True)
-output_filepath = _output_dirpath / "econet-bridge-1.asm"
+output_filepath = _output_dirpath / "econet-bridge-variant_1.asm"
 output_filepath.write_text(output)
 print(f"Wrote {output_filepath}", file=sys.stderr)
 
 try:
     structured = get_structured()
-    json_filepath = _output_dirpath / "econet-bridge-1.json"
+    json_filepath = _output_dirpath / "econet-bridge-variant_1.json"
     json_filepath.write_text(json.dumps(structured))
     print(f"Wrote {json_filepath}", file=sys.stderr)
 except (AssertionError, Exception) as e:

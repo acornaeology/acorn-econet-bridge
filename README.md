@@ -8,9 +8,9 @@ This repository contains annotated disassemblies of the Acorn Econet Bridge ROM,
 
 ## Versions
 
-- **Acorn Econet Bridge 1**
-  - [Formatted disassembly on acornaeology.uk](https://acornaeology.uk/acorn-econet-bridge/1.html)
-  - [Disassembly source on GitHub](https://github.com/acornaeology/acorn-econet-bridge/blob/master/versions/econet-bridge-1/output/econet-bridge-1.asm)
+- **Acorn Econet Bridge Variant 1**
+  - [Formatted disassembly on acornaeology.uk](https://acornaeology.uk/acorn-econet-bridge/variant_1.html)
+  - [Disassembly source on GitHub](https://github.com/acornaeology/acorn-econet-bridge/blob/master/versions/econet-bridge-variant_1/output/econet-bridge-variant_1.asm)
   - [Acorn Econet Bridge in The BBC Micro ROM Library](https://tobylobster.github.io/rom_library/?md5=d5328f517902a4d2659e302acfc0882f)
 
 ## How it works
@@ -25,8 +25,8 @@ Requires [uv](https://docs.astral.sh/uv/) and [beebasm](https://github.com/stard
 
 ```sh
 uv sync
-uv run acorn-econet-bridge-disasm-tool disassemble 1
-uv run acorn-econet-bridge-disasm-tool verify 1
+uv run acorn-econet-bridge-disasm-tool disassemble variant_1
+uv run acorn-econet-bridge-disasm-tool verify variant_1
 ```
 
 ## (Re-)Assembling locally
@@ -34,7 +34,7 @@ uv run acorn-econet-bridge-disasm-tool verify 1
 To assemble the `.asm` file back into a ROM image using [beebasm](https://github.com/stardot/beebasm):
 
 ```sh
-beebasm -i versions/econet-bridge-1/output/econet-bridge-1.asm -o econet-bridge-1.rom
+beebasm -i versions/econet-bridge-variant_1/output/econet-bridge-variant_1.asm -o econet-bridge-variant_1.rom
 ```
 
 ## Analyses
