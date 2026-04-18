@@ -1661,6 +1661,15 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta adlc_a_cr1                                                    ; e724: 8d 00 c8    ...            ; Commit CR1; ADLC A ready to send
     rts                                                               ; e727: 60          `              ; Normal return: caller transmits the frame
 
+; ***************************************************************************************
+; ROM body gap — unused space before the self-test
+;
+; 2264 bytes of &FF padding between the end of the main code at wait_adlc_a_idle_ready
+; and the start of the self-test entry at self_test (&F000).
+;
+; The region is simply the unused tail of the main-code half of the ROM, before the
+; self-test at the page-aligned &F000.
+.rom_body_gap
     for _py8dis_fill_n%, 1, 2264 : equb &ff : next                    ; e728: ff ff ff... ...
 
 ; ***************************************************************************************
@@ -2296,7 +2305,33 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; Checksum-tuning byte: balances the ROM sum to &55
 .rom_checksum_adjust
     equb &46                                                          ; fff0: 46          F
+; ***************************************************************************************
+; ROM vector gap — unused bytes before the hardware vectors
+;
+; 9 bytes of &FF padding between rom_checksum_adjust (&FFF0) at &FFF0 and the 6502
+; hardware vector table at &FFFA (&FFFA).
+;
+; The firmware author had 10 bytes (&FFF0-&FFF9) to choose from for the sum-balancing
+; byte; they placed &46 at &FFF0 and left the remaining nine as &FF.
+.rom_vector_gap
     for _py8dis_fill_n%, 1, 9 : equb &ff : next                       ; fff1: ff ff ff... ...
+; ***************************************************************************************
+; 6502 hardware vector table
+;
+; The three addresses the 6502 fetches when an interrupt fires:
+;
+; | Offset      | Purpose        | Target            |
+; |-------------|----------------|-------------------|
+; | &FFFA-&FFFB | NMI vector     | &FFFF (unused)    |
+; | &FFFC-&FFFD | RESET vector   | reset (&E000)     |
+; | &FFFE-&FFFF | IRQ/BRK vector | self_test (&F000) |
+;
+; NMI isn't wired to anything on the Bridge board, so the slot is filled with &FFFF
+; rather than a real handler. RESET enters the main firmware at &E000. IRQ/BRK -- the
+; line the self-test push-button pulls low -- enters at &F000; pressing the button
+; therefore runs the self-test, and any BRK instruction anywhere in the ROM would do
+; the same thing.
+.hardware_vectors
     equw &ffff                                                        ; fffa: ff ff       ..             ; NMI vector
     equw reset                                                        ; fffc: 00 e0       ..             ; RESET vector
     equw self_test                                                    ; fffe: 00 f0       ..             ; IRQ/BRK vector

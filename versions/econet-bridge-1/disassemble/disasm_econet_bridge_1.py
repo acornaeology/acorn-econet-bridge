@@ -105,6 +105,31 @@ fill(0xE728, 2264)
 fill(0xF30B, 3301)
 fill(0xFFF1, 9)
 
+# Subroutine-style banner for the first (and largest) padding region.
+# Not a subroutine -- py8dis's banner rendering is the cleanest way
+# to put a visible section break into the listing between the main
+# code body and the self-test ROM.
+subroutine(0xE728, "rom_body_gap", hook=None,
+    title="ROM body gap — unused space before the self-test",
+    description="""\
+2264 bytes of `&FF` padding between the end of the main code at
+[`wait_adlc_a_idle_ready`](address:E71F) and the start of the
+self-test entry at [`self_test`](address:F000?hex).
+
+The region is simply the unused tail of the main-code half of the
+ROM, before the self-test at the page-aligned `&F000`.""")
+
+subroutine(0xFFF1, "rom_vector_gap", hook=None,
+    title="ROM vector gap — unused bytes before the hardware vectors",
+    description="""\
+9 bytes of `&FF` padding between
+[`rom_checksum_adjust`](address:FFF0?hex) at `&FFF0` and the 6502
+hardware vector table at [`&FFFA`](address:FFFA?hex).
+
+The firmware author had 10 bytes (`&FFF0-&FFF9`) to choose from for
+the sum-balancing byte; they placed `&46` at `&FFF0` and left the
+remaining nine as `&FF`.""")
+
 # Hardware vector data declarations
 word(0xFFFA)
 if 0xE000 <= _nmi_addr <= 0xFFF9:
@@ -119,6 +144,24 @@ word(0xFFFE)
 if 0xE000 <= _irq_addr <= 0xFFF9:
     expr(0xFFFE, "self_test")
 comment(0xFFFE, "IRQ/BRK vector", inline=True)
+
+subroutine(0xFFFA, "hardware_vectors", hook=None,
+    title="6502 hardware vector table",
+    description="""\
+The three addresses the 6502 fetches when an interrupt fires:
+
+| Offset | Purpose | Target |
+|--------|---------|--------|
+| `&FFFA-&FFFB` | NMI vector | `&FFFF` (unused) |
+| `&FFFC-&FFFD` | RESET vector | [`reset`](address:E000?hex) |
+| `&FFFE-&FFFF` | IRQ/BRK vector | [`self_test`](address:F000?hex) |
+
+NMI isn't wired to anything on the Bridge board, so the slot is
+filled with `&FFFF` rather than a real handler. RESET enters the
+main firmware at `&E000`. IRQ/BRK -- the line the self-test
+push-button pulls low -- enters at `&F000`; pressing the button
+therefore runs the self-test, and any `BRK` instruction anywhere
+in the ROM would do the same thing.""")
 
 
 # =====================================================================

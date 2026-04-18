@@ -20,7 +20,7 @@ The bridge box contains:
 
 - A 6502 CPU clocked at 2 MHz
 - 8 KiB of RAM (either one 6264 or four 6116s, selected by board jumpers) from `&0000`
-- 8 KiB of EPROM at `&E000-&FFFF` containing the firmware
+- 8 KiB of ROM at `&E000-&FFFF` containing the firmware
 - Two MC68B54 ADLCs — the Motorola HDLC/ADCCP framing chip — one per Econet port, memory-mapped at `&C800-&C803` and `&D800-&D803`
 - Two 74LS244 octal buffers that read the per-port network-number jumpers into memory addresses `&C000` and `&D000`
 - A single LED, driven by the `LOC/DTR` output pin of the side-B ADLC
