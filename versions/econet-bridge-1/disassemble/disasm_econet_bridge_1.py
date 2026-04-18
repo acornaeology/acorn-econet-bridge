@@ -181,12 +181,12 @@ subroutine(0xE3E4, "wait_adlc_a_irq", hook=None,
     title="Wait for ADLC A IRQ (polled)",
     description="""\
 Spin reading SR1 of ADLC A until the IRQ bit (bit 7) is set. Called
-from 19 sites where the code needs to wait for the ADLC to signal an
-event (frame complete, RX data available, TX ready, etc.).
+from 19 sites where the code needs to wait for the ADLC to signal
+an event (frame complete, RX data available, TX ready, etc.).
 
-The Bridge does not route the ADLC ~IRQ output to the 6502 ~IRQ line
-(that pin is used for the self-test push-button), so ADLC attention
-is obtained by polling.""")
+The Bridge does not route the ADLC `~IRQ` output to the 6502 `~IRQ`
+line (that pin is used for the self-test push-button), so ADLC
+attention is obtained by polling.""")
 
 comment(0xE3E4, "Peek ADLC A status, testing the IRQ-summary bit", inline=True)
 comment(0xE3E7, "Spin while the chip has nothing to report", inline=True)
@@ -397,25 +397,25 @@ label(0xE424, "init_reachable_nets")
 subroutine(0xE424, "init_reachable_nets", hook=None,
     title="Reset both routing tables to the directly-attached networks",
     description="""\
-Zeroes the two 256-entry routing tables (reachable_via_a at &035A
-and reachable_via_b at &025A), then writes &FF to four slots
+Zeroes the two 256-entry routing tables (`reachable_via_a` at `&035A`
+and `reachable_via_b` at `&025A`), then writes `&FF` to four slots
 that are true by virtue of the Bridge's immediate topology:
 
-  reachable_via_a[net_num_a]  -- side A's own network is reachable
-                                 via side A (trivially)
-  reachable_via_b[net_num_b]  -- side B's own network is reachable
-                                 via side B (trivially)
-  reachable_via_a[255]        -- broadcast network reachable both
-  reachable_via_b[255]           ways
+| slot                          | meaning                                   |
+|-------------------------------|-------------------------------------------|
+| `reachable_via_a[net_num_a]`  | side A's own network is reachable via A   |
+| `reachable_via_b[net_num_b]`  | side B's own network is reachable via B   |
+| `reachable_via_a[255]`        | broadcast network reachable via either    |
+| `reachable_via_b[255]`        | side                                      |
 
-Everything else starts at zero and is populated later by bridge-
-protocol announcements learned in the rx handlers (see
-rx_a_handle_80 / rx_b_handle_80).
+Everything else starts at zero and is populated later by
+bridge-protocol announcements learned in the rx handlers (see
+[`rx_a_handle_80`](address:E1D6) / [`rx_b_handle_80`](address:E357)).
 
 Called from the reset handler and also re-invoked from the two
-rx_?_handle_80 paths -- receiving an initial bridge announcement
-indicates a topology change that invalidates the learned state,
-so the Bridge forgets everything and starts accumulating again.""")
+`rx_?_handle_80` paths -- receiving an initial bridge announcement
+indicates a topology change that invalidates the learned state, so
+the Bridge forgets everything and starts accumulating again.""")
 
 comment(0xE424, "Y: walks every network number 0..255", inline=True)
 comment(0xE426, "A = 0: 'route not known' marker", inline=True)
@@ -453,40 +453,37 @@ label(0xE00B, "ram_test")
 subroutine(0xE00B, "ram_test", hook=None, is_entry_point=False,
     title="Scan pages from &1800 upward; record top of RAM",
     description="""\
-Probes pages upward from &1800 by writing &AA and &55 patterns
-through mem_ptr_lo/mem_ptr_hi (&80/&81) and verifying each. The
-highest page that verifies is stored in top_ram_page (&82), used
-downstream by workspace initialisation. The Bridge can be built
-with either one 8 KiB 6264 chip or four 2 KiB 6116 chips (chosen
-by soldered links), so RAM size must be discovered at power-on.
+Probes pages upward from `&1800` by writing `&AA` and `&55` patterns
+through `mem_ptr_lo`/`mem_ptr_hi` (`&80`/`&81`) and verifying each.
+The highest page that verifies is stored in `top_ram_page` (`&82`),
+used downstream by workspace initialisation. The Bridge can be built
+with either one 8 KiB 6264 chip or four 2 KiB 6116 chips (chosen by
+soldered links), so RAM size must be discovered at power-on.
 
 The routine looks like a textbook two-pattern memory test but is
 considerably more robust than a naive STA/LDA/CMP would be. Three
-independent mechanisms have to fail simultaneously for it to
-report RAM where none exists:
+independent mechanisms have to fail simultaneously for it to report
+RAM where none exists:
 
-  1. The INC on zero-page &00 between each write and its matching
-     read is an anti-bus-residue defence. When the 6502 writes to
-     an unmapped address, no chip latches the value, but the data
-     bus capacitance can hold the written byte long enough for
-     the subsequent LDA to sample its own ghost. INC $00 is a
-     read-modify-write that drives the data bus three times with
-     values unrelated to the test pattern (the cycle-4 dummy
-     write is a classic NMOS 6502 quirk that is exploited here),
-     clobbering any residue of &AA or &55.
+1. The `INC` on zero-page `&00` between each write and its matching
+   read is an **anti-bus-residue defence**. When the 6502 writes to
+   an unmapped address, no chip latches the value, but the data-bus
+   capacitance can hold the written byte long enough for the
+   subsequent `LDA` to sample its own ghost. `INC $00` is a
+   read-modify-write that drives the data bus three times with values
+   unrelated to the test pattern (the cycle-4 dummy write is a
+   classic NMOS 6502 quirk that is exploited here), clobbering any
+   residue of `&AA` or `&55`.
+2. The choice of `&00` specifically is an **alias tripwire**. If the
+   address decoder is miswired and the target address aliases into
+   zero page, the obvious alias landing point is `&00` -- so
+   disturbing `&00` between write and read forces any alias-based
+   false-positive to fail the `CMP`.
+3. The two patterns `&AA` and `&55` are **bitwise complements**: a
+   stuck bit is detected on whichever pattern it contradicts, and a
+   single-value bus residue cannot spoof both checks simultaneously.
 
-  2. The choice of &00 specifically is an alias tripwire. If the
-     address decoder is miswired and the target address aliases
-     into zero page, the obvious alias landing point is &00 — so
-     disturbing &00 between write and read forces any alias-based
-     false-positive to fail the CMP.
-
-  3. The two patterns &AA and &55 are bitwise complements: a
-     stuck bit is detected on whichever pattern it contradicts,
-     and a single-value bus residue cannot spoof both checks
-     simultaneously.
-
-See docs/analysis/ram-test-anti-aliasing.md for the full
+See `docs/analysis/ram-test-anti-aliasing.md` for the full
 cycle-level analysis.""")
 
 comment(0xE00B, "Y = 0: ZP offset used by (mem_ptr_lo),Y throughout", inline=True)
@@ -533,17 +530,21 @@ subroutine(0xE033, "reset_announce_broadcasts", hook=None,
     is_entry_point=False,
     title="Emit the boot-time BridgeReset pair on both Econet sides",
     description="""\
-Second half of the reset handler. Clears announce_flag so the
+Second half of the reset handler. Clears `announce_flag` so the
 idle-path re-announcer starts quiescent, then builds a single
-BridgeReset template (ctrl=&80, port=&9C, payload=net_num_b) and
-transmits it twice: first on side A with net_num_b in the payload,
-then on side B after patching the payload to net_num_a. The two
-wait_adlc_?_idle calls gate each transmit on carrier-sense; either
-can escape to main_loop if the line never goes idle.
+BridgeReset template (`ctrl=&80`, `port=&9C`, `payload=net_num_b`)
+via [`build_announce_b`](address:E458) and transmits it twice:
+first on side A with `net_num_b` in the payload, then on side B
+after patching the payload to `net_num_a`. The two
+[`wait_adlc_a_idle`](address:E6DC) /
+[`wait_adlc_b_idle`](address:E690) calls gate each transmit on
+carrier-sense; either can escape to [`main_loop`](address:E051)
+if the line never goes idle.
 
-Falls through to main_loop on success. A clean reset therefore
-emits exactly two frames before steady-state polling begins. See
-two-broadcasts-one-template.md for why one template suffices.""")
+Falls through to [`main_loop`](address:E051) on success. A clean
+reset therefore emits exactly two frames before steady-state
+polling begins. See `docs/analysis/two-broadcasts-one-template.md`
+for why one template suffices.""")
 
 comment(0xE033, "A = 0: clear announce_flag (idle path stays quiet initially)", inline=True)
 comment(0xE035, "Commit announce_flag = 0 to workspace", inline=True)
@@ -566,42 +567,45 @@ label(0xE458, "build_announce_b")
 subroutine(0xE458, "build_announce_b", hook=None,
     title="Build a BridgeReset scout carrying net_num_b as payload",
     description="""\
-Populates the outbound frame control block at &045A-&0460 with
-an all-broadcast BridgeReset scout -- ctrl=&80, port=&9C, payload
-= net_num_b. At reset time this is transmitted
-via ADLC A first (announcing "network net_num_b is reachable
-through me" to side A's stations), then tx_data0 is patched to
-net_num_a and the same frame is re-transmitted via ADLC B.
+Populates the outbound frame control block at `&045A-&0460` with an
+all-broadcast BridgeReset scout -- `ctrl=&80`, `port=&9C`,
+`payload=net_num_b`. At reset time this is transmitted via ADLC A
+first (announcing "network `net_num_b` is reachable through me" to
+side A's stations), then `tx_data0` is patched to `net_num_a` and
+the same frame is re-transmitted via ADLC B.
 
-  tx_dst_stn = &FF                    broadcast station
-  tx_dst_net = &FF                    broadcast network
-  tx_src_stn = &18                    firmware marker (see below)
-  tx_src_net = &18                    firmware marker (see below)
-  tx_ctrl    = &80                    initial-announcement ctrl
-  tx_port    = &9C                    bridge-protocol port
-  tx_data0   = net_num_b              network number on side B
+| field        | value        | meaning                             |
+|--------------|--------------|-------------------------------------|
+| `tx_dst_stn` | `&FF`        | broadcast station                   |
+| `tx_dst_net` | `&FF`        | broadcast network                   |
+| `tx_src_stn` | `&18`        | firmware marker (see below)         |
+| `tx_src_net` | `&18`        | firmware marker (see below)         |
+| `tx_ctrl`    | `&80`        | initial-announcement ctrl           |
+| `tx_port`    | `&9C`        | bridge-protocol port                |
+| `tx_data0`   | `net_num_b`  | network number on side B            |
 
-The src_stn/src_net fields are both set to the constant &18. The
-Bridge has no station number of its own (only network numbers,
-per the Installation Guide) so these fields are not real addresses.
-Receivers do not use them for routing -- rx_a_handle_81 reads the
-payload starting at offset 6 and ignores bytes 2-3 entirely. The
-most plausible role for &18 is defensive redundancy: together with
-dst=(&FF,&FF), ctrl=&80/&81 and port=&9C it gives a receiver
-multiple ways to confirm that a received frame is a well-formed
-bridge announcement.
+The `src_stn`/`src_net` fields are both set to the constant `&18`.
+The Bridge has no station number of its own (only network numbers,
+per the Installation Guide), so these fields are not real addresses.
+Receivers do not use them for routing --
+[`rx_a_handle_81`](address:E1EE) reads the payload starting at offset
+6 and ignores bytes 2-3 entirely. The most plausible role for `&18`
+is defensive redundancy: together with `dst=(&FF,&FF)`,
+`ctrl=&80`/`&81` and `port=&9C` it gives a receiver multiple ways to
+confirm that a received frame is a well-formed bridge announcement.
 
-Also writes &06 to tx_end_lo and &04 to tx_end_hi (so the transmit
-routine sends bytes &045A..&0460 inclusive = 7 bytes when X=1),
-loads X=1 (trailing-byte flag for transmit_frame_a), and points
-mem_ptr at the frame block (&045A).
+Also writes `&06` to `tx_end_lo` and `&04` to `tx_end_hi` (so the
+transmit routine sends bytes `&045A..&0460` inclusive -- 7 bytes
+when X=1), loads X=1 (trailing-byte flag for
+[`transmit_frame_a`](address:E517)), and points `mem_ptr` at the
+frame block (`&045A`).
 
-Called from the reset handler at &E038 and again from &E098 (the
-main-loop periodic re-announce path). A structurally identical
-cousin builder is [`build_query_response`](address:E48D?hex), called from four
-sites; it populates the same fields with values drawn from RAM
-variables at rx_src_stn and rx_query_net rather than baked-in
-constants.""")
+Called from the reset handler at [`&E038`](address:E038) and again
+from [`&E098`](address:E098) (the main-loop periodic re-announce
+path). A structurally identical cousin builder is
+[`build_query_response`](address:E48D?hex), called from four sites;
+it populates the same fields with values drawn from RAM variables
+at `rx_src_stn` and `rx_query_net` rather than baked-in constants.""")
 
 comment(0xE458, "Broadcast marker &FF for dst station AND network", inline=True)
 comment(0xE45A, "Write dst_stn = 255 into the frame header", inline=True)
@@ -656,20 +660,19 @@ runs the periodic re-announcement.
 
 The re-announce scheme uses three bytes of workspace:
 
-  announce_flag   enables re-announce (bit 7 additionally selects
-                  which side the re-announce goes out on)
-  announce_tmr_   16-bit countdown, decremented every idle-path
-    lo/hi         iteration; zero triggers the re-announce
-  announce_count  remaining re-announce cycles; when this hits
-                  zero, announce_flag is cleared and re-announce
-                  stops until something else re-enables it
+| byte                   | role                                                                                         |
+|------------------------|----------------------------------------------------------------------------------------------|
+| `announce_flag`        | enables re-announce; bit 7 additionally selects which side the re-announce goes out on       |
+| `announce_tmr_lo/hi`   | 16-bit countdown, decremented every idle-path iteration; zero triggers the re-announce       |
+| `announce_count`       | remaining re-announce cycles; when this hits zero, `announce_flag` is cleared and re-announce stops until something else re-enables it |
 
-The re-announce path (&E098) rebuilds the announcement frame, sets
-tx_ctrl to &81 (distinguishing it from the reset-time &80 first
-announcement), then dispatches to side A or side B based on
-announce_flag bit 7. The timer is re-armed to &8000 (32768 idle
-iterations) after each announce, giving a roughly constant cadence
-regardless of how busy the ADLCs are with other traffic.""")
+The re-announce path ([`re_announce`](address:E098)) rebuilds the
+announcement frame, sets `tx_ctrl` to `&81` (distinguishing it from
+the reset-time `&80` first announcement), then dispatches to side A
+or side B based on `announce_flag` bit 7. The timer is re-armed to
+`&8000` (32768 idle iterations) after each announce, giving a
+roughly constant cadence regardless of how busy the ADLCs are with
+other traffic.""")
 
 comment(0xE051, "Read ADLC A's SR2", inline=True)
 comment(0xE054, "Mask AP/RDA bits to test for any stale RX state", inline=True)
@@ -872,13 +875,14 @@ label(0xE357, "rx_b_handle_80")
 subroutine(0xE357, "rx_b_handle_80", hook=None, is_entry_point=False,
     title="Side-B BridgeReset (ctrl=&80): learn topology from scratch",
     description="""\
-Mirror of [`rx_a_handle_80`](address:E1D6?hex): wipe reachable_via_* via
-init_reachable_nets, seed the re-announce timer's high byte
-from net_num_a (mirror of A-side seeding from net_num_b), set
-announce_count = 10 and announce_flag = &80 (bit 7 set = next
-outbound on side B). Falls through to rx_b_handle_81.
+Mirror of [`rx_a_handle_80`](address:E1D6?hex): wipe
+`reachable_via_*` via [`init_reachable_nets`](address:E424), seed
+the re-announce timer's high byte from `net_num_a` (mirror of
+A-side seeding from `net_num_b`), set `announce_count = 10` and
+`announce_flag = &80` (bit 7 set = next outbound on side B). Falls
+through to [`rx_b_handle_81`](address:E36F).
 
-The other of the two places in the ROM that sets announce_flag
+The other of the two places in the ROM that sets `announce_flag`
 non-zero; all other writes to that byte clear it.""")
 
 comment(0xE357, "Wipe all learned routing state (topology reset)", inline=True)
@@ -919,21 +923,25 @@ label(0xE263, "rx_frame_b")
 subroutine(0xE263, "rx_frame_b", hook=None, is_entry_point=False,
     title="Drain and dispatch an inbound frame on ADLC B",
     description="""\
-Byte-for-byte mirror of [`rx_frame_a`](address:E0E2?hex): same three-stage
-structure (addressing filter, drain, broadcast + bridge-protocol
-check), same control-byte dispatch, with `adlc_a_*` replaced by
-`adlc_b_*`, `reachable_via_b` by `reachable_via_a`, and the side-selector
-value swaps (`net_num_a` ↔ `net_num_b`) where appropriate.
+Byte-for-byte mirror of [`rx_frame_a`](address:E0E2?hex): same
+three-stage structure (addressing filter, drain, broadcast +
+bridge-protocol check), same control-byte dispatch, with
+`adlc_a_*` replaced by `adlc_b_*`, `reachable_via_b` by
+`reachable_via_a`, and the side-selector value swaps
+(`net_num_a` &harr; `net_num_b`) where appropriate.
 
 Bridge-protocol dispatch for this side:
 
-  &80  ->  [`rx_b_handle_80`](address:E357?hex) - initial bridge announcement
-  &81  ->  [`rx_b_handle_81`](address:E36F?hex) - re-announcement
-  &82  ->  [`rx_b_handle_82`](address:E31E?hex) - bridge query (shared &83 path)
-  &83  ->  [`rx_b_handle_83`](address:E316?hex) - bridge query, known-station
-  other ->  [`rx_b_forward`](address:E389?hex) - forward or discard
+| ctrl  | handler                              | role                        |
+|-------|--------------------------------------|-----------------------------|
+| `&80` | [`rx_b_handle_80`](address:E357)     | initial bridge announcement |
+| `&81` | [`rx_b_handle_81`](address:E36F)     | re-announcement             |
+| `&82` | [`rx_b_handle_82`](address:E31E)     | bridge query (shared &83)   |
+| `&83` | [`rx_b_handle_83`](address:E316)     | bridge query, known-station |
+| other | [`rx_b_forward`](address:E389)       | forward or discard          |
 
-See [`rx_frame_a`](address:E0E2) for the full per-instruction explanation.""")
+See [`rx_frame_a`](address:E0E2) for the full per-instruction
+explanation.""")
 
 comment(0xE263, "A = &01: mask SR2 bit 0 (AP = Address Present)", inline=True)
 comment(0xE265, "BIT SR2 -- confirm the IRQ was a frame start", inline=True)
@@ -1154,52 +1162,53 @@ subroutine(0xE5FF, "handshake_rx_b", hook=None,
     title="Receive a handshake frame on ADLC B and stage it for forward",
     description="""\
 The receive half of four-way-handshake bridging for the B side.
-Enables RX on ADLC B, drains an inbound frame byte-by-byte into
-the outbound buffer starting at tx_dst_stn (&045A), then sets up
-tx_end_lo/hi so the next call to transmit_frame_a transmits the
-just-received frame out of the other port verbatim.
+Enables RX on ADLC B, drains an inbound frame byte-by-byte into the
+outbound buffer starting at `tx_dst_stn` (`&045A`), then sets up
+`tx_end_lo`/`tx_end_hi` so the next call to
+[`transmit_frame_a`](address:E517) transmits the just-received
+frame out of the other port verbatim.
 
-The drain is capped at `top_ram_page` (set by the boot RAM test)
-so very long frames fill available RAM and no further.
+The drain is capped at `top_ram_page` (set by the boot RAM test) so
+very long frames fill available RAM and no further.
 
 After the drain, does three pieces of address fix-up on the
 now-staged frame:
 
-  * If tx_src_net (byte 3 of the frame) is zero, fill it with
-    net_num_b. Many Econet senders leave src_net as zero to mean
-    "my local network"; the Bridge makes that explicit before
-    forwarding.
+- If `tx_src_net` (byte 3 of the frame) is zero, fill it with
+  `net_num_b`. Many Econet senders leave `src_net` as zero to mean
+  "my local network"; the Bridge makes that explicit before
+  forwarding.
+- Reject the frame if `tx_dst_net` is zero (no destination network
+  declared) or if `reachable_via_a` has no entry for that network
+  (no route).
+- If `tx_dst_net` equals `net_num_a` (our own A-side network),
+  normalise it to zero -- from side A's perspective the frame is
+  now "local".
 
-  * Reject the frame if tx_dst_net is zero (no destination
-    network declared) or if reachable_via_a has no entry for
-    that network (no route).
+On any of the "reject" paths above, and on any sub-step that fails
+(no AP/RDA, no Frame Valid, no response at all), takes the standard
+escape-to-main-loop exit: `PLA/PLA/JMP` [`main_loop`](address:E051).
 
-  * If tx_dst_net equals net_num_a (our own A-side network),
-    normalise it to zero -- from side A's perspective the frame
-    is now "local".
+On success, return to the caller with `mem_ptr` / `tx_end_lo` /
+`tx_end_hi` ready for [`transmit_frame_a`](address:E517) (or
+[`transmit_frame_b`](address:E4C0) in the reverse direction for
+queries).
 
-On any of the "reject" paths above, and on any sub-step that
-fails (no AP/RDA, no Frame Valid, no response at all), takes
-the standard escape-to-main-loop exit: PLA/PLA/JMP main_loop.
-
-On success, return to the caller with mem_ptr / tx_end_lo / tx_end_hi
-ready for transmit_frame_a (or transmit_frame_b in the reverse
-direction for queries).
-
-Mirror-image pair with [`handshake_rx_a`](address:E56E?hex): the two routines
-share identical structure with adlc_a_* / adlc_b_* and net_num_a /
-net_num_b swapped, and are used in complementary roles depending
-on which side the next handshake frame is expected to arrive from.
+Mirror-image pair with [`handshake_rx_a`](address:E56E?hex): the
+two routines share identical structure with `adlc_a_*` /
+`adlc_b_*` and `net_num_a` / `net_num_b` swapped, and are used in
+complementary roles depending on which side the next handshake
+frame is expected to arrive from.
 
 Called from five sites:
-  &E336  rx_b_handle_82: drain the querier's scout-ACK on B
-  &E351  rx_b_handle_82: drain the querier's final data-ACK on B
-  &E3D5  rx_b_forward:   Stage 3 DATA drain from B (originator's
-                         data, B -> A forwarding direction)
-  &E24E  rx_a_forward:   Stage 2 ACK1 drain from B (destination's
-                         scout-ACK, A -> B forwarding direction)
-  &E25A  rx_a_forward:   Stage 4 ACK2 drain from B (destination's
-                         final ACK, A -> B forwarding direction)""")
+
+| site                          | in                                    | role                                                        |
+|-------------------------------|---------------------------------------|-------------------------------------------------------------|
+| [`&E336`](address:E336)       | [`rx_b_handle_82`](address:E31E)      | drain the querier's scout-ACK on B                          |
+| [`&E351`](address:E351)       | [`rx_b_handle_82`](address:E31E)      | drain the querier's final data-ACK on B                     |
+| [`&E3D5`](address:E3D5)       | [`rx_b_forward`](address:E389)        | Stage 3 DATA drain from B (originator's data, B &rarr; A)   |
+| [`&E24E`](address:E24E)       | [`rx_a_forward`](address:E208)        | Stage 2 ACK1 drain from B (destination's scout-ACK, A &rarr; B) |
+| [`&E25A`](address:E25A)       | [`rx_a_forward`](address:E208)        | Stage 4 ACK2 drain from B (destination's final ACK, A &rarr; B) |""")
 
 comment(0xE5FF, "A = &82: TX in reset, RX IRQs enabled", inline=True)
 comment(0xE601, "Re-arm ADLC B for the incoming handshake frame", inline=True)
@@ -1278,28 +1287,30 @@ subroutine(0xE448, "stagger_delay", hook=None,
     title="Fixed prelude + per-count delay scaled by ctr24_lo",
     description="""\
 A calibrated busy-wait used by the query-response paths to stagger
-their transmissions. Called from rx_a_handle_82 (&E1AC) and
-rx_b_handle_82 (&E32D), in each case with ctr24_lo pre-loaded
-with the bridge's opposite-side network number (net_num_b for
-A-side responses, net_num_a for B-side responses).
+their transmissions. Called from
+[`rx_a_handle_82`](address:E19D) (at [`&E1AC`](address:E1AC)) and
+[`rx_b_handle_82`](address:E31E) (at [`&E32D`](address:E32D)), in
+each case with `ctr24_lo` pre-loaded with the bridge's opposite-side
+network number (`net_num_b` for A-side responses, `net_num_a` for
+B-side responses).
 
 Two phases:
 
-  Prelude (~&40 * (dey/bne) cycles): a fixed settling delay,
-  the same regardless of caller. Roughly &40 * 5 = 320 cycles
-  = ~160 us at 2 MHz.
+1. **Prelude** (~`&40` &times; `DEY/BNE` cycles): a fixed settling
+   delay, the same regardless of caller. Roughly `&40 * 5 = 320`
+   cycles = ~160 us at 2 MHz.
+2. **Per-count loop** (`ctr24_lo` iterations &times; (`&14` &times;
+   `DEY/BNE` + `DEC/BNE`) cycles): roughly `ctr24_lo * 110` cycles.
+   For a typical network number of ~24, that's ~2600 cycles =
+   ~1.3 ms.
 
-  Per-count loop (ctr24_lo iterations * (&14 * (dey/bne) + dec/bne)
-  cycles): roughly ctr24_lo * 110 cycles. For a typical network
-  number of ~24, that's ~2600 cycles = ~1.3 ms.
-
-For the range of network numbers permitted (1-127), the total
-delay runs from ~215 us to ~7 ms. This spread means multiple
-bridges on the same segment responding to a broadcast query
-(ctrl=&82) transmit their responses at measurably different
-times, reducing the chance of collisions on the shared medium.
-Bridges with higher network numbers back off longer -- a cheap
-deterministic priority scheme that requires no coordination.""")
+For the range of network numbers permitted (1-127), the total delay
+runs from ~215 us to ~7 ms. This spread means multiple bridges on
+the same segment responding to a broadcast query (`ctrl=&82`)
+transmit their responses at measurably different times, reducing
+the chance of collisions on the shared medium. Bridges with higher
+network numbers back off longer -- a cheap deterministic priority
+scheme that requires no coordination.""")
 
 comment(0xE448, "Y = &40: seed for the fixed-length settling delay", inline=True)
 label(0xE44A, "stagger_delay_prelude")
@@ -1375,16 +1386,17 @@ label(0xE195, "rx_a_handle_83")
 subroutine(0xE195, "rx_a_handle_83", hook=None, is_entry_point=False,
     title="Side-A IsNet query (ctrl=&83): targeted network lookup",
     description="""\
-Called when a received frame on side A is broadcast + port=&9C +
-ctrl=&83 -- the querier is asking "can you reach network X?",
-where X is the byte at offset 13 of the payload (rx_query_net).
+Called when a received frame on side A is broadcast + `port=&9C` +
+`ctrl=&83` -- the querier is asking "can you reach network X?",
+where X is the byte at offset 13 of the payload (`rx_query_net`).
 
-Consults reachable_via_b[rx_query_net]. If the entry is zero,
-there is no route to that network so the query is silently
-dropped (JMP main_loop via &E1D3). If non-zero, falls through to
-the shared response body at rx_a_handle_82 to transmit the reply
--- so the targeted query is effectively the general query with
-an up-front routing filter.""")
+Consults `reachable_via_b[rx_query_net]`. If the entry is zero,
+there is no route to that network so the query is silently dropped
+(`JMP` [`main_loop`](address:E051) via
+[`rx_a_query_done`](address:E1D3)). If non-zero, falls through to
+the shared response body at [`rx_a_handle_82`](address:E19D) to
+transmit the reply -- so the targeted query is effectively the
+general query with an up-front routing filter.""")
 
 comment(0xE195, "Y = the queried network number", inline=True)
 comment(0xE198, "Check if we have a route via the other side", inline=True)
@@ -1395,50 +1407,50 @@ label(0xE19D, "rx_a_handle_82")
 subroutine(0xE19D, "rx_a_handle_82", hook=None, is_entry_point=False,
     title="Side-A WhatNet query (ctrl=&82); also the IsNet response path",
     description="""\
-Called when a received frame on side A is broadcast + port=&9C +
-ctrl=&82 -- a general bridge query asking "which networks do you
-reach?" -- or when [`rx_a_handle_83`](address:E195) has verified that a specific
-IsNet queried network is in fact reachable via side B and is
-re-using this response path.
+Called when a received frame on side A is broadcast + `port=&9C` +
+`ctrl=&82` -- a general bridge query asking "which networks do you
+reach?" -- or when [`rx_a_handle_83`](address:E195) has verified
+that a specific IsNet queried network is in fact reachable via
+side B and is re-using this response path.
 
 The response is a complete four-way handshake transaction, which
 the Bridge drives from the responder side as two transmissions
 (scout, then data) with an inbound ACK after each:
 
-  1. Build a reply-scout template via build_query_response,
-     addressed back to the querier on its local network with
-     tx_src_net patched to our net_num_b.
+1. Build a reply-scout template via
+   [`build_query_response`](address:E48D), addressed back to the
+   querier on its local network with `tx_src_net` patched to our
+   `net_num_b`.
+2. **Stagger** the scout transmission via
+   [`stagger_delay`](address:E448), seeded from `net_num_b`.
+   Multiple bridges on the same segment will all react to a
+   broadcast query, and without the stagger their responses would
+   overlap on the wire; seeding from the network number gives each
+   bridge a deterministic but distinct delay.
+3. CSMA, transmit the scout, then
+   [`handshake_rx_a`](address:E56E) to receive the scout-ACK.
+4. Rebuild the frame via [`build_query_response`](address:E48D)
+   again -- this time to be a *data* frame following the scout we
+   just exchanged, not a new scout. The patches that follow
+   populate the first two payload bytes of that data frame (at
+   the byte positions labelled `tx_ctrl` and `tx_port`, but those
+   names refer to scout semantics; in a data frame those slots
+   are payload, not header):
 
-  2. Stagger the scout transmission via stagger_delay, seeded
-     from net_num_b. Multiple bridges on the same segment will
-     all react to a broadcast query, and without the stagger
-     their responses would overlap on the wire; seeding from the
-     network number gives each bridge a deterministic but
-     distinct delay.
+   | slot          | value              | meaning                         |
+   |---------------|--------------------|---------------------------------|
+   | data byte 0   | `net_num_a`        | the Bridge's side-A network     |
+   | data byte 1   | `rx_query_net`     | echo of the queried network     |
 
-  3. CSMA, transmit the scout, then handshake_rx_a to receive
-     the scout-ACK.
+   The answer thus consists of the dst/src quad plus two payload
+   bytes, packed into the smallest Econet frame that can carry it.
+5. Transmit the data frame, then
+   [`handshake_rx_a`](address:E56E) for the final data-ACK. `JMP`
+   [`main_loop`](address:E051) on completion.
 
-  4. Rebuild the frame via build_query_response again -- this
-     time to be a *data* frame following the scout we just
-     exchanged, not a new scout. The patches that follow populate
-     the first two payload bytes of that data frame (at the byte
-     positions labelled tx_ctrl and tx_port, but those names
-     refer to scout semantics -- in a data frame those slots are
-     payload, not header, and the bytes are:
-
-        data0 = net_num_a        ... the Bridge's side-A network
-        data1 = rx_query_net     ... echo of the queried network
-
-     The answer thus consists of the dst/src quad plus two
-     payload bytes, packed into the smallest Econet frame that
-     can carry it.
-
-  5. Transmit the data frame, then handshake_rx_a for the final
-     data-ACK. JMP main_loop on completion.
-
-Either handshake_rx_a call can escape to main_loop if the querier
-doesn't keep up the handshake, aborting the conversation cleanly.""")
+Either [`handshake_rx_a`](address:E56E) call can escape to
+[`main_loop`](address:E051) if the querier doesn't keep up the
+handshake, aborting the conversation cleanly.""")
 
 comment(0xE19D, "Re-arm A for listen after the received query")
 comment(0xE19D, "Re-arm ADLC A into listen mode before replying", inline=True)
@@ -1546,15 +1558,33 @@ label(0xE389, "rx_b_forward")
 subroutine(0xE389, "rx_b_forward", hook=None, is_entry_point=False,
     title="Forward a B-side frame to A, completing the 4-way handshake",
     description="""\
-Byte-for-byte mirror of [`rx_a_forward`](address:E208?hex) with A and B swapped
-throughout: the inbound scout is pushed via adlc_a_tx, and the
-B-A-B tail bridges the four-way handshake the other direction.
+Byte-for-byte mirror of [`rx_a_forward`](address:E208?hex) with A
+and B swapped throughout: the inbound scout is pushed via
+`adlc_a_tx`, and the B-A-B tail bridges the four-way handshake the
+other direction.
 
-Reached from [`rx_b_to_forward`](address:E2C8?hex), from rx_frame_b's ctrl
-dispatch fall-through (&E314), and from rx_b_handle_81's
-fall-through at &E387.
+Reached from three places:
 
-See [`rx_a_forward`](address:E208) for the full per-stage explanation.""")
+- [`rx_b_to_forward`](address:E2C8?hex): the B-side frame is
+  addressed to a remote station (not a full broadcast), and we
+  have accepted it via the routing filter.
+- [`rx_frame_b`](address:E263) ctrl dispatch fall-through (at
+  [`&E314`](address:E314)): the frame is broadcast + port `&9C`
+  but has a control byte outside the recognised bridge-protocol
+  set (`&80`-`&83`).
+- Fall-through from [`rx_b_handle_81`](address:E36F) (at
+  [`&E387`](address:E387)): we've learned from the announcement
+  and appended `net_num_b` to the payload; now propagate it onward.
+
+| stage | direction | drain                                             | retransmit                            |
+|-------|-----------|---------------------------------------------------|---------------------------------------|
+| SCOUT | B &rarr; A | inline from `rx_*` into `adlc_a_tx`, pair-at-a-time | *(inline above)*                      |
+| ACK1  | A &rarr; B | [`handshake_rx_a`](address:E56E) into `&045A`      | [`transmit_frame_b`](address:E4C0)    |
+| DATA  | B &rarr; A | [`handshake_rx_b`](address:E5FF) into `&045A`      | [`transmit_frame_a`](address:E517)    |
+| ACK2  | A &rarr; B | [`handshake_rx_a`](address:E56E) into `&045A`      | [`transmit_frame_b`](address:E4C0)    |
+
+See [`rx_a_forward`](address:E208) for the full per-stage
+explanation.""")
 
 comment(0xE389, "Read rx_len into A", inline=True)
 comment(0xE38C, "Preserve original length in X for odd-parity check", inline=True)
@@ -1602,32 +1632,33 @@ label(0xE1D6, "rx_a_handle_80")
 subroutine(0xE1D6, "rx_a_handle_80", hook=None, is_entry_point=False,
     title="Side-A BridgeReset (ctrl=&80): learn topology from scratch",
     description="""\
-Called when a received frame on side A is broadcast + port=&9C +
-ctrl=&80 -- a bridge on the far side is advertising a fresh
+Called when a received frame on side A is broadcast + `port=&9C` +
+`ctrl=&80` -- a bridge on the far side is advertising a fresh
 topology, likely because it has itself just come up. The handler:
 
-  1. Wipe all learned routing state via init_reachable_nets. The
-     topology may have changed non-monotonically, so accumulated
-     reachable_via_? entries are suspect and the safe move is to
-     discard them and relearn.
+1. **Wipe** all learned routing state via
+   [`init_reachable_nets`](address:E424). The topology may have
+   changed non-monotonically, so accumulated `reachable_via_?`
+   entries are suspect and the safe move is to discard them and
+   relearn.
+2. **Schedule** a burst of our own re-announcements: ten cycles
+   with a staggered initial timer value seeded from `net_num_b`.
+   Using the local network number as the timer's phase means
+   bridges on different segments aren't all re-announcing at the
+   same millisecond. `announce_flag` is set to `&40` (enable,
+   bit 7 clear = next outbound on side A).
+3. **Fall through** to [`rx_a_handle_81`](address:E1EE) (the same
+   payload-processing loop runs for both BridgeReset and
+   BridgeReply) to mark the sender's known networks as
+   reachable-via-A.
 
-  2. Schedule a burst of our own re-announcements: ten cycles with
-     a staggered initial timer value seeded from net_num_b. Using
-     the local network number as the timer's phase means bridges
-     on different segments aren't all re-announcing at the same
-     millisecond. announce_flag is set to &40 (enable, bit 7
-     clear = next outbound on side A).
-
-  3. Fall through to rx_a_handle_81 (the same payload-processing
-     loop runs for both BridgeReset and BridgeReply) to mark the
-     sender's known networks as reachable-via-A.
-
-This is one of only two places in the ROM that sets announce_flag
-non-zero (the other is the mirror rx_b_handle_80). Receiving a
-BridgeReply (ctrl=&81) does not trigger the burst; only receiving
-a BridgeReset does. A solo bridge therefore stays silent after
-its boot-time BridgeReset pair, because nothing comes back to
-trigger a response. See the event-driven-reannouncement writeup.""")
+This is one of only two places in the ROM that sets
+`announce_flag` non-zero (the other is the mirror
+[`rx_b_handle_80`](address:E357)). Receiving a BridgeReply
+(`ctrl=&81`) does not trigger the burst; only receiving a
+BridgeReset does. A solo bridge therefore stays silent after its
+boot-time BridgeReset pair, because nothing comes back to trigger
+a response. See `docs/analysis/event-driven-reannouncement.md`.""")
 
 comment(0xE1D6, "Wipe all learned routing state (topology reset)", inline=True)
 comment(0xE1D9, "Fetch our side-B network number", inline=True)
@@ -1643,23 +1674,22 @@ label(0xE1EE, "rx_a_handle_81")
 subroutine(0xE1EE, "rx_a_handle_81", hook=None, is_entry_point=False,
     title="Side-A BridgeReply (ctrl=&81): learn and re-broadcast",
     description="""\
-Reached either directly as the ctrl=&81 handler (the
+Reached either directly as the `ctrl=&81` handler (the
 re-announcement that follows a BridgeReset) or via fall-through
-from rx_a_handle_80 (which additionally wipes routing state
-before the learn loop).
+from [`rx_a_handle_80`](address:E1D6) (which additionally wipes
+routing state before the learn loop).
 
-Processes the announcement payload: each byte from offset 6 up
-to rx_len is a network number that the announcer says it can
-reach. Since the announcer is on side A, those networks are
-reachable via side A from here too -- mark each in
-reachable_via_a.
+Processes the announcement payload: each byte from offset 6 up to
+`rx_len` is a network number that the announcer says it can reach.
+Since the announcer is on side A, those networks are reachable via
+side A from here too -- mark each in `reachable_via_a`.
 
-After the learn loop, append our own net_num_a to the payload
-and bump rx_len. Falling through to rx_a_forward re-broadcasts
-the augmented frame out of ADLC B, so any bridges beyond us on
-that side hear about the announced networks plus us as one
-further hop along the route. This is classic distance-vector
-flooding.""")
+After the learn loop, append our own `net_num_a` to the payload and
+bump `rx_len`. Falling through to [`rx_a_forward`](address:E208)
+re-broadcasts the augmented frame out of ADLC B, so any bridges
+beyond us on that side hear about the announced networks plus us
+as one further hop along the route. This is classic
+distance-vector flooding.""")
 
 comment(0xE1EE, "Y = 6: skip past the 6-byte scout header", inline=True)
 label(0xE1F0, "rx_a_learn_loop")
@@ -1696,34 +1726,37 @@ label(0xE098, "re_announce")
 subroutine(0xE098, "re_announce", hook=None, is_entry_point=False,
     title="Emit one BridgeReply in an in-progress response burst",
     description="""\
-Reached from main_loop_idle once the 16-bit announce_tmr has
-ticked down to zero *and* announce_flag is non-zero. Both
-conditions are only met after rx_?_handle_80 has set the flag in
-response to a BridgeReset received from another bridge. This
-routine is the per-tick action of that response burst -- it is
-NOT a self-scheduled periodic announcement.
+Reached from [`main_loop_idle`](address:E089) once the 16-bit
+`announce_tmr` has ticked down to zero *and* `announce_flag` is
+non-zero. Both conditions are only met after
+[`rx_a_handle_80`](address:E1D6) or
+[`rx_b_handle_80`](address:E357) has set the flag in response to a
+BridgeReset received from another bridge. This routine is the
+per-tick action of that response burst -- it is *not* a
+self-scheduled periodic announcement.
 
-Rebuilds the outbound template via build_announce_b and patches
-tx_ctrl from &80 (the BridgeReset value the builder writes) to
-&81 (BridgeReply), distinguishing the follow-up announcements
-from the initial one that triggered the burst.
+Rebuilds the outbound template via
+[`build_announce_b`](address:E458) and patches `tx_ctrl` from `&80`
+(the BridgeReset value the builder writes) to `&81` (BridgeReply),
+distinguishing the follow-up announcements from the initial one
+that triggered the burst.
 
-Which side to transmit on is selected by announce_flag bit 7:
+Which side to transmit on is selected by `announce_flag` bit 7:
 
-  bit 7 clear (flag = 1..&7F)  ->  transmit via ADLC A (side A)
-  bit 7 set   (flag = &80..FF) ->  transmit via ADLC B, after
-                                   patching tx_data0 with
-                                   net_num_a, mirroring the
-                                   reset-time dual-broadcast.
+| `announce_flag` bit 7 | side    | notes                                                                                       |
+|-----------------------|---------|---------------------------------------------------------------------------------------------|
+| clear (`1..&7F`)      | ADLC A  | transmit directly                                                                           |
+| set (`&80..&FF`)      | ADLC B  | patch `tx_data0` with `net_num_a` first, mirroring the reset-time dual-broadcast            |
 
-Each invocation decrements announce_count. When it hits zero,
-announce_flag is cleared (re_announce_done); the burst is
-complete and the idle path goes quiet until another BridgeReset
-arrives. Otherwise the timer is re-armed to &8000 and control
-returns to main_loop (re_announce_rearm).
+Each invocation decrements `announce_count`. When it hits zero,
+`announce_flag` is cleared ([`re_announce_done`](address:E0C2));
+the burst is complete and the idle path goes quiet until another
+BridgeReset arrives. Otherwise the timer is re-armed to `&8000`
+and control returns to [`main_loop`](address:E051)
+([`re_announce_rearm`](address:E0B5)).
 
-Before transmitting on one side, the routine resets the OTHER
-ADLC's TX path (CR1 = &C2) to prevent the opposite side from
+Before transmitting on one side, the routine resets the *other*
+ADLC's TX path (`CR1 = &C2`) to prevent the opposite side from
 inadvertently transmitting a colliding frame while we're busy.""")
 
 comment(0xE098, "Rebuild the frame template from scratch (ctrl=&80 default)", inline=True)
@@ -1770,33 +1803,41 @@ label(0xE517, "transmit_frame_a")
 subroutine(0xE517, "transmit_frame_a", hook=None,
     title="Send the frame at mem_ptr out through ADLC A's TX FIFO",
     description="""\
-Sends the frame starting at mem_ptr (&80/&81 — normally pointing at
-the outbound control block &045A) through ADLC A's TX FIFO. Termi-
-nation is controlled by the 16-bit pointer tx_end_lo/tx_end_hi
-(&0200/&0201): the loop sends byte pairs until mem_ptr + Y reaches
-or passes (tx_end_hi:tx_end_lo). X is a flag — non-zero means send
-one extra trailing byte after the terminator (used by builders that
-append a payload like build_announce_b's net_num_b at &0460).
+Sends the frame starting at `mem_ptr` (`&80`/`&81` -- normally
+pointing at the outbound control block `&045A`) through ADLC A's
+TX FIFO. Termination is controlled by the 16-bit pointer
+`tx_end_lo`/`tx_end_hi` (`&0200`/`&0201`): the loop sends byte pairs
+until `mem_ptr + Y` reaches or passes `(tx_end_hi:tx_end_lo)`. X is
+a flag -- non-zero means send one extra trailing byte after the
+terminator (used by builders that append a payload like
+[`build_announce_b`](address:E458)'s `net_num_b` at `&0460`).
 
-On entry:
-  mem_ptr_lo/hi                      start address of frame
-  tx_end_lo/hi                       end address (exclusive pair)
-  X                                  0 = no trailing byte,
-                                     1 = send one trailing byte
-  ADLC A must already be primed by a frame builder
+**On entry:**
 
-On exit (normal RTS):
-  mem_ptr_lo/hi reset to &045A       ready for next builder
-  ADLC A's TX FIFO flushed, CR2 = &3F
+| register / byte       | role                                                   |
+|-----------------------|--------------------------------------------------------|
+| `mem_ptr_lo/hi`       | start address of frame                                 |
+| `tx_end_lo/hi`        | end address (exclusive pair)                           |
+| X                     | `0` = no trailing byte, `1` = send one trailing byte   |
+| *(ADLC A)*            | must already be primed by a frame builder              |
 
-Abnormal exit: if any of the three wait_adlc_a_irq polls returns
-with SR1's V-bit clear instead of set (meaning the ADLC didn't reach
-the expected TDRA state), the routine drops the caller's return
-address from the stack and JMP's into the main loop at &E051 —
-the same escape-to-main pattern used by wait_adlc_a_idle.
+**On exit (normal RTS):**
 
-Called from seven sites: reset (&E03E), &E0AD, &E1B2, &E1CD, &E251,
-&E25D, &E3D8.""")
+- `mem_ptr_lo/hi` reset to `&045A`, ready for the next builder.
+- ADLC A's TX FIFO flushed, `CR2 = &3F`.
+
+**Abnormal exit**: if any of the three
+[`wait_adlc_a_irq`](address:E3E4) polls returns with SR1's V-bit
+clear instead of set (meaning the ADLC didn't reach the expected
+TDRA state), the routine drops the caller's return address from
+the stack and `JMP`'s into [`main_loop`](address:E051) -- the same
+escape-to-main pattern used by
+[`wait_adlc_a_idle`](address:E6DC).
+
+Called from seven sites: reset ([`&E03E`](address:E03E)),
+[`&E0AD`](address:E0AD), [`&E1B2`](address:E1B2),
+[`&E1CD`](address:E1CD), [`&E251`](address:E251),
+[`&E25D`](address:E25D), [`&E3D8`](address:E3D8).""")
 
 comment(0xE517, "A = &E7: prime CR2 for TX (FC_TDRA, 2/1-byte, PSE)", inline=True)
 comment(0xE519, "Commit CR2 on ADLC A", inline=True)
@@ -1853,14 +1894,17 @@ label(0xE4C0, "transmit_frame_b")
 subroutine(0xE4C0, "transmit_frame_b", hook=None,
     title="Send the frame at mem_ptr out through ADLC B's TX FIFO",
     description="""\
-Byte-for-byte mirror of [`transmit_frame_a`](address:E517?hex) with adlc_a_*
-replaced by adlc_b_*. Everything there applies here — same entry
-conditions, same end-pointer semantics (tx_end_lo/hi), same X=0/1
-trailing-byte flag, same escape-to-main-loop on unexpected SR1
-state, same normal exit that resets mem_ptr to &045A.
+Byte-for-byte mirror of [`transmit_frame_a`](address:E517?hex) with
+`adlc_a_*` replaced by `adlc_b_*`. Everything there applies here --
+same entry conditions, same end-pointer semantics
+(`tx_end_lo/hi`), same `X=0/1` trailing-byte flag, same
+escape-to-main-loop on unexpected SR1 state, same normal exit that
+resets `mem_ptr` to `&045A`.
 
-Called from seven sites: reset (&E04E), &E0D8, &E257, &E333, &E34E,
-&E3D2, &E3DE.""")
+Called from seven sites: reset ([`&E04E`](address:E04E)),
+[`&E0D8`](address:E0D8), [`&E257`](address:E257),
+[`&E333`](address:E333), [`&E34E`](address:E34E),
+[`&E3D2`](address:E3D2), [`&E3DE`](address:E3DE).""")
 
 comment(0xE4C0, "A = &E7: prime CR2 for TX (FC_TDRA, 2/1-byte, PSE)", inline=True)
 comment(0xE4C2, "Commit CR2 on ADLC B", inline=True)
@@ -1918,12 +1962,15 @@ label(0xE690, "wait_adlc_b_idle")
 subroutine(0xE690, "wait_adlc_b_idle", hook=None,
     title="Wait for ADLC B's line to go idle (CSMA) or escape",
     description="""\
-Byte-for-byte mirror of [`wait_adlc_a_idle`](address:E6DC?hex) with adlc_a_*
-replaced by adlc_b_*. Same pre-transmit carrier-sense semantics:
-wait for SR2 bit 2 (Rx Idle), back off on AP/RDA, escape to main
-loop on ~131K-iteration timeout.
+Byte-for-byte mirror of [`wait_adlc_a_idle`](address:E6DC?hex)
+with `adlc_a_*` replaced by `adlc_b_*`. Same pre-transmit
+carrier-sense semantics: wait for SR2 bit 2 (Rx Idle), back off
+on AP/RDA, escape to [`main_loop`](address:E051) on ~131K-iteration
+timeout.
 
-Called from four sites: reset (&E04B), &E0D5, &E211, &E330.""")
+Called from four sites: reset ([`&E04B`](address:E04B)),
+[`&E0D5`](address:E0D5), [`&E211`](address:E211),
+[`&E330`](address:E330).""")
 
 comment(0xE690, "A = 0: seed the 24-bit timeout counter", inline=True)
 comment(0xE692, "Clear timeout counter low byte", inline=True)
@@ -1974,29 +2021,31 @@ subroutine(0xE6DC, "wait_adlc_a_idle", hook=None,
 Pre-transmit carrier-sense: polls ADLC A's SR2 until the Rx Idle
 bit goes high (SR2 bit 2 = 15+ consecutive 1s received, i.e. the
 line is quiet and it is safe to start a frame). A 24-bit timeout
-counter at ctr24_lo/mid/hi (&0214-&0216) starts at &00_00_FE and
-increments LSB-first; overflow takes ~131K iterations, a few
-seconds at typical bus speeds.
+counter at `ctr24_lo`/`mid`/`hi` (`&0214-&0216`) starts at
+`&00_00_FE` and increments LSB-first; overflow takes ~131K
+iterations, a few seconds at typical bus speeds.
 
-Each iteration re-primes CR2 with &67 (clear TX/RX status,
+Each iteration re-primes `CR2` with `&67` (clear TX/RX status,
 FC_TDRA, 2/1-byte, PSE) then reads SR2. Three outcomes:
 
-  * SR2 bit 2 set (Rx Idle): line is quiet. Arm CR2=&E7 and
-    CR1=&44, RTS -- caller proceeds to transmit.
-
-  * SR2 bit 0 or bit 7 set (AP or RDA): another station is
-    sending into this ADLC. Back off by cycling CR1 through
-    &C2 -> &82 (reset TX without touching RX) and keep polling.
-    The Bridge is not the right place to assert on a busy line.
-
-  * Timeout (counter overflows without ever seeing Rx Idle):
-    PLA/PLA discards the caller's saved return address from the
-    stack and JMP &E051 escapes into the main Bridge loop. The
-    code between the caller's JSR and the main loop is skipped
-    entirely. See docs/analysis/escape-to-main-control-flow.md.
+- **SR2 bit 2 set (Rx Idle)**: line is quiet. Arm `CR2=&E7` and
+  `CR1=&44`, `RTS` -- caller proceeds to transmit.
+- **SR2 bit 0 or bit 7 set (AP or RDA)**: another station is
+  sending into this ADLC. Back off by cycling `CR1` through
+  `&C2` &rarr; `&82` (reset TX without touching RX) and keep
+  polling. The Bridge is not the right place to assert on a busy
+  line.
+- **Timeout** (counter overflows without ever seeing Rx Idle):
+  `PLA/PLA` discards the caller's saved return address from the
+  stack and `JMP` [`main_loop`](address:E051) escapes into the
+  main Bridge loop. The code between the caller's `JSR` and the
+  main loop is skipped entirely. See
+  `docs/analysis/escape-to-main-control-flow.md`.
 
 Called from four sites, always immediately before a transmit:
-reset ([`&E03B`](address:E03B), before [`transmit_frame_a`](address:E517)), [`&E0AA`](address:E0AA), [`&E1AF`](address:E1AF), [`&E392`](address:E392).""")
+reset ([`&E03B`](address:E03B), before
+[`transmit_frame_a`](address:E517)), [`&E0AA`](address:E0AA),
+[`&E1AF`](address:E1AF), [`&E392`](address:E392).""")
 
 comment(0xE6DC, "A = 0: seed the 24-bit timeout counter", inline=True)
 comment(0xE6DE, "Clear timeout counter low byte", inline=True)
@@ -2115,13 +2164,16 @@ label(0xF02F, "self_test_zp")
 subroutine(0xF02F, "self_test_zp", hook=None, is_entry_point=False,
     title="Zero-page integrity test (&00-&02)",
     description="""\
-Writes &55 to &00, &01, &02 and reads them back; then &AA and
-reads back. Failure jumps to self_test_fail with A=1.
+Writes `&55` to `&00`, `&01`, `&02` and reads them back; then
+`&AA` and reads back. Failure jumps to
+[`ram_test_fail`](address:F28C) (via
+[`self_test_ram_fail_jump`](address:F09D), because RAM isn't
+trustworthy enough at this point to use a countable blink).
 
 Tests only the three ZP bytes that are used as scratch by the
 later self-test stages (ROM checksum, RAM scan). A full ZP test
-isn't needed — the main reset handler has already exercised ZP
-indirectly via the RAM test.""")
+isn't needed -- the main reset handler has already exercised ZP
+indirectly via [`ram_test`](address:E00B).""")
 
 comment(0xF02F, "First test pattern = &55 (0101_0101)", inline=True)
 label(0xF031, "self_test_zp_write_read")
@@ -2147,11 +2199,13 @@ subroutine(0xF04C, "self_test_rom_checksum", hook=None,
     title="ROM checksum",
     description="""\
 Sums every byte of the 8 KiB ROM modulo 256 using a running A
-accumulator. Expected total is &55; on mismatch, jumps to
-self_test_fail with A=2.
+accumulator. Expected total is `&55`; on mismatch, jumps to
+[`self_test_fail`](address:F2C7) with `A=2`.
 
-Runtime pointer in &00/&01 starts at &E000; &02 holds the page
-counter (32 pages = 8 KiB).""")
+Runtime pointer in `&00`/`&01` starts at `&E000`; `&02` holds the
+page counter (32 pages = 8 KiB). The required total is balanced
+on-disc by the [`rom_checksum_adjust`](address:FFF0) byte at
+`&FFF0`, hand-tuned to make the ROM-wide sum land on `&55`.""")
 
 comment(0xF04C, "A = 0: low byte of the ROM pointer", inline=True)
 comment(0xF04E, "Store pointer_lo = 0", inline=True)
@@ -2179,15 +2233,17 @@ subroutine(0xF070, "self_test_ram_pattern", hook=None,
     is_entry_point=False,
     title="RAM pattern test: write &55/&AA to every byte, verify",
     description="""\
-Starting at address &0004 (skipping the three zero-page bytes
-reserved for the self-test workspace at &00/&01/&02), iterates
-through the full 8 KiB of RAM and checks that each byte can
-store both &55 and &AA. Pointer in (&00,&01) = &0000, Y starts
-at 4 and wraps, page count in &02 = &20 (32 pages = 8 KiB).
+Starting at address `&0004` (skipping the three zero-page bytes
+reserved for the self-test workspace at `&00`/`&01`/`&02`),
+iterates through the full 8 KiB of RAM and checks that each byte
+can store both `&55` and `&AA`. Pointer in `(&00,&01) = &0000`, Y
+starts at 4 and wraps, page count in `&02 = &20` (32 pages =
+8 KiB).
 
-On mismatch, jumps to [`ram_test_fail`](address:F28C?hex) (note: a *different*
-failure handler from self_test_fail, because a broken RAM cannot
-use the normal blink-code loop which needs RAM workspace).""")
+On mismatch, jumps to [`ram_test_fail`](address:F28C?hex) -- a
+*different* failure handler from
+[`self_test_fail`](address:F2C7), because a broken RAM cannot use
+the normal blink-code loop which needs RAM workspace.""")
 
 comment(0xF070, "A = 0: low byte of the RAM-test indirect pointer", inline=True)
 comment(0xF072, "Store pointer_lo", inline=True)
@@ -2275,13 +2331,14 @@ subroutine(0xF0D6, "self_test_adlc_state", hook=None,
     title="Verify both ADLCs' register state after reset",
     description="""\
 Checks that both ADLCs show the expected register state after
-self_test_reset_adlcs has configured them. Tests specific bits
-of SR1 and SR2 on each chip (ADLC A bits from &C800/&C801,
-ADLC B bits from &D800/&D801).
+[`self_test_reset_adlcs`](address:F005) has configured them. Tests
+specific bits of SR1 and SR2 on each chip (ADLC A bits from
+`&C800`/`&C801`, ADLC B bits from `&D800`/`&D801`).
 
-Failure paths:
-  Code 3 (at &F107): ADLC A register-state mismatch
-  Code 4 (at &F102): ADLC B register-state mismatch""")
+| code | fail at                  | reason                          |
+|------|--------------------------|---------------------------------|
+| 3    | [`&F107`](address:F107)  | ADLC A register-state mismatch  |
+| 4    | [`&F102`](address:F102)  | ADLC B register-state mismatch  |""")
 
 comment(0xF0D6, "Mask bit 4 (CTS bit of SR1): expect 1 after reset", inline=True)
 comment(0xF0D8, "Test on ADLC A", inline=True)
@@ -2314,29 +2371,33 @@ subroutine(0xF10A, "self_test_loopback_a_to_b", hook=None,
     title="Loopback test: transmit on ADLC A, receive on ADLC B",
     description="""\
 Assumes a loopback cable is connected between the two Econet
-ports. Reconfigures ADLC A for transmit (CR1=&44) and ADLC B for
-receive (CR1=&82), then sends a 256-byte sequence (0,1,2,...,255)
+ports. Reconfigures ADLC A for transmit (`CR1=&44`) and ADLC B for
+receive (`CR1=&82`), then sends a 256-byte sequence (`0,1,2,...,255`)
 out of A and verifies each byte is received on B in order by
 incrementing X alongside the sender's Y.
 
 Four phases:
-  1. Pre-fill the A TX FIFO with bytes 0-7 (Y=0..7) while B is
-     still settling -- priming the pipeline before any RX checks
-     begin.
-  2. Wait for B's first RX IRQ, verify AP, read and match bytes
-     0 and 1. This is the special "opening" case because the
-     AP/RDA transitions happen on the first two bytes only.
-  3. Streaming loop: repeatedly send a pair via A, read a pair
-     via B, compare against X (increments in lockstep), and loop
-     until Y wraps to 0 (256 bytes sent).
-  4. Program CR2=&3F on A to flush the final byte with an
-     end-of-frame marker. Drain the remaining bytes on B
-     (another 255 iterations to empty B's FIFO), then wait for
-     the Frame Valid bit to confirm a clean end-of-frame.
+
+1. **Pre-fill** the A TX FIFO with bytes 0-7 (`Y=0..7`) while B is
+   still settling -- priming the pipeline before any RX checks
+   begin.
+2. **Handshake opening**: wait for B's first RX IRQ, verify AP,
+   read and match bytes 0 and 1. This is the special "opening"
+   case because the AP/RDA transitions happen on the first two
+   bytes only.
+3. **Streaming loop**: repeatedly send a pair via A, read a pair
+   via B, compare against X (increments in lockstep), and loop
+   until Y wraps to 0 (256 bytes sent).
+4. **End-of-frame flush**: program `CR2=&3F` on A to flush the
+   final byte with an end-of-frame marker. Drain the remaining
+   bytes on B (another 255 iterations to empty B's FIFO), then
+   wait for the Frame Valid bit to confirm a clean end-of-frame.
 
 Every mismatch or missing status bit jumps to the shared fail
-target at &F151 which loads code 5 and hands off to self_test_fail.
-Falls through to [`self_test_loopback_b_to_a`](address:F1AB) on success.""")
+target at [`loopback_a_to_b_fail`](address:F151) (`&F151`) which
+loads code 5 and hands off to [`self_test_fail`](address:F2C7).
+Falls through to [`self_test_loopback_b_to_a`](address:F1AB) on
+success.""")
 
 comment(0xF10A, "A = &C0: ADLC full reset", inline=True)
 comment(0xF10C, "Reset ADLC A", inline=True)
@@ -2518,16 +2579,17 @@ subroutine(0xF24C, "self_test_check_netnums", hook=None,
     is_entry_point=False,
     title="Verify jumper-set network numbers match self-test expectations",
     description="""\
-Checks that net_num_a == 1 and net_num_b == 2. The self-test
+Checks that `net_num_a == 1` and `net_num_b == 2`. The self-test
 presumes a standard loopback-test configuration: the jumpers on
 the bridge board should be set for 1 and 2 respectively before
-the self-test button is pressed, so that the network numbers
-are predictable and the loopback tests can complete without
-colliding with anything else a tester might leave plugged in.
+the self-test button is pressed, so that the network numbers are
+predictable and the loopback tests can complete without colliding
+with anything else a tester might leave plugged in.
 
-Failure paths:
-  Code 7 at &F255: net_num_a != 1
-  Code 8 at &F261: net_num_b != 2""")
+| code | condition         | fail at                     |
+|------|-------------------|-----------------------------|
+| 7    | `net_num_a != 1`  | [`&F255`](address:F255)     |
+| 8    | `net_num_b != 2`  | [`&F261`](address:F261)     |""")
 
 comment(0xF24C, "Fetch the side-A jumper setting", inline=True)
 comment(0xF24F, "Expected self-test value = 1", inline=True)
@@ -2548,15 +2610,16 @@ subroutine(0xF264, "self_test_pass_done", hook=None,
     description="""\
 Reached when every test in a pass has succeeded. The self-test
 doesn't stop -- it loops indefinitely until reset. Toggles bit 7
-of &0003 (the self-test scratch byte) via EOR #&FF; if bit 7 is
-set after the toggle, JMPs to self_test_reset_adlcs for another
-full pass. Otherwise falls through to a slower test variant that
-resets ADLCs differently before re-entering the ZP test.
+of `&0003` (the self-test scratch byte) via `EOR #&FF`; if bit 7
+is set after the toggle, JMPs to
+[`self_test_reset_adlcs`](address:F005) for another full pass.
+Otherwise falls through to a slower test variant that resets
+ADLCs differently before re-entering the ZP test.
 
 Two-pass structure lets the operator see continuous LED activity
-(via the self-test ADLC reset's CR3=&80) for as long as the test
-is running, with minor variation between passes catching some
-intermittent faults.""")
+(via the self-test ADLC reset's `CR3=&80`) for as long as the
+test is running, with minor variation between passes catching
+some intermittent faults.""")
 
 comment(0xF264, "Read the pass-phase flag at &03", inline=True)
 comment(0xF266, "Invert it so we alternate between passes", inline=True)
@@ -2633,35 +2696,37 @@ label(0xF2C7, "self_test_fail")
 subroutine(0xF2C7, "self_test_fail", hook=None,
     title="Self-test failure — signal error code via the LED",
     description="""\
-Common failure exit for every non-RAM self-test stage. Called
-with the error code in A. Saves two copies of the code in &00/&01
-then enters an infinite loop that blinks the LED (via CR3 bit 7
-on ADLC B, which is the pin that drives the front-panel LED)
-a count of times equal to the error code, separated by longer
-gaps.
+Common failure exit for every non-RAM self-test stage. Called with
+the error code in A. Saves two copies of the code in `&00`/`&01`
+then enters an infinite loop that blinks the LED (via CR3 bit 7 on
+ADLC B, which is the pin that drives the front-panel LED) a count
+of times equal to the error code, separated by longer gaps.
 
-Error code table:
+Error codes:
 
-  2   ROM checksum mismatch ([`self_test_rom_checksum`](address:F04C?hex))
-  3   ADLC A register state wrong (self_test_adlc_state, &F107)
-  4   ADLC B register state wrong (self_test_adlc_state, &F102)
-  5   A-to-B loopback fail (self_test_loopback_a_to_b, &F153)
-  6   B-to-A loopback fail (self_test_loopback_b_to_a, &F1F4)
-  7   net_num_a != 1 (self_test_check_netnums, &F255)
-  8   net_num_b != 2 (self_test_check_netnums, &F261)
+| code | meaning                        | fail point                                          |
+|------|--------------------------------|-----------------------------------------------------|
+| 2    | ROM checksum mismatch          | [`self_test_rom_checksum`](address:F04C)            |
+| 3    | ADLC A register state wrong    | `self_test_adlc_state` at [`&F107`](address:F107)   |
+| 4    | ADLC B register state wrong    | `self_test_adlc_state` at [`&F102`](address:F102)   |
+| 5    | A-to-B loopback fail           | [`self_test_loopback_a_to_b`](address:F10A) at [`&F153`](address:F153) |
+| 6    | B-to-A loopback fail           | [`self_test_loopback_b_to_a`](address:F1AB) at [`&F1F4`](address:F1F4) |
+| 7    | `net_num_a != 1`               | [`self_test_check_netnums`](address:F24C) at [`&F255`](address:F255) |
+| 8    | `net_num_b != 2`               | [`self_test_check_netnums`](address:F24C) at [`&F261`](address:F261) |
 
-(Code 1 is not used: the zero-page integrity test's failure path
-routes to ram_test_fail via [`self_test_ram_fail_jump`](address:F09D?hex), not
-here, because any failure of the first three RAM tests means
-normal counting loops can't be trusted. [`ram_test_fail`](address:F28C?hex)
-uses a distinct ROM-only blink instead.)
+Code 1 is not used: the zero-page integrity test's failure path
+routes to [`ram_test_fail`](address:F28C) via
+[`self_test_ram_fail_jump`](address:F09D?hex), not here, because
+any failure of the first three RAM tests means normal counting
+loops can't be trusted. [`ram_test_fail`](address:F28C?hex) uses a
+distinct ROM-only blink instead.
 
-Blink pattern: CR1=1 sets the ADLC's AC bit so writes to CR2's
-address hit CR3. The handler alternates CR3=&00 (LED off) and
-CR3=&80 (LED on) N times, where N = error code held in &01, with
-delay loops between each pulse. After each N-pulse burst, a fixed
-8-pulse spacer pattern runs before the outer loop repeats. The
-operator counts pulses to identify the failed test.""")
+**Blink pattern**: `CR1=1` sets the ADLC's AC bit so writes to
+CR2's address hit CR3. The handler alternates `CR3=&00` (LED off)
+and `CR3=&80` (LED on) N times, where N = error code held in
+`&01`, with delay loops between each pulse. After each N-pulse
+burst, a fixed 8-pulse spacer pattern runs before the outer loop
+repeats. The operator counts pulses to identify the failed test.""")
 
 comment(0xF2C7, "Save error code to &00 (the restart value)", inline=True)
 comment(0xF2C9, "...and to &01 (the per-burst countdown)", inline=True)

@@ -69,14 +69,14 @@ adlc_b_tx2      = &d803
 ;
 ; 1. The INC on zero-page &00 between each write and its matching read is an
 ;    anti-bus-residue defence. When the 6502 writes to an unmapped address, no chip
-;    latches the value, but the data bus capacitance can hold the written byte long
+;    latches the value, but the data-bus capacitance can hold the written byte long
 ;    enough for the subsequent LDA to sample its own ghost. INC $00 is a
 ;    read-modify-write that drives the data bus three times with values unrelated to
 ;    the test pattern (the cycle-4 dummy write is a classic NMOS 6502 quirk that is
 ;    exploited here), clobbering any residue of &AA or &55.
 ; 2. The choice of &00 specifically is an alias tripwire. If the address decoder is
 ;    miswired and the target address aliases into zero page, the obvious alias landing
-;    point is &00 — so disturbing &00 between write and read forces any alias-based
+;    point is &00 -- so disturbing &00 between write and read forces any alias-based
 ;    false-positive to fail the CMP.
 ; 3. The two patterns &AA and &55 are bitwise complements: a stuck bit is detected on
 ;    whichever pattern it contradicts, and a single-value bus residue cannot spoof both
@@ -113,14 +113,14 @@ adlc_b_tx2      = &d803
 ;
 ; Second half of the reset handler. Clears announce_flag so the idle-path re-announcer
 ; starts quiescent, then builds a single BridgeReset template (ctrl=&80, port=&9C,
-; payload=net_num_b) and transmits it twice: first on side A with net_num_b in the
-; payload, then on side B after patching the payload to net_num_a. The two
-; wait_adlc_?_idle calls gate each transmit on carrier-sense; either can escape to
-; main_loop if the line never goes idle.
+; payload=net_num_b) via build_announce_b and transmits it twice: first on side A with
+; net_num_b in the payload, then on side B after patching the payload to net_num_a. The
+; two wait_adlc_a_idle / wait_adlc_b_idle calls gate each transmit on carrier-sense;
+; either can escape to main_loop if the line never goes idle.
 ;
 ; Falls through to main_loop on success. A clean reset therefore emits exactly two
-; frames before steady-state polling begins. See two-broadcasts-one-template.md for why
-; one template suffices.
+; frames before steady-state polling begins. See
+; docs/analysis/two-broadcasts-one-template.md for why one template suffices.
 .reset_announce_broadcasts
     lda #0                                                            ; e033: a9 00       ..             ; A = 0: clear announce_flag (idle path stays quiet initially)
     sta announce_flag                                                 ; e035: 8d 29 02    .).            ; Commit announce_flag = 0 to workspace
@@ -155,17 +155,17 @@ adlc_b_tx2      = &d803
 ;
 ; The re-announce scheme uses three bytes of workspace:
 ;
-; announce_flag   enables re-announce (bit 7 additionally selects which side the
-; re-announce goes out on) announce_tmr_   16-bit countdown, decremented every
-; idle-path lo/hi         iteration; zero triggers the re-announce announce_count
-; remaining re-announce cycles; when this hits zero, announce_flag is cleared and
-; re-announce stops until something else re-enables it
+; | byte               | role                                                                                                                                 |
+; |--------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+; | announce_flag      | enables re-announce; bit 7 additionally selects which side the re-announce goes out on                                               |
+; | announce_tmr_lo/hi | 16-bit countdown, decremented every idle-path iteration; zero triggers the re-announce                                               |
+; | announce_count     | remaining re-announce cycles; when this hits zero, announce_flag is cleared and re-announce stops until something else re-enables it |
 ;
-; The re-announce path (&E098) rebuilds the announcement frame, sets tx_ctrl to &81
-; (distinguishing it from the reset-time &80 first announcement), then dispatches to
-; side A or side B based on announce_flag bit 7. The timer is re-armed to &8000 (32768
-; idle iterations) after each announce, giving a roughly constant cadence regardless of
-; how busy the ADLCs are with other traffic.
+; The re-announce path (re_announce) rebuilds the announcement frame, sets tx_ctrl to
+; &81 (distinguishing it from the reset-time &80 first announcement), then dispatches
+; to side A or side B based on announce_flag bit 7. The timer is re-armed to &8000
+; (32768 idle iterations) after each announce, giving a roughly constant cadence
+; regardless of how busy the ADLCs are with other traffic.
 ; &e051 referenced 14 times by &e0bf, &e0c7, &e13c, &e1d3, &e260, &e2bd, &e354, &e3e1, &e4d6, &e52d, &e5b3, &e644, &e6d0, &e71c
 .main_loop
     lda adlc_a_cr2                                                    ; e051: ad 01 c8    ...            ; Read ADLC A's SR2
@@ -212,10 +212,10 @@ adlc_b_tx2      = &d803
 ; Emit one BridgeReply in an in-progress response burst
 ;
 ; Reached from main_loop_idle once the 16-bit announce_tmr has ticked down to zero and
-; announce_flag is non-zero. Both conditions are only met after rx_?_handle_80 has set
-; the flag in response to a BridgeReset received from another bridge. This routine is
-; the per-tick action of that response burst -- it is NOT a self-scheduled periodic
-; announcement.
+; announce_flag is non-zero. Both conditions are only met after rx_a_handle_80 or
+; rx_b_handle_80 has set the flag in response to a BridgeReset received from another
+; bridge. This routine is the per-tick action of that response burst -- it is not a
+; self-scheduled periodic announcement.
 ;
 ; Rebuilds the outbound template via build_announce_b and patches tx_ctrl from &80 (the
 ; BridgeReset value the builder writes) to &81 (BridgeReply), distinguishing the
@@ -223,16 +223,17 @@ adlc_b_tx2      = &d803
 ;
 ; Which side to transmit on is selected by announce_flag bit 7:
 ;
-; bit 7 clear (flag = 1..&7F)  ->  transmit via ADLC A (side A) bit 7 set   (flag =
-; &80..FF) ->  transmit via ADLC B, after patching tx_data0 with net_num_a, mirroring
-; the reset-time dual-broadcast.
+; | announce_flag bit 7 | side   | notes                                                                        |
+; |---------------------|--------|------------------------------------------------------------------------------|
+; | clear (1..&7F)      | ADLC A | transmit directly                                                            |
+; | set (&80..&FF)      | ADLC B | patch tx_data0 with net_num_a first, mirroring the reset-time dual-broadcast |
 ;
 ; Each invocation decrements announce_count. When it hits zero, announce_flag is
 ; cleared (re_announce_done); the burst is complete and the idle path goes quiet until
 ; another BridgeReset arrives. Otherwise the timer is re-armed to &8000 and control
 ; returns to main_loop (re_announce_rearm).
 ;
-; Before transmitting on one side, the routine resets the OTHER ADLC's TX path (CR1 =
+; Before transmitting on one side, the routine resets the other ADLC's TX path (CR1 =
 ; &C2) to prevent the opposite side from inadvertently transmitting a colliding frame
 ; while we're busy.
 .re_announce
@@ -406,10 +407,10 @@ adlc_b_tx2      = &d803
 ; payload (rx_query_net).
 ;
 ; Consults reachable_via_b[rx_query_net]. If the entry is zero, there is no route to
-; that network so the query is silently dropped (JMP main_loop via &E1D3). If non-zero,
-; falls through to the shared response body at rx_a_handle_82 to transmit the reply --
-; so the targeted query is effectively the general query with an up-front routing
-; filter.
+; that network so the query is silently dropped (JMP main_loop via rx_a_query_done). If
+; non-zero, falls through to the shared response body at rx_a_handle_82 to transmit the
+; reply -- so the targeted query is effectively the general query with an up-front
+; routing filter.
 .rx_a_handle_83
     ldy rx_query_net                                                  ; e195: ac 49 02    .I.            ; Y = the queried network number
     lda reachable_via_b,y                                             ; e198: b9 5a 02    .Z.            ; Check if we have a route via the other side
@@ -436,11 +437,13 @@ adlc_b_tx2      = &d803
 ; 4. Rebuild the frame via build_query_response again -- this time to be a data frame
 ;    following the scout we just exchanged, not a new scout. The patches that follow
 ;    populate the first two payload bytes of that data frame (at the byte positions
-;    labelled tx_ctrl and tx_port, but those names refer to scout semantics -- in a
-;    data frame those slots are payload, not header, and the bytes are:
+;    labelled tx_ctrl and tx_port, but those names refer to scout semantics; in a data
+;    frame those slots are payload, not header):
 ;
-;    data0 = net_num_a        ... the Bridge's side-A network data1 = rx_query_net
-;    ... echo of the queried network
+;    | slot        | value        | meaning                     |
+;    |-------------|--------------|-----------------------------|
+;    | data byte 0 | net_num_a    | the Bridge's side-A network |
+;    | data byte 1 | rx_query_net | echo of the queried network |
 ;
 ;    The answer thus consists of the dst/src quad plus two payload bytes, packed into
 ;    the smallest Econet frame that can carry it.
@@ -497,7 +500,7 @@ adlc_b_tx2      = &d803
 ; is the mirror rx_b_handle_80). Receiving a BridgeReply (ctrl=&81) does not trigger
 ; the burst; only receiving a BridgeReset does. A solo bridge therefore stays silent
 ; after its boot-time BridgeReset pair, because nothing comes back to trigger a
-; response. See the event-driven-reannouncement writeup.
+; response. See docs/analysis/event-driven-reannouncement.md.
 ; &e1d6 referenced 1 time by &e18b
 .rx_a_handle_80
     jsr init_reachable_nets                                           ; e1d6: 20 24 e4     $.            ; Wipe all learned routing state (topology reset)
@@ -625,10 +628,13 @@ adlc_b_tx2      = &d803
 ;
 ; Bridge-protocol dispatch for this side:
 ;
-; &80  ->  rx_b_handle_80 (&E357) - initial bridge announcement &81  ->  rx_b_handle_81
-; (&E36F) - re-announcement &82  ->  rx_b_handle_82 (&E31E) - bridge query (shared &83
-; path) &83  ->  rx_b_handle_83 (&E316) - bridge query, known-station other ->
-; rx_b_forward (&E389) - forward or discard
+; | ctrl  | handler        | role                        |
+; |-------|----------------|-----------------------------|
+; | &80   | rx_b_handle_80 | initial bridge announcement |
+; | &81   | rx_b_handle_81 | re-announcement             |
+; | &82   | rx_b_handle_82 | bridge query (shared &83)   |
+; | &83   | rx_b_handle_83 | bridge query, known-station |
+; | other | rx_b_forward   | forward or discard          |
 ;
 ; See rx_frame_a for the full per-instruction explanation.
 ; &e263 referenced 1 time by &e07e
@@ -816,8 +822,21 @@ adlc_b_tx2      = &d803
 ; inbound scout is pushed via adlc_a_tx, and the B-A-B tail bridges the four-way
 ; handshake the other direction.
 ;
-; Reached from rx_b_to_forward (&E2C8), from rx_frame_b's ctrl dispatch fall-through
-; (&E314), and from rx_b_handle_81's fall-through at &E387.
+; Reached from three places:
+;
+; - rx_b_to_forward (&E2C8): the B-side frame is addressed to a remote station (not a
+;   full broadcast), and we have accepted it via the routing filter.
+; - rx_frame_b ctrl dispatch fall-through (at &E314): the frame is broadcast + port &9C
+;   but has a control byte outside the recognised bridge-protocol set (&80-&83).
+; - Fall-through from rx_b_handle_81 (at &E387): we've learned from the announcement
+;   and appended net_num_b to the payload; now propagate it onward.
+;
+; | stage | direction | drain                                           | retransmit       |
+; |-------|-----------|-------------------------------------------------|------------------|
+; | SCOUT | B → A     | inline from rx_* into adlc_a_tx, pair-at-a-time | (inline above)   |
+; | ACK1  | A → B     | handshake_rx_a into &045A                       | transmit_frame_b |
+; | DATA  | B → A     | handshake_rx_b into &045A                       | transmit_frame_a |
+; | ACK2  | A → B     | handshake_rx_a into &045A                       | transmit_frame_b |
 ;
 ; See rx_a_forward for the full per-stage explanation.
 ; &e389 referenced 2 times by &e2c8, &e314
@@ -951,12 +970,14 @@ adlc_b_tx2      = &d803
 ; at &025A), then writes &FF to four slots that are true by virtue of the Bridge's
 ; immediate topology:
 ;
-; reachable_via_a[net_num_a]  -- side A's own network is reachable via side A
-; (trivially) reachable_via_b[net_num_b]  -- side B's own network is reachable via side
-; B (trivially) reachable_via_a[255]        -- broadcast network reachable both
-; reachable_via_b[255]           ways
+; | slot                       | meaning                                 |
+; |----------------------------|-----------------------------------------|
+; | reachable_via_a[net_num_a] | side A's own network is reachable via A |
+; | reachable_via_b[net_num_b] | side B's own network is reachable via B |
+; | reachable_via_a[255]       | broadcast network reachable via either  |
+; | reachable_via_b[255]       | side                                    |
 ;
-; Everything else starts at zero and is populated later by bridge- protocol
+; Everything else starts at zero and is populated later by bridge-protocol
 ; announcements learned in the rx handlers (see rx_a_handle_80 / rx_b_handle_80).
 ;
 ; Called from the reset handler and also re-invoked from the two rx_?_handle_80 paths
@@ -987,18 +1008,17 @@ adlc_b_tx2      = &d803
 ; Fixed prelude + per-count delay scaled by ctr24_lo
 ;
 ; A calibrated busy-wait used by the query-response paths to stagger their
-; transmissions. Called from rx_a_handle_82 (&E1AC) and rx_b_handle_82 (&E32D), in each
-; case with ctr24_lo pre-loaded with the bridge's opposite-side network number
+; transmissions. Called from rx_a_handle_82 (at &E1AC) and rx_b_handle_82 (at &E32D),
+; in each case with ctr24_lo pre-loaded with the bridge's opposite-side network number
 ; (net_num_b for A-side responses, net_num_a for B-side responses).
 ;
 ; Two phases:
 ;
-; Prelude (~&40 * (dey/bne) cycles): a fixed settling delay, the same regardless of
-; caller. Roughly &40 * 5 = 320 cycles = ~160 us at 2 MHz.
-;
-; Per-count loop (ctr24_lo iterations * (&14 * (dey/bne) + dec/bne) cycles): roughly
-; ctr24_lo * 110 cycles. For a typical network number of ~24, that's ~2600 cycles =
-; ~1.3 ms.
+; 1. Prelude (~&40 × DEY/BNE cycles): a fixed settling delay, the same regardless of
+;    caller. Roughly &40 * 5 = 320 cycles = ~160 us at 2 MHz.
+; 2. Per-count loop (ctr24_lo iterations × (&14 × DEY/BNE + DEC/BNE) cycles): roughly
+;    ctr24_lo * 110 cycles. For a typical network number of ~24, that's ~2600 cycles =
+;    ~1.3 ms.
 ;
 ; For the range of network numbers permitted (1-127), the total delay runs from ~215 us
 ; to ~7 ms. This spread means multiple bridges on the same segment responding to a
@@ -1028,27 +1048,31 @@ adlc_b_tx2      = &d803
 ; Build a BridgeReset scout carrying net_num_b as payload
 ;
 ; Populates the outbound frame control block at &045A-&0460 with an all-broadcast
-; BridgeReset scout -- ctrl=&80, port=&9C, payload = net_num_b. At reset time this is
+; BridgeReset scout -- ctrl=&80, port=&9C, payload=net_num_b. At reset time this is
 ; transmitted via ADLC A first (announcing "network net_num_b is reachable through me"
 ; to side A's stations), then tx_data0 is patched to net_num_a and the same frame is
 ; re-transmitted via ADLC B.
 ;
-; tx_dst_stn = &FF                    broadcast station tx_dst_net = &FF
-; broadcast network tx_src_stn = &18                    firmware marker (see below)
-; tx_src_net = &18                    firmware marker (see below) tx_ctrl    = &80
-; initial-announcement ctrl tx_port    = &9C                    bridge-protocol port
-; tx_data0   = net_num_b              network number on side B
+; | field      | value     | meaning                     |
+; |------------|-----------|-----------------------------|
+; | tx_dst_stn | &FF       | broadcast station           |
+; | tx_dst_net | &FF       | broadcast network           |
+; | tx_src_stn | &18       | firmware marker (see below) |
+; | tx_src_net | &18       | firmware marker (see below) |
+; | tx_ctrl    | &80       | initial-announcement ctrl   |
+; | tx_port    | &9C       | bridge-protocol port        |
+; | tx_data0   | net_num_b | network number on side B    |
 ;
 ; The src_stn/src_net fields are both set to the constant &18. The Bridge has no
-; station number of its own (only network numbers, per the Installation Guide) so these
-; fields are not real addresses. Receivers do not use them for routing --
+; station number of its own (only network numbers, per the Installation Guide), so
+; these fields are not real addresses. Receivers do not use them for routing --
 ; rx_a_handle_81 reads the payload starting at offset 6 and ignores bytes 2-3 entirely.
 ; The most plausible role for &18 is defensive redundancy: together with dst=(&FF,&FF),
 ; ctrl=&80/&81 and port=&9C it gives a receiver multiple ways to confirm that a
 ; received frame is a well-formed bridge announcement.
 ;
 ; Also writes &06 to tx_end_lo and &04 to tx_end_hi (so the transmit routine sends
-; bytes &045A..&0460 inclusive = 7 bytes when X=1), loads X=1 (trailing-byte flag for
+; bytes &045A..&0460 inclusive -- 7 bytes when X=1), loads X=1 (trailing-byte flag for
 ; transmit_frame_a), and points mem_ptr at the frame block (&045A).
 ;
 ; Called from the reset handler at &E038 and again from &E098 (the main-loop periodic
@@ -1136,7 +1160,7 @@ adlc_b_tx2      = &d803
 ; Send the frame at mem_ptr out through ADLC B's TX FIFO
 ;
 ; Byte-for-byte mirror of transmit_frame_a (&E517) with adlc_a_* replaced by adlc_b_*.
-; Everything there applies here — same entry conditions, same end-pointer semantics
+; Everything there applies here -- same entry conditions, same end-pointer semantics
 ; (tx_end_lo/hi), same X=0/1 trailing-byte flag, same escape-to-main-loop on unexpected
 ; SR1 state, same normal exit that resets mem_ptr to &045A.
 ;
@@ -1198,24 +1222,31 @@ adlc_b_tx2      = &d803
 ; ***************************************************************************************
 ; Send the frame at mem_ptr out through ADLC A's TX FIFO
 ;
-; Sends the frame starting at mem_ptr (&80/&81 — normally pointing at the outbound
-; control block &045A) through ADLC A's TX FIFO. Termi- nation is controlled by the
+; Sends the frame starting at mem_ptr (&80/&81 -- normally pointing at the outbound
+; control block &045A) through ADLC A's TX FIFO. Termination is controlled by the
 ; 16-bit pointer tx_end_lo/tx_end_hi (&0200/&0201): the loop sends byte pairs until
-; mem_ptr + Y reaches or passes (tx_end_hi:tx_end_lo). X is a flag — non-zero means
+; mem_ptr + Y reaches or passes (tx_end_hi:tx_end_lo). X is a flag -- non-zero means
 ; send one extra trailing byte after the terminator (used by builders that append a
 ; payload like build_announce_b's net_num_b at &0460).
 ;
-; On entry: mem_ptr_lo/hi                      start address of frame tx_end_lo/hi
-; end address (exclusive pair) X                                  0 = no trailing byte,
-; 1 = send one trailing byte ADLC A must already be primed by a frame builder
+; On entry:
 ;
-; On exit (normal RTS): mem_ptr_lo/hi reset to &045A       ready for next builder ADLC
-; A's TX FIFO flushed, CR2 = &3F
+; | register / byte | role                                             |
+; |-----------------|--------------------------------------------------|
+; | mem_ptr_lo/hi   | start address of frame                           |
+; | tx_end_lo/hi    | end address (exclusive pair)                     |
+; | X               | 0 = no trailing byte, 1 = send one trailing byte |
+; | (ADLC A)        | must already be primed by a frame builder        |
+;
+; On exit (normal RTS):
+;
+; - mem_ptr_lo/hi reset to &045A, ready for the next builder.
+; - ADLC A's TX FIFO flushed, CR2 = &3F.
 ;
 ; Abnormal exit: if any of the three wait_adlc_a_irq polls returns with SR1's V-bit
 ; clear instead of set (meaning the ADLC didn't reach the expected TDRA state), the
-; routine drops the caller's return address from the stack and JMP's into the main loop
-; at &E051 — the same escape-to-main pattern used by wait_adlc_a_idle.
+; routine drops the caller's return address from the stack and JMP's into main_loop --
+; the same escape-to-main pattern used by wait_adlc_a_idle.
 ;
 ; Called from seven sites: reset (&E03E), &E0AD, &E1B2, &E1CD, &E251, &E25D, &E3D8.
 ; &e517 referenced 7 times by &e03e, &e0ad, &e1b2, &e1cd, &e251, &e25d, &e3d8
@@ -1398,8 +1429,8 @@ adlc_b_tx2      = &d803
 ;
 ; The receive half of four-way-handshake bridging for the B side. Enables RX on ADLC B,
 ; drains an inbound frame byte-by-byte into the outbound buffer starting at tx_dst_stn
-; (&045A), then sets up tx_end_lo/hi so the next call to transmit_frame_a transmits the
-; just-received frame out of the other port verbatim.
+; (&045A), then sets up tx_end_lo/tx_end_hi so the next call to transmit_frame_a
+; transmits the just-received frame out of the other port verbatim.
 ;
 ; The drain is capped at top_ram_page (set by the boot RAM test) so very long frames
 ; fill available RAM and no further.
@@ -1426,12 +1457,15 @@ adlc_b_tx2      = &d803
 ; complementary roles depending on which side the next handshake frame is expected to
 ; arrive from.
 ;
-; Called from five sites: &E336  rx_b_handle_82: drain the querier's scout-ACK on B
-; &E351  rx_b_handle_82: drain the querier's final data-ACK on B &E3D5  rx_b_forward:
-; Stage 3 DATA drain from B (originator's data, B -> A forwarding direction) &E24E
-; rx_a_forward:   Stage 2 ACK1 drain from B (destination's scout-ACK, A -> B forwarding
-; direction) &E25A  rx_a_forward:   Stage 4 ACK2 drain from B (destination's final ACK,
-; A -> B forwarding direction)
+; Called from five sites:
+;
+; | site  | in             | role                                                       |
+; |-------|----------------|------------------------------------------------------------|
+; | &E336 | rx_b_handle_82 | drain the querier's scout-ACK on B                         |
+; | &E351 | rx_b_handle_82 | drain the querier's final data-ACK on B                    |
+; | &E3D5 | rx_b_forward   | Stage 3 DATA drain from B (originator's data, B → A)       |
+; | &E24E | rx_a_forward   | Stage 2 ACK1 drain from B (destination's scout-ACK, A → B) |
+; | &E25A | rx_a_forward   | Stage 4 ACK2 drain from B (destination's final ACK, A → B) |
 ; &e5ff referenced 5 times by &e24e, &e25a, &e336, &e351, &e3d5
 .handshake_rx_b
     lda #&82                                                          ; e5ff: a9 82       ..             ; A = &82: TX in reset, RX IRQs enabled
@@ -1516,7 +1550,7 @@ adlc_b_tx2      = &d803
 ;
 ; Byte-for-byte mirror of wait_adlc_a_idle (&E6DC) with adlc_a_* replaced by adlc_b_*.
 ; Same pre-transmit carrier-sense semantics: wait for SR2 bit 2 (Rx Idle), back off on
-; AP/RDA, escape to main loop on ~131K-iteration timeout.
+; AP/RDA, escape to main_loop on ~131K-iteration timeout.
 ;
 ; Called from four sites: reset (&E04B), &E0D5, &E211, &E330.
 ; &e690 referenced 4 times by &e04b, &e0d5, &e211, &e330
@@ -1576,11 +1610,11 @@ adlc_b_tx2      = &d803
 ; - SR2 bit 2 set (Rx Idle): line is quiet. Arm CR2=&E7 and CR1=&44, RTS -- caller
 ;   proceeds to transmit.
 ; - SR2 bit 0 or bit 7 set (AP or RDA): another station is sending into this ADLC. Back
-;   off by cycling CR1 through &C2 -> &82 (reset TX without touching RX) and keep
+;   off by cycling CR1 through &C2 → &82 (reset TX without touching RX) and keep
 ;   polling. The Bridge is not the right place to assert on a busy line.
 ; - Timeout (counter overflows without ever seeing Rx Idle): PLA/PLA discards the
-;   caller's saved return address from the stack and JMP &E051 escapes into the main
-;   Bridge loop. The code between the caller's JSR and the main loop is skipped
+;   caller's saved return address from the stack and JMP main_loop escapes into the
+;   main Bridge loop. The code between the caller's JSR and the main loop is skipped
 ;   entirely. See docs/analysis/escape-to-main-control-flow.md.
 ;
 ; Called from four sites, always immediately before a transmit: reset (&E03B, before
@@ -1679,11 +1713,12 @@ adlc_b_tx2      = &d803
 ; Zero-page integrity test (&00-&02)
 ;
 ; Writes &55 to &00, &01, &02 and reads them back; then &AA and reads back. Failure
-; jumps to self_test_fail with A=1.
+; jumps to ram_test_fail (via self_test_ram_fail_jump, because RAM isn't trustworthy
+; enough at this point to use a countable blink).
 ;
 ; Tests only the three ZP bytes that are used as scratch by the later self-test stages
-; (ROM checksum, RAM scan). A full ZP test isn't needed — the main reset handler has
-; already exercised ZP indirectly via the RAM test.
+; (ROM checksum, RAM scan). A full ZP test isn't needed -- the main reset handler has
+; already exercised ZP indirectly via ram_test.
 ; &f02f referenced 1 time by &f289
 .self_test_zp
     lda #&55 ; 'U'                                                    ; f02f: a9 55       .U             ; First test pattern = &55 (0101_0101)
@@ -1711,7 +1746,8 @@ adlc_b_tx2      = &d803
 ; total is &55; on mismatch, jumps to self_test_fail with A=2.
 ;
 ; Runtime pointer in &00/&01 starts at &E000; &02 holds the page counter (32 pages = 8
-; KiB).
+; KiB). The required total is balanced on-disc by the rom_checksum_adjust byte at
+; &FFF0, hand-tuned to make the ROM-wide sum land on &55.
 ; &f04c referenced 1 time by &f045
 .self_test_rom_checksum
     lda #0                                                            ; f04c: a9 00       ..             ; A = 0: low byte of the ROM pointer
@@ -1744,9 +1780,9 @@ adlc_b_tx2      = &d803
 ; checks that each byte can store both &55 and &AA. Pointer in (&00,&01) = &0000, Y
 ; starts at 4 and wraps, page count in &02 = &20 (32 pages = 8 KiB).
 ;
-; On mismatch, jumps to ram_test_fail (&F28C) (note: a different failure handler from
+; On mismatch, jumps to ram_test_fail (&F28C) -- a different failure handler from
 ; self_test_fail, because a broken RAM cannot use the normal blink-code loop which
-; needs RAM workspace).
+; needs RAM workspace.
 ; &f070 referenced 1 time by &f069
 .self_test_ram_pattern
     lda #0                                                            ; f070: a9 00       ..             ; A = 0: low byte of the RAM-test indirect pointer
@@ -1836,8 +1872,10 @@ adlc_b_tx2      = &d803
 ; has configured them. Tests specific bits of SR1 and SR2 on each chip (ADLC A bits
 ; from &C800/&C801, ADLC B bits from &D800/&D801).
 ;
-; Failure paths: Code 3 (at &F107): ADLC A register-state mismatch Code 4 (at &F102):
-; ADLC B register-state mismatch
+; | code | fail at | reason                         |
+; |------|---------|--------------------------------|
+; | 3    | &F107   | ADLC A register-state mismatch |
+; | 4    | &F102   | ADLC B register-state mismatch |
 .self_test_adlc_state
     lda #&10                                                          ; f0d6: a9 10       ..             ; Mask bit 4 (CTS bit of SR1): expect 1 after reset
     bit adlc_a_cr1                                                    ; f0d8: 2c 00 c8    ,..            ; Test on ADLC A
@@ -1879,18 +1917,19 @@ adlc_b_tx2      = &d803
 ;
 ; 1. Pre-fill the A TX FIFO with bytes 0-7 (Y=0..7) while B is still settling --
 ;    priming the pipeline before any RX checks begin.
-; 2. Wait for B's first RX IRQ, verify AP, read and match bytes 0 and 1. This is the
-;    special "opening" case because the AP/RDA transitions happen on the first two
-;    bytes only.
+; 2. Handshake opening: wait for B's first RX IRQ, verify AP, read and match bytes 0
+;    and 1. This is the special "opening" case because the AP/RDA transitions happen on
+;    the first two bytes only.
 ; 3. Streaming loop: repeatedly send a pair via A, read a pair via B, compare against X
 ;    (increments in lockstep), and loop until Y wraps to 0 (256 bytes sent).
-; 4. Program CR2=&3F on A to flush the final byte with an end-of-frame marker. Drain
-;    the remaining bytes on B (another 255 iterations to empty B's FIFO), then wait for
-;    the Frame Valid bit to confirm a clean end-of-frame.
+; 4. End-of-frame flush: program CR2=&3F on A to flush the final byte with an
+;    end-of-frame marker. Drain the remaining bytes on B (another 255 iterations to
+;    empty B's FIFO), then wait for the Frame Valid bit to confirm a clean
+;    end-of-frame.
 ;
-; Every mismatch or missing status bit jumps to the shared fail target at &F151 which
-; loads code 5 and hands off to self_test_fail. Falls through to
-; self_test_loopback_b_to_a on success.
+; Every mismatch or missing status bit jumps to the shared fail target at
+; loopback_a_to_b_fail (&F151) which loads code 5 and hands off to self_test_fail.
+; Falls through to self_test_loopback_b_to_a on success.
 ; &f10a referenced 1 time by &f0fe
 .self_test_loopback_a_to_b
     lda #&c0                                                          ; f10a: a9 c0       ..             ; A = &C0: ADLC full reset
@@ -2072,7 +2111,10 @@ adlc_b_tx2      = &d803
 ; are predictable and the loopback tests can complete without colliding with anything
 ; else a tester might leave plugged in.
 ;
-; Failure paths: Code 7 at &F255: net_num_a != 1 Code 8 at &F261: net_num_b != 2
+; | code | condition      | fail at |
+; |------|----------------|---------|
+; | 7    | net_num_a != 1 | &F255   |
+; | 8    | net_num_b != 2 | &F261   |
 .self_test_check_netnums
     lda net_num_a                                                     ; f24c: ad 00 c0    ...            ; Fetch the side-A jumper setting
     cmp #1                                                            ; f24f: c9 01       ..             ; Expected self-test value = 1
@@ -2182,18 +2224,22 @@ adlc_b_tx2      = &d803
 ; the LED (via CR3 bit 7 on ADLC B, which is the pin that drives the front-panel LED) a
 ; count of times equal to the error code, separated by longer gaps.
 ;
-; Error code table:
+; Error codes:
 ;
-; 2   ROM checksum mismatch (self_test_rom_checksum (&F04C)) 3   ADLC A register state
-; wrong (self_test_adlc_state, &F107) 4   ADLC B register state wrong
-; (self_test_adlc_state, &F102) 5   A-to-B loopback fail (self_test_loopback_a_to_b,
-; &F153) 6   B-to-A loopback fail (self_test_loopback_b_to_a, &F1F4) 7   net_num_a != 1
-; (self_test_check_netnums, &F255) 8   net_num_b != 2 (self_test_check_netnums, &F261)
+; | code | meaning                     | fail point                         |
+; |------|-----------------------------|------------------------------------|
+; | 2    | ROM checksum mismatch       | self_test_rom_checksum             |
+; | 3    | ADLC A register state wrong | self_test_adlc_state at &F107      |
+; | 4    | ADLC B register state wrong | self_test_adlc_state at &F102      |
+; | 5    | A-to-B loopback fail        | self_test_loopback_a_to_b at &F153 |
+; | 6    | B-to-A loopback fail        | self_test_loopback_b_to_a at &F1F4 |
+; | 7    | net_num_a != 1              | self_test_check_netnums at &F255   |
+; | 8    | net_num_b != 2              | self_test_check_netnums at &F261   |
 ;
-; (Code 1 is not used: the zero-page integrity test's failure path routes to
+; Code 1 is not used: the zero-page integrity test's failure path routes to
 ; ram_test_fail via self_test_ram_fail_jump (&F09D), not here, because any failure of
 ; the first three RAM tests means normal counting loops can't be trusted. ram_test_fail
-; (&F28C) uses a distinct ROM-only blink instead.)
+; (&F28C) uses a distinct ROM-only blink instead.
 ;
 ; Blink pattern: CR1=1 sets the ADLC's AC bit so writes to CR2's address hit CR3. The
 ; handler alternates CR3=&00 (LED off) and CR3=&80 (LED on) N times, where N = error
