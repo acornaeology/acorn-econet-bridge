@@ -66,8 +66,8 @@ Writeups of interesting details uncovered during the disassembly work.
   A modern reproduction of the Acorn Econet Bridge, with useful photographs and build notes.
 - [Replica Econet Bridge Schematic (PDF)](https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/Replica%20Econet%20Bridge%20Schematic.pdf)
   Schematic for the replica board, closely matching the original Acorn design.
-- [Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF)](docs/econet_bridge_Ian_Stocks.pdf)
-  Schematic reverse-engineered from an original Acorn board. Local copy in docs/; originally shared in the Stardot forum thread below.
+- [Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF)](https://stardot.org.uk/forums/download/file.php?id=26508)
+  Schematic reverse-engineered from an original Acorn board, shared in the Stardot forum thread below.
 - [Stardot Forums: Econet Bridge schematic thread](https://stardot.org.uk/forums/viewtopic.php?t=12324)
   Discussion of Ian Stocks's reverse-engineered schematic and Bridge hardware details.
 - [Stardot Forums: discussion of the Acorn Econet Bridge ROM](https://stardot.org.uk/forums/viewtopic.php?t=8696)

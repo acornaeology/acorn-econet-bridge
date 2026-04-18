@@ -90,4 +90,4 @@ A one-bit output reused four ways — normal operation, diagnostic-active, struc
 - `adlc_b_full_reset` at [`&E414`](../../versions/econet-bridge-1/output/econet-bridge-1.asm) in the disassembly.
 - `self_test_reset_adlcs` at [`&F005`](../../versions/econet-bridge-1/output/econet-bridge-1.asm) in the disassembly.
 - MC68B54 datasheet in [`docs/Motorola-MC68B54P-datasheet.pdf`](../Motorola-MC68B54P-datasheet.pdf) — CR3 bit meanings.
-- Schematic (Ian Stocks's reverse-engineering) in [`docs/econet_bridge_Ian_Stocks.pdf`](../econet_bridge_Ian_Stocks.pdf).
+- [Ian Stocks's reverse-engineered schematic](https://stardot.org.uk/forums/download/file.php?id=26508).

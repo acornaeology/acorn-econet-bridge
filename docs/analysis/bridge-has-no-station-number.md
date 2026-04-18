@@ -98,4 +98,4 @@ The Bridge lives one level up from the station-address plane — it cares about 
 - `build_announce_b` at `&E458` — writes `&18` into the otherwise-unused source-address fields of the outbound announcement.
 - `rx_a_handle_81` at `&E1EE` — demonstrates that the receiver ignores the source-address fields.
 - [Econet Installation Guide, chapter 3](../Econet%20Installation%20Guide%200482,009%20Issue%201%2027%20September%201988.pdf) — the authoritative statement on how the Bridge's hardware is configured.
-- [Ian Stocks's reverse-engineered schematic](../econet_bridge_Ian_Stocks.pdf) — board-level confirmation that only the two 74LS244 network-number buffers are installed.
+- [Ian Stocks's reverse-engineered schematic](https://stardot.org.uk/forums/download/file.php?id=26508) — board-level confirmation that only the two 74LS244 network-number buffers are installed.

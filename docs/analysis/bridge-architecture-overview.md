@@ -32,7 +32,7 @@ Notably absent:
 - No ADLC `~IRQ` line to the 6502. The firmware polls SR1 bit 7 (the chip's IRQ summary) instead. The `~IRQ` pin is dedicated to the push-button.
 - No external storage, no configuration interface, no serial port.
 
-[Ian Stocks's reverse-engineered schematic](../econet_bridge_Ian_Stocks.pdf) shows the board layout.
+[Ian Stocks's reverse-engineered schematic](https://stardot.org.uk/forums/download/file.php?id=26508) shows the board layout.
 
 
 ## Boot
@@ -134,5 +134,5 @@ External references:
 
 - [Econet Installation Guide, chapter 3](../Econet%20Installation%20Guide%200482,009%20Issue%201%2027%20September%201988.pdf) — Acorn's own description of how the Bridge is deployed.
 - [MC68B54 datasheet](../Motorola-MC68B54P-datasheet.pdf) — authoritative reference for the ADLC's register semantics.
-- [Ian Stocks's reverse-engineered schematic](../econet_bridge_Ian_Stocks.pdf) — the board layout from which the hardware map is derived.
+- [Ian Stocks's reverse-engineered schematic](https://stardot.org.uk/forums/download/file.php?id=26508) — the board layout from which the hardware map is derived.
 - [J.G. Harston's BRIDGE.SRC](https://mdfs.net/System/ROMs/Econet/Bridge/BRIDGE.SRC) — another analyst's disassembly of the same binary, written as BBC-BASIC embedded-assembler source. Assembles to the same addresses we annotate, so serves as a useful second reading — but he's a fellow reverse-engineer rather than an authoritative source, and his comments have been weighed against the evidence like ours.

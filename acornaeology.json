@@ -75,9 +75,9 @@
         },
         {
             "label": "Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF)",
-            "url": "docs/econet_bridge_Ian_Stocks.pdf",
+            "url": "https://stardot.org.uk/forums/download/file.php?id=26508",
             "icon": "doc",
-            "note": "Schematic reverse-engineered from an original Acorn board. Local copy in docs/; originally shared in the Stardot forum thread below."
+            "note": "Schematic reverse-engineered from an original Acorn board, shared in the Stardot forum thread below."
         },
         {
             "label": "Stardot Forums: Econet Bridge schematic thread",
