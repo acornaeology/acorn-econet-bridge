@@ -695,48 +695,44 @@ label(0xE0E2, "rx_frame_a")
 subroutine(0xE0E2, "rx_frame_a", hook=None, is_entry_point=False,
     title="Drain and dispatch an inbound frame on ADLC A",
     description="""\
-Reached from main_loop_poll when ADLC A raises SR1 bit 7. Drains
-the incoming scout frame from the RX FIFO into the rx_* buffer at
-&023C-&024F, runs two levels of filtering, and then dispatches on
-the control byte to per-message handlers.
+Reached from [`main_loop_poll`](address:E079) when ADLC A raises SR1 bit 7. Drains the
+incoming scout frame from the RX FIFO into the `rx_*` buffer at
+`&023C-&024F`, runs two levels of filtering, and then dispatches on the
+control byte to per-message handlers.
 
-Filtering stage 1 — addressing:
+1. **Addressing filter.** Expect SR2 bit 0 (AP: Address Present) -- if
+   missing, bail to [`main_loop`](address:E051) (spurious IRQ). Read byte 0
+   (`rx_dst_stn`) and byte 1 (`rx_dst_net`). If `rx_dst_net` is zero
+   (local net) or `reachable_via_b[rx_dst_net]` is zero (unknown
+   network), jump to [`rx_a_not_for_us`](address:E13F?hex): ignore the frame,
+   re-listen, drop back to `main_loop_poll` without a full
+   `main_loop` re-init.
 
-  Expect SR2 bit 0 (AP: Address Present) -- if missing, bail to
-  main_loop (spurious IRQ).
+2. **Drain.** Read the rest of the frame in byte-pairs into
+   `&023C+Y` up to `Y=20` (the Bridge only keeps the first 20
+   bytes). After the drain, force `CR1=0` and `CR2=&84` to halt the
+   chip and test SR2 bit 1 (FV, Frame Valid). If FV is clear, the
+   frame was corrupt or short -- bail to `main_loop`. If SR2 bit 7
+   (RDA) is also set, read one trailing byte.
 
-  Read byte 0 (rx_dst_stn) and byte 1 (rx_dst_net). If rx_dst_net
-  is zero (local net) or reachable_via_b[rx_dst_net] is zero (unknown
-  network), jump to [`rx_a_not_for_us`](address:E13F?hex): ignore the frame,
-  re-listen, drop back to main_loop_poll without a full main_loop
-  re-init.
+3. **Broadcast check.** Only frames with `dst_stn == dst_net == &FF`
+   (full broadcast) proceed to the bridge-protocol dispatcher.
+   Everything else falls to [`rx_a_forward`](address:E208?hex), the
+   cross-network forwarding path.
 
-Draining:
+4. **Dispatch on `rx_ctrl`** (after verifying `rx_port == &9C`, the
+   bridge-protocol port):
 
-  Read the rest of the frame in byte-pairs into &023C+Y up to Y=20
-  (the Bridge only keeps the first 20 bytes). After the drain,
-  force CR1=0 and CR2=&84 to halt the chip and test SR2 bit 1
-  (FV, Frame Valid). If FV is clear, the frame was corrupt or
-  short -- bail to main_loop. If SR2 bit 7 (RDA) is also set,
-  read one trailing byte.
+   | ctrl  | handler                                   | role                            |
+   |-------|-------------------------------------------|---------------------------------|
+   | `&80` | [`rx_a_handle_80`](address:E1D6)          | initial bridge announcement     |
+   | `&81` | [`rx_a_handle_81`](address:E1EE)          | re-announcement                 |
+   | `&82` | [`rx_a_handle_82`](address:E19D)          | bridge query (tentative)        |
+   | `&83` | [`rx_a_handle_83`](address:E195)          | bridge query, known-station     |
+   | other | [`rx_a_forward`](address:E208)            | forward or discard              |
 
-Filtering stage 2 — broadcast check:
-
-  Only frames with dst_stn == dst_net == &FF (full broadcast)
-  proceed to the bridge-protocol dispatcher. Everything else
-  falls to [`rx_a_forward`](address:E208?hex), the cross-network forwarding
-  path (not yet analysed).
-
-Dispatch on rx_ctrl (after verifying rx_port == &9C = bridge
-protocol):
-
-  &80  ->  [`rx_a_handle_80`](address:E1D6)  - initial bridge announcement
-  &81  ->  [`rx_a_handle_81`](address:E1EE)  - re-announcement
-  &82  ->  [`rx_a_handle_82`](address:E19D)  - bridge query (tentative)
-  &83  ->  [`rx_a_handle_83`](address:E195)  - bridge query, known-station
-  other -> [`rx_a_forward`](address:E208)   - forward or discard
-
-The side-B handler [`rx_frame_b`](address:E263?hex) is the mirror of this routine.""")
+The side-B handler [`rx_frame_b`](address:E263?hex) is the mirror of this
+routine.""")
 
 comment(0xE0E2, "A = &01: mask SR2 bit 0 (AP = Address Present)", inline=True)
 comment(0xE0E4, "BIT SR2 -- confirm the IRQ was a frame start", inline=True)
@@ -1033,52 +1029,53 @@ subroutine(0xE56E, "handshake_rx_a", hook=None,
     title="Receive a handshake frame on ADLC A and stage it for forward",
     description="""\
 The receive half of four-way-handshake bridging for the A side.
-Enables RX on ADLC A, drains an inbound frame byte-by-byte into
-the outbound buffer starting at tx_dst_stn (&045A), then sets up
-tx_end_lo/hi so the next call to transmit_frame_b transmits the
-just-received frame out of the other port verbatim.
+Enables RX on ADLC A, drains an inbound frame byte-by-byte into the
+outbound buffer starting at `tx_dst_stn` (`&045A`), then sets up
+`tx_end_lo`/`tx_end_hi` so the next call to
+[`transmit_frame_b`](address:E4C0) transmits the just-received
+frame out of the other port verbatim.
 
-The drain is capped at `top_ram_page` (set by the boot RAM test)
-so very long frames fill available RAM and no further.
+The drain is capped at `top_ram_page` (set by the boot RAM test) so
+very long frames fill available RAM and no further.
 
 After the drain, does three pieces of address fix-up on the
 now-staged frame:
 
-  * If tx_src_net (byte 3 of the frame) is zero, fill it with
-    net_num_a. Many Econet senders leave src_net as zero to mean
-    "my local network"; the Bridge makes that explicit before
-    forwarding.
+- If `tx_src_net` (byte 3 of the frame) is zero, fill it with
+  `net_num_a`. Many Econet senders leave `src_net` as zero to mean
+  "my local network"; the Bridge makes that explicit before
+  forwarding.
+- Reject the frame if `tx_dst_net` is zero (no destination network
+  declared) or if `reachable_via_b` has no entry for that network
+  (we don't know a route).
+- If `tx_dst_net` equals `net_num_b` (our own B-side network),
+  normalise it to zero -- from side B's perspective the frame is
+  now "local".
 
-  * Reject the frame if tx_dst_net is zero (no destination
-    network declared) or if reachable_via_b has no entry for
-    that network (we don't know a route).
+On any of the "reject" paths above, and on any sub-step that fails
+(no AP/RDA, no Frame Valid, no response at all), takes the standard
+escape-to-main-loop exit: `PLA/PLA/JMP` [`main_loop`](address:E051).
 
-  * If tx_dst_net equals net_num_b (our own B-side network),
-    normalise it to zero -- from side B's perspective the frame
-    is now "local".
+On success, return to the caller with `mem_ptr` / `tx_end_lo` /
+`tx_end_hi` ready for [`transmit_frame_b`](address:E4C0) (or
+[`transmit_frame_a`](address:E517) in the reverse direction for
+queries).
 
-On any of the "reject" paths above, and on any sub-step that
-fails (no AP/RDA, no Frame Valid, no response at all), takes
-the standard escape-to-main-loop exit: PLA/PLA/JMP main_loop.
-
-On success, return to the caller with mem_ptr / tx_end_lo / tx_end_hi
-ready for transmit_frame_b (or transmit_frame_a in the reverse
-direction for queries).
-
-Mirror-image pair with [`handshake_rx_b`](address:E5FF?hex): the two routines
-share identical structure with adlc_a_* / adlc_b_* and net_num_a /
-net_num_b swapped, and are used in complementary roles depending
-on which side the next handshake frame is expected to arrive from.
+Mirror-image pair with [`handshake_rx_b`](address:E5FF?hex): the two
+routines share identical structure with `adlc_a_*` / `adlc_b_*` and
+`net_num_a` / `net_num_b` swapped, and are used in complementary
+roles depending on which side the next handshake frame is expected
+to arrive from.
 
 Called from five sites:
-  &E1B5  rx_a_handle_82: drain the querier's scout-ACK on A
-  &E1D0  rx_a_handle_82: drain the querier's final data-ACK on A
-  &E254  rx_a_forward:   Stage 3 DATA drain from A (originator's
-                         data, A -> B forwarding direction)
-  &E3CF  rx_b_forward:   Stage 2 ACK1 drain from A (destination's
-                         scout-ACK, B -> A forwarding direction)
-  &E3DB  rx_b_forward:   Stage 4 ACK2 drain from A (destination's
-                         final ACK, B -> A forwarding direction)""")
+
+| site                          | in                                    | role                                                    |
+|-------------------------------|---------------------------------------|---------------------------------------------------------|
+| [`&E1B5`](address:E1B5)       | [`rx_a_handle_82`](address:E19D)      | drain the querier's scout-ACK on A                      |
+| [`&E1D0`](address:E1D0)       | [`rx_a_handle_82`](address:E19D)      | drain the querier's final data-ACK on A                 |
+| [`&E254`](address:E254)       | [`rx_a_forward`](address:E208)        | Stage 3 DATA drain from A (originator's data, A &rarr; B) |
+| [`&E3CF`](address:E3CF)       | [`rx_b_forward`](address:E389)        | Stage 2 ACK1 drain from A (destination's scout-ACK, B &rarr; A) |
+| [`&E3DB`](address:E3DB)       | [`rx_b_forward`](address:E389)        | Stage 4 ACK2 drain from A (destination's final ACK, B &rarr; A) |""")
 
 comment(0xE56E, "A = &82: TX in reset, RX IRQs enabled", inline=True)
 comment(0xE570, "Re-arm ADLC A for the incoming handshake frame", inline=True)
@@ -1322,32 +1319,34 @@ label(0xE48D, "build_query_response")
 subroutine(0xE48D, "build_query_response", hook=None,
     title="Build a reply template for WhatNet/IsNet query responses",
     description="""\
-A second frame-builder (sibling of build_announce_b) used by the
-bridge-query response path. Called *twice* per response: once to
-build the reply scout (ctrl=&80 + reply_port as the port), then
-after the querier's scout-ACK has been received, called again to
-rebuild the buffer as a data frame -- the caller then patches
-bytes 4 and 5 (labelled tx_ctrl and tx_port but genuinely payload
-in a data frame) with the routing answer. Where build_announce_b
-writes a broadcast-addressed template, this one builds a unicast
-reply:
+A second frame-builder (sibling of [`build_announce_b`](address:E458))
+used by the bridge-query response path. Called *twice* per response:
+once to build the reply scout (`ctrl=&80` + `reply_port` as the port),
+then after the querier's scout-ACK has been received, called again to
+rebuild the buffer as a data frame -- the caller then patches bytes 4
+and 5 (labelled `tx_ctrl` and `tx_port` but genuinely payload in a
+data frame) with the routing answer. Where `build_announce_b` writes
+a broadcast-addressed template, this one builds a unicast reply:
 
-  tx_dst_stn = rx_src_stn          station that sent the query
-  tx_dst_net = 0                   local network
-  tx_src_stn = 0                   Bridge has no station
-  tx_src_net = 0                   (caller patches to net_num_?)
-  tx_ctrl    = &80                 scout control byte
-  tx_port    = rx_query_port       response port from byte 12 of query
-  X          = 0                   no trailing payload
+| field        | value            | notes                                     |
+|--------------|------------------|-------------------------------------------|
+| `tx_dst_stn` | `rx_src_stn`     | station that sent the query               |
+| `tx_dst_net` | `0`              | local network                             |
+| `tx_src_stn` | `0`              | Bridge has no station                     |
+| `tx_src_net` | `0`              | *(caller patches to `net_num_?`)*         |
+| `tx_ctrl`    | `&80`            | scout control byte                        |
+| `tx_port`    | `rx_query_port`  | response port from byte 12 of query       |
+| X register   | `0`              | no trailing payload                       |
 
-Also writes tx_end_lo=&06 / tx_end_hi=&04 and points mem_ptr at
-&045A so a subsequent transmit_frame_? sends the 6-byte scout.
+Also writes `tx_end_lo=&06` / `tx_end_hi=&04` and points `mem_ptr` at
+`&045A` so a subsequent `transmit_frame_?` sends the 6-byte scout.
 
-Called from the two query-response paths (&E1A0 and &E1B8 on
-side A; &E321 and &E339 on side B). Each caller then patches a
-subset of the fields before calling transmit_frame_? -- the
-idiomatic second call in particular overwrites tx_ctrl and
-tx_port to carry the bridge's routing answer.""")
+Called from the two query-response paths ([`&E1A0`](address:E1A0) and
+[`&E1B8`](address:E1B8) on side A; [`&E321`](address:E321) and
+[`&E339`](address:E339) on side B). Each caller then patches a subset
+of the fields before calling `transmit_frame_?` -- the idiomatic
+second call in particular overwrites `tx_ctrl` and `tx_port` to
+carry the bridge's routing answer.""")
 
 comment(0xE48D, "Load querier's station from the received scout", inline=True)
 comment(0xE490, "Target the reply back at them as dst_stn", inline=True)
@@ -1468,47 +1467,38 @@ label(0xE208, "rx_a_forward")
 subroutine(0xE208, "rx_a_forward", hook=None, is_entry_point=False,
     title="Forward an A-side frame to B, completing the 4-way handshake",
     description="""\
-Entry point for cross-network forwarding of frames received on
-side A. Reached from three places:
+Entry point for cross-network forwarding of frames received on side A.
+Reached from three places:
 
-  * [`rx_a_to_forward`](address:E147?hex): the A-side frame is addressed to a
-    remote station (not a full broadcast), and we have accepted
-    it via the routing filter.
-  * [`rx_frame_a`](address:E0E2) ctrl dispatch fall-through (at [`&E193`](address:E193)): the frame is
-    broadcast + port &9C but has a control byte outside the
-    recognised bridge-protocol set (&80-&83).
-  * Fall-through from [`rx_a_handle_81`](address:E1EE) (at [`&E207`](address:E207)): we've learned from
-    the announcement and appended net_num_a to the payload; now
-    propagate it onward.
+- [`rx_a_to_forward`](address:E147?hex): the A-side frame is addressed
+  to a remote station (not a full broadcast), and we have accepted it
+  via the routing filter.
+- [`rx_frame_a`](address:E0E2) ctrl dispatch fall-through (at
+  [`&E193`](address:E193)): the frame is broadcast + port `&9C` but
+  has a control byte outside the recognised bridge-protocol set
+  (`&80`-`&83`).
+- Fall-through from [`rx_a_handle_81`](address:E1EE) (at
+  [`&E207`](address:E207)): we've learned from the announcement and
+  appended `net_num_a` to the payload; now propagate it onward.
 
 The routine bridges the complete Econet four-way handshake by
 alternating direct-forward, receive-on-one-side, and re-transmit:
 
-  Stage 1 (SCOUT, A -> B): the inbound scout already sits in the
-  rx_* buffer (&023C..). Round rx_len down to even, wait for B
-  to be idle, then push the bytes directly into adlc_b_tx in
-  pairs (odd-length frames send the trailing byte as a single
-  write). Terminate by writing CR2=&3F (end-of-burst).
+| stage | direction | drain                                     | retransmit                                |
+|-------|-----------|-------------------------------------------|-------------------------------------------|
+| SCOUT | A &rarr; B | inline from `rx_*` into `adlc_b_tx`, pair-at-a-time | *(inline above)*                          |
+| ACK1  | B &rarr; A | [`handshake_rx_b`](address:E5FF) into `&045A`       | [`transmit_frame_a`](address:E517)                 |
+| DATA  | A &rarr; B | [`handshake_rx_a`](address:E56E) into `&045A`       | [`transmit_frame_b`](address:E4C0)                 |
+| ACK2  | B &rarr; A | [`handshake_rx_b`](address:E5FF) into `&045A`       | [`transmit_frame_a`](address:E517)                 |
 
-  Stage 2 (ACK1, B -> A): handshake_rx_b drains the receiver's
-  ACK from ADLC B into the &045A staging buffer. transmit_frame_a
-  forwards it to the originator.
+Each `handshake_rx_?` call can escape to [`main_loop`](address:E051)
+(PLA/PLA/JMP) if the expected frame doesn't arrive, cleanly aborting
+the bridged conversation without further work on either side.
 
-  Stage 3 (DATA, A -> B): handshake_rx_a drains the sender's
-  data frame from ADLC A into &045A. transmit_frame_b forwards
-  it to the destination.
-
-  Stage 4 (ACK2, B -> A): handshake_rx_b drains the receiver's
-  final ACK. transmit_frame_a forwards it to the originator.
-
-Each handshake_rx_? call can escape to main_loop (PLA/PLA/JMP) if
-the expected frame doesn't arrive, cleanly aborting the bridged
-conversation without further work on either side.
-
-The A-B-A transmit pattern that appears at the routine's tail is
-therefore the natural shape of a bridged four-way handshake when
-the initial scout came from side A: two frames travel A -> B
-(scout and data) and two travel B -> A (two ACKs).""")
+The A-B-A transmit pattern at the routine's tail is therefore the
+natural shape of a bridged four-way handshake when the initial scout
+came from side A: two frames travel A &rarr; B (scout and data) and
+two travel B &rarr; A (two ACKs).""")
 
 comment(0xE208, "Read rx_len into A", inline=True)
 comment(0xE20B, "Preserve original length in X for odd-parity check", inline=True)
