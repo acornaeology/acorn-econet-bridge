@@ -214,12 +214,16 @@ label(0x0001, "st_ptr_hi",
     length=1, group="zero_page", access="rw")
 label(0x0002, "st_page_count",
     description="Page counter for the self-test scans.\n"
-                "Pre-loaded with the number of 256-byte pages the "
-                "current scan covers (`&20` for the 8 KiB ROM, "
-                "[`top_ram_page`](address:0082) for RAM) and "
-                "decremented once per page by "
-                "[`self_test_rom_checksum`](address:F04C) and "
-                "[`self_test_ram_pattern`](address:F070).\n\n"
+                "Pre-loaded with a hard-coded `&20` (32 pages = 8 KiB) "
+                "at every site and decremented once per page by "
+                "[`self_test_rom_checksum`](address:F04C), "
+                "[`self_test_ram_pattern`](address:F070), and both "
+                "phases of [`self_test_ram_incr`](address:F0A0). The "
+                "self-test therefore always covers exactly the low 8 "
+                "KiB of RAM (`&0000-&1FFF`) and the 8 KiB ROM "
+                "(`&E000-&FFFF`), regardless of what the boot-time "
+                "[`ram_test`](address:E00B) found: this counter is "
+                "never loaded from [`top_ram_page`](address:0082).\n\n"
                 "Also a scratch victim byte during "
                 "[`self_test_zp`](address:F02F).",
     length=1, group="zero_page", access="rw")

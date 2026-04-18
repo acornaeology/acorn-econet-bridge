@@ -1,48 +1,48 @@
 ; Memory locations
-st_ptr_lo       = &0000  ; Low byte of the self-test scan pointer.
-st_ptr_hi       = &0001  ; High byte of the self-test scan pointer.
-st_page_count   = &0002  ; Page counter for the self-test scans.
-st_pass_phase   = &0003  ; Self-test pass-phase flag.
-mem_ptr_lo      = &0080  ; Low byte of the indirect pointer.
-mem_ptr_hi      = &0081  ; High byte of the indirect pointer.
-top_ram_page    = &0082  ; Highest page that verified &AA/&55 during ram_test.
-tx_end_lo       = &0200  ; Low byte of the TX end-pointer, consumed by transmit_frame_a.
-tx_end_hi       = &0201  ; High byte of the TX end-pointer.
-ctr24_lo        = &0214  ; Low byte of a 24-bit counter reused by several routines.
-ctr24_mid       = &0215  ; Middle byte of the 24-bit counter.
-ctr24_hi        = &0216  ; High byte of the 24-bit counter.
-rx_len          = &0228  ; Byte count received into the RX frame buffer.
+st_ptr_lo       = &0000  ; Low byte of the self-test scan pointer. Paired with st_ptr_hi to form a 16-bit indirect pointer walked by self_test_rom_checksum and self_test_ram_pattern.
+st_ptr_hi       = &0001  ; High byte of the self-test scan pointer. Paired with st_ptr_lo; incremented page by page as the scanning loops stride through each 256-byte block of ROM or RAM.
+st_page_count   = &0002  ; Page counter for the self-test scans. Pre-loaded with a hard-coded &20 (32 pages = 8 KiB) at every site and decremented once per page by self_test_rom_checksum, self_test_ram_pattern, and both phases of self_test_ram_incr. The self-test therefore always covers exactly the low 8 KiB of RAM (&0000-&1FFF) and the 8 KiB ROM (&E000-&FFFF), regardless of what the boot-time ram_test found: this counter is never loaded from top_ram_page.
+st_pass_phase   = &0003  ; Self-test pass-phase flag. Initialised by self_test at entry and toggled by self_test_pass_done at the end of each full pass; bit 7 then selects between a plain restart from self_test_reset_adlcs and the alternate path through self_test_alt_pass, which drives the ADLC control registers slightly differently to catch intermittent faults.
+mem_ptr_lo      = &0080  ; Low byte of the indirect pointer. Paired with mem_ptr_hi.
+mem_ptr_hi      = &0081  ; High byte of the indirect pointer. Paired with mem_ptr_lo.
+top_ram_page    = &0082  ; Highest page that verified &AA/&55 during ram_test. Used later by workspace initialisation to decide how much RAM is safe to touch.
+tx_end_lo       = &0200  ; Low byte of the TX end-pointer, consumed by transmit_frame_a. The TX loop sends byte pairs from mem_ptr_lo upward and terminates once the index reaches or passes this pointer.
+tx_end_hi       = &0201  ; High byte of the TX end-pointer. Paired with tx_end_lo.
+ctr24_lo        = &0214  ; Low byte of a 24-bit counter reused by several routines. wait_adlc_a_idle uses all three bytes as a timeout; stagger_delay uses this low byte alone as an 8-bit delay.
+ctr24_mid       = &0215  ; Middle byte of the 24-bit counter. Rooted at ctr24_lo.
+ctr24_hi        = &0216  ; High byte of the 24-bit counter. Rooted at ctr24_lo.
+rx_len          = &0228  ; Byte count received into the RX frame buffer. Written by the drain loop once the ADLC reports end-of-frame; read back by the dispatch paths to decide how many payload bytes to process.
 announce_flag   = &0229  ; Event-driven re-announcement selector.
-announce_tmr_lo = &022a  ; Low byte of the 16-bit re-announcement countdown.
-announce_tmr_hi = &022b  ; High byte of the 16-bit re-announcement countdown.
-announce_count  = &022c  ; Remaining BridgeReply frames to emit in the current re-announcement burst.
-rx_dst_stn      = &023c  ; RX frame buffer byte 0 – destination station number.
+announce_tmr_lo = &022a  ; Low byte of the 16-bit re-announcement countdown. Decremented every pass through main_loop_idle; fires re_announce when it reaches zero.
+announce_tmr_hi = &022b  ; High byte of the 16-bit re-announcement countdown. Paired with announce_tmr_lo.
+announce_count  = &022c  ; Remaining BridgeReply frames to emit in the current re-announcement burst. Initialised to 10 when a peer BridgeReset is heard, decremented in re_announce, and clears announce_flag on reaching zero.
+rx_dst_stn      = &023c  ; RX frame buffer byte 0 – destination station number. First byte of the 20-byte RX staging area at &023C-&024F filled by rx_frame_a / rx_frame_b.
 rx_dst_net      = &023d  ; RX frame buffer byte 1 – destination network number.
 rx_src_stn      = &023e  ; RX frame buffer byte 2 – source station number.
 rx_src_net      = &023f  ; RX frame buffer byte 3 – source network number.
-rx_ctrl         = &0240  ; RX frame buffer byte 4 – control byte.
-rx_port         = &0241  ; RX frame buffer byte 5 – port number.
+rx_ctrl         = &0240  ; RX frame buffer byte 4 – control byte. Bridge protocol uses &80..&83; see rx_frame_a_dispatch.
+rx_port         = &0241  ; RX frame buffer byte 5 – port number. The bridge-protocol port is &9C.
 rx_query_port   = &0248  ; RX frame buffer byte 12 – port on which the querier wants the bridge to send its response.
-rx_query_net    = &0249  ; RX frame buffer byte 13 – network number that a ctrl=&83 (IsNet) query is asking about.
-reachable_via_b = &025a  ; 256-byte routing table for forwarding out of side B.
-reachable_via_a = &035a  ; 256-byte routing table for forwarding out of side A.
-tx_dst_stn      = &045a  ; TX frame buffer byte 0 – destination station number.
+rx_query_net    = &0249  ; RX frame buffer byte 13 – network number that a ctrl=&83 (IsNet) query is asking about. Checked against reachable_via_b / reachable_via_a in the query handlers.
+reachable_via_b = &025a  ; 256-byte routing table for forwarding out of side B. Indexed by destination network number; a non-zero entry means "this network is reachable from here".
+reachable_via_a = &035a  ; 256-byte routing table for forwarding out of side A. Indexed by destination network number; a non-zero entry means "this network is reachable from here".
+tx_dst_stn      = &045a  ; TX frame buffer byte 0 – destination station number. First byte of the outbound frame staging area at &045A-&0460+, populated by the frame-builder subroutines and consumed by transmit_frame_a / transmit_frame_b.
 tx_dst_net      = &045b  ; TX frame buffer byte 1 – destination network number.
 tx_src_stn      = &045c  ; TX frame buffer byte 2 – source station number.
 tx_src_net      = &045d  ; TX frame buffer byte 3 – source network number.
-tx_ctrl         = &045e  ; TX frame buffer byte 4 – control byte in a scout frame, or the first data byte in a data frame.
-tx_port         = &045f  ; TX frame buffer byte 5 – port in a scout frame, or the second data byte in a data frame.
-tx_data0        = &0460  ; TX frame buffer byte 6 – first optional scout payload byte.
-net_num_a       = &c000  ; Econet side A network number, read at &C000.
+tx_ctrl         = &045e  ; TX frame buffer byte 4 – control byte in a scout frame, or the first data byte in a data frame. The same buffer serves both frame types; the caller chooses the semantics.
+tx_port         = &045f  ; TX frame buffer byte 5 – port in a scout frame, or the second data byte in a data frame. Pair with tx_ctrl.
+tx_data0        = &0460  ; TX frame buffer byte 6 – first optional scout payload byte. For example, a queried network number in a WhatNet response.
+net_num_a       = &c000  ; Econet side A network number, read at &C000. Sourced from a bank of jumpered links buffered by a 74LS244. 7-bit (range 1-127); the top link is always made, so bit 7 reads 0.
 adlc_a_cr1      = &c800  ; ADLC A control/status port 0.
 adlc_a_cr2      = &c801  ; ADLC A control/status port 1.
 adlc_a_tx       = &c802  ; ADLC A TX/RX FIFO port.
-adlc_a_tx2      = &c803  ; ADLC A TX-last-byte port.
-net_num_b       = &d000  ; Econet side B network number, read at &D000.
+adlc_a_tx2      = &c803  ; ADLC A TX-last-byte port. Write: push the final byte of a frame (chip closes the frame and appends the FCS + flag). Reading this port is not used by the Bridge.
+net_num_b       = &d000  ; Econet side B network number, read at &D000. Sourced from a bank of jumpered links buffered by a 74LS244. 7-bit (range 1-127); the top link is always made, so bit 7 reads 0.
 adlc_b_cr1      = &d800  ; ADLC B control/status port 0.
 adlc_b_cr2      = &d801  ; ADLC B control/status port 1.
 adlc_b_tx       = &d802  ; ADLC B TX/RX FIFO port.
-adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
+adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte of a frame (chip closes the frame and appends the FCS + flag). Reading this port is not used by the Bridge.
 
     org &e000
 
