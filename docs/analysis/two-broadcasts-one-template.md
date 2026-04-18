@@ -23,7 +23,7 @@ The outbound frame-control block sits in RAM at `tx_dst_stn..tx_data0` (`&045A-&
 
 A frame builder populates these bytes, sets a 16-bit end-pointer pair (`tx_end_lo`/`tx_end_hi` at `&0200`/`&0201`) to tell the transmit routine how far to scan, and optionally sets X to indicate whether the trailing `tx_data0` byte should be sent after the main bytes. The builders for the reset-time announcement write `tx_end_lo = &06`, `tx_end_hi = &04` — end address `&0406` combined with a buffer start of `&045A` means the transmit sends bytes `0..5` of the buffer, then optionally one more byte at offset `6`.
 
-All of this is called through `transmit_frame_a` (`&E517`) or its byte-for-byte mirror `transmit_frame_b` (`&E4C0`), which read from the same buffer via the zero-page pointer `mem_ptr_lo`/`mem_ptr_hi`. The transmit routines don't care which buffer they're reading from or what it contains; they just push bytes into their ADLC's TX FIFO until the end-pointer is reached.
+All of this is called through [`transmit_frame_a`](address:E517@1?hex) or its byte-for-byte mirror [`transmit_frame_b`](address:E4C0@1?hex), which read from the same buffer via the zero-page pointer `mem_ptr_lo`/`mem_ptr_hi`. The transmit routines don't care which buffer they're reading from or what it contains; they just push bytes into their ADLC's TX FIFO until the end-pointer is reached.
 
 
 ## The reset sequence
@@ -92,7 +92,7 @@ The same discipline opens the door to reusing the transmit routines for frames w
 
 ## Cross-references
 
-- `build_announce_b` at `&E458` — the template builder.
-- `transmit_frame_a` (`&E517`) and `transmit_frame_b` (`&E4C0`) — the mirrored transmit routines.
+- [`build_announce_b`](address:E458@1?hex) — the template builder.
+- [`transmit_frame_a`](address:E517@1?hex) and [`transmit_frame_b`](address:E4C0@1?hex) — the mirrored transmit routines.
 - The outbound frame control block at `tx_dst_stn..tx_data0` (`&045A-&0460`).
-- The reset sequence calling the pair at `&E038` onward.
+- The reset sequence calling the pair at [`&E038`](address:E038@1) onward.

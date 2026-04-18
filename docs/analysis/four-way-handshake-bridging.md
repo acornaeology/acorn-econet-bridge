@@ -40,7 +40,7 @@ This is what `rx_a_forward` implements.
 
 ## The implementation
 
-The routine at `&E208` is the forwarding path when a scout arrives on side A that turns out to be not-for-us-but-forwardable (addressed to a station on a remote network that `reachable_via_b` says we can reach). Its structure is:
+The routine [`rx_a_forward`](address:E208@1?hex) is the forwarding path when a scout arrives on side A that turns out to be not-for-us-but-forwardable (addressed to a station on a remote network that `reachable_via_b` says we can reach). Its structure is:
 
 ### Stage 1: forward the scout
 
@@ -93,7 +93,7 @@ Because the staging setup is done inside `handshake_rx_?`, the calling code's `t
 
 ### Mirror symmetry
 
-`rx_b_forward` at `&E389` is the exact mirror, with every occurrence of "A" and "B" swapped. Scout goes inline to ADLC A; the three handshake rounds are `handshake_rx_a` + `transmit_frame_b`, `handshake_rx_b` + `transmit_frame_a`, `handshake_rx_a` + `transmit_frame_b`. The B-A-B transmit pattern at the tail is the same handshake viewed from the other direction.
+[`rx_b_forward`](address:E389@1?hex) is the exact mirror, with every occurrence of "A" and "B" swapped. Scout goes inline to ADLC A; the three handshake rounds are `handshake_rx_a` + `transmit_frame_b`, `handshake_rx_b` + `transmit_frame_a`, `handshake_rx_a` + `transmit_frame_b`. The B-A-B transmit pattern at the tail is the same handshake viewed from the other direction.
 
 
 ## Why it aborts cleanly
@@ -122,8 +122,8 @@ The misdirection came partly from the naming. A `listen_restore_a` routine would
 
 ## Cross-references
 
-- `rx_a_forward` at `&E208` and its mirror `rx_b_forward` at `&E389`.
-- `handshake_rx_a` at `&E56E` and `handshake_rx_b` at `&E5FF` — the receive-and-stage routines.
-- `transmit_frame_a`/`transmit_frame_b` — the transmit halves they pair with.
+- [`rx_a_forward`](address:E208@1?hex) and its mirror [`rx_b_forward`](address:E389@1?hex).
+- [`handshake_rx_a`](address:E56E@1?hex) and [`handshake_rx_b`](address:E5FF@1?hex) — the receive-and-stage routines.
+- [`transmit_frame_a`](address:E517@1) / [`transmit_frame_b`](address:E4C0@1) — the transmit halves they pair with.
 - [Escape-to-main control flow](escape-to-main-control-flow.md) — the error-recovery mechanism that makes mid-handshake failures safe.
 - [The Bridge has no station address](bridge-has-no-station-number.md) — explains why the forwarded frames' `src_stn`/`dst_stn` are treated as opaque bytes by the bridge.

@@ -12,10 +12,10 @@ The two `PLA`s pop the caller's return address off the 6502 stack, and the `JMP`
 
 Four routines in the ROM use this pattern, all in the ADLC-driven communication paths:
 
-- `wait_adlc_a_idle` (`&E6DC`) — on timeout waiting for the Rx Idle bit
-- `wait_adlc_b_idle` (`&E690`) — on timeout waiting for the Rx Idle bit
-- `transmit_frame_a` (`&E517`) — on unexpected SR1 state during TX
-- `transmit_frame_b` (`&E4C0`) — on unexpected SR1 state during TX
+- [`wait_adlc_a_idle`](address:E6DC@1?hex) — on timeout waiting for the Rx Idle bit
+- [`wait_adlc_b_idle`](address:E690@1?hex) — on timeout waiting for the Rx Idle bit
+- [`transmit_frame_a`](address:E517@1?hex) — on unexpected SR1 state during TX
+- [`transmit_frame_b`](address:E4C0@1?hex) — on unexpected SR1 state during TX
 
 Together they are called from roughly twenty sites. Every one of those sites must be written on the assumption that the `JSR` may not return.
 
@@ -86,6 +86,6 @@ Four extra instructions per call site, and a branch-on-status convention to upho
 
 ## Cross-references
 
-- `wait_adlc_a_idle` (`&E6DC`) and `wait_adlc_b_idle` (`&E690`) in the disassembly.
-- `transmit_frame_a` (`&E517`) and `transmit_frame_b` (`&E4C0`) — same escape pattern guarding the TX path.
-- `main_loop` at `&E051` — reached by JMP from all four escaping routines plus ten other sites.
+- [`wait_adlc_a_idle`](address:E6DC@1?hex) and [`wait_adlc_b_idle`](address:E690@1?hex) in the disassembly.
+- [`transmit_frame_a`](address:E517@1?hex) and [`transmit_frame_b`](address:E4C0@1?hex) — same escape pattern guarding the TX path.
+- [`main_loop`](address:E051@1?hex) — reached by JMP from all four escaping routines plus ten other sites.

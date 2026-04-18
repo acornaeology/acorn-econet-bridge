@@ -95,7 +95,7 @@ The Bridge lives one level up from the station-address plane — it cares about 
 
 - `net_num_a`/`net_num_b` at `&C000`/`&D000` — the only per-port identity the Bridge has.
 - `reachable_via_a`/`reachable_via_b` at `&035A`/`&025A` — routing tables indexed by destination network number.
-- `build_announce_b` at `&E458` — writes `&18` into the otherwise-unused source-address fields of the outbound announcement.
-- `rx_a_handle_81` at `&E1EE` — demonstrates that the receiver ignores the source-address fields.
+- [`build_announce_b`](address:E458@1?hex) — writes `&18` into the otherwise-unused source-address fields of the outbound announcement.
+- [`rx_a_handle_81`](address:E1EE@1?hex) — demonstrates that the receiver ignores the source-address fields.
 - [Econet Installation Guide, chapter 3](../Econet%20Installation%20Guide%200482,009%20Issue%201%2027%20September%201988.pdf) — the authoritative statement on how the Bridge's hardware is configured.
 - [Ian Stocks's reverse-engineered schematic](https://stardot.org.uk/forums/download/file.php?id=26508) — board-level confirmation that only the two 74LS244 network-number buffers are installed.
