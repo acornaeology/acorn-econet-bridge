@@ -1063,11 +1063,22 @@ the standard escape-to-main-loop exit: PLA/PLA/JMP main_loop.
 
 On success, return to the caller with mem_ptr / tx_end_lo / tx_end_hi
 ready for transmit_frame_b (or transmit_frame_a in the reverse
-direction for queries). Mirror of handshake_rx_b (&E5FF).
+direction for queries).
 
-Called from five sites: &E1B5 and &E1D0 (rx_a_handle_82/83 query
-paths), &E254 and &E3DB (forward tails), and &E3CF (also a forward
-tail).""")
+Mirror-image pair with handshake_rx_b (&E5FF): the two routines
+share identical structure with adlc_a_* / adlc_b_* and net_num_a /
+net_num_b swapped, and are used in complementary roles depending
+on which side the next handshake frame is expected to arrive from.
+
+Called from five sites:
+  &E1B5  rx_a_handle_82: drain the querier's scout-ACK on A
+  &E1D0  rx_a_handle_82: drain the querier's final data-ACK on A
+  &E254  rx_a_forward:   Stage 3 DATA drain from A (originator's
+                         data, A -> B forwarding direction)
+  &E3CF  rx_b_forward:   Stage 2 ACK1 drain from A (destination's
+                         scout-ACK, B -> A forwarding direction)
+  &E3DB  rx_b_forward:   Stage 4 ACK2 drain from A (destination's
+                         final ACK, B -> A forwarding direction)""")
 
 comment(0xE56E, "A = &82: TX in reset, RX IRQs enabled", inline=True)
 comment(0xE570, "Re-arm ADLC A for the incoming handshake frame", inline=True)
@@ -1145,13 +1156,53 @@ label(0xE5FF, "handshake_rx_b")
 subroutine(0xE5FF, "handshake_rx_b", hook=None,
     title="Receive a handshake frame on ADLC B and stage it for forward",
     description="""\
-Byte-for-byte mirror of handshake_rx_a (&E56E) with adlc_a_*
-replaced by adlc_b_* and the A/B network-number swaps in the
-address normalisation: src_net defaults to net_num_b, and the
-forwardability check is against reachable_via_a.
+The receive half of four-way-handshake bridging for the B side.
+Enables RX on ADLC B, drains an inbound frame byte-by-byte into
+the outbound buffer starting at tx_dst_stn (&045A), then sets up
+tx_end_lo/hi so the next call to transmit_frame_a transmits the
+just-received frame out of the other port verbatim.
 
-Called from five sites: &E24E, &E25A, &E336, &E351, &E3D5.
-See handshake_rx_a for the per-instruction explanation.""")
+The drain is capped at `top_ram_page` (set by the boot RAM test)
+so very long frames fill available RAM and no further.
+
+After the drain, does three pieces of address fix-up on the
+now-staged frame:
+
+  * If tx_src_net (byte 3 of the frame) is zero, fill it with
+    net_num_b. Many Econet senders leave src_net as zero to mean
+    "my local network"; the Bridge makes that explicit before
+    forwarding.
+
+  * Reject the frame if tx_dst_net is zero (no destination
+    network declared) or if reachable_via_a has no entry for
+    that network (no route).
+
+  * If tx_dst_net equals net_num_a (our own A-side network),
+    normalise it to zero -- from side A's perspective the frame
+    is now "local".
+
+On any of the "reject" paths above, and on any sub-step that
+fails (no AP/RDA, no Frame Valid, no response at all), takes
+the standard escape-to-main-loop exit: PLA/PLA/JMP main_loop.
+
+On success, return to the caller with mem_ptr / tx_end_lo / tx_end_hi
+ready for transmit_frame_a (or transmit_frame_b in the reverse
+direction for queries).
+
+Mirror-image pair with handshake_rx_a (&E56E): the two routines
+share identical structure with adlc_a_* / adlc_b_* and net_num_a /
+net_num_b swapped, and are used in complementary roles depending
+on which side the next handshake frame is expected to arrive from.
+
+Called from five sites:
+  &E336  rx_b_handle_82: drain the querier's scout-ACK on B
+  &E351  rx_b_handle_82: drain the querier's final data-ACK on B
+  &E3D5  rx_b_forward:   Stage 3 DATA drain from B (originator's
+                         data, B -> A forwarding direction)
+  &E24E  rx_a_forward:   Stage 2 ACK1 drain from B (destination's
+                         scout-ACK, A -> B forwarding direction)
+  &E25A  rx_a_forward:   Stage 4 ACK2 drain from B (destination's
+                         final ACK, A -> B forwarding direction)""")
 
 comment(0xE5FF, "A = &82: TX in reset, RX IRQs enabled", inline=True)
 comment(0xE601, "Re-arm ADLC B for the incoming handshake frame", inline=True)
