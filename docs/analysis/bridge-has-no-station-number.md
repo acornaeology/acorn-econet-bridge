@@ -9,7 +9,7 @@ The Bridge plugs into two Econet segments and forwards traffic between them, but
 
 ## The hardware
 
-The Econet Bridge board carries two 74LS244 octal buffers, one per Econet port, whose inputs are soldered or jumper-linked to power rails and whose outputs are read by the 6502 from the memory-mapped addresses `&C000` (side A) and `&D000` (side B). That is the entire on-board identity configuration.
+The Econet Bridge board carries two 74LS244 octal buffers, one per Econet port. Each 74LS244 buffers a bank of jumpered links that pull its inputs to power rails; the 6502 reads the buffered outputs from the memory-mapped addresses `&C000` (side A) and `&D000` (side B). That is the entire on-board identity configuration.
 
 The Installation Guide (`Econet Installation Guide 0482,009 Issue 1`, chapter 3) describes how to set those links:
 

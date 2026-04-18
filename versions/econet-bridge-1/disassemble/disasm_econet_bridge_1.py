@@ -147,26 +147,93 @@ comment(0xFFFE, "IRQ/BRK vector", inline=True)
 # mem_ptr_hi form an indirect pointer scanned upward one page at a
 # time; top_ram_page receives the last page that verified &AA/&55
 # patterns and is used later by workspace init.
-label(0x0080, "mem_ptr_lo")
-label(0x0081, "mem_ptr_hi")
-label(0x0082, "top_ram_page")
+label(0x0080, "mem_ptr_lo",
+    description="Low byte of the indirect pointer.\n"
+                "Paired with [`mem_ptr_hi`](address:0081).\n\n"
+                "Used by [`ram_test`](address:E00B) to scan memory "
+                "upward one page at a time, and by the TX/RX byte "
+                "loops in the frame handlers, e.g. "
+                "[`transmit_frame_a`](address:E517).",
+    length=1, group="zero_page", access="rw")
+label(0x0081, "mem_ptr_hi",
+    description="High byte of the indirect pointer.\n"
+                "Paired with [`mem_ptr_lo`](address:0080).",
+    length=1, group="zero_page", access="rw")
+label(0x0082, "top_ram_page",
+    description="Highest page that verified `&AA`/`&55` during "
+                "[`ram_test`](address:E00B).\n"
+                "Used later by workspace initialisation to decide "
+                "how much RAM is safe to touch.",
+    length=1, group="zero_page", access="rw")
 
-label(0xC000, "net_num_a")      # Read: Econet side A network number
-label(0xD000, "net_num_b")      # Read: Econet side B network number
-# Network numbers are 7-bit (range 1-127 per the Installation Guide);
-# the top link on each jumper row is always made, so bit 7 is always
-# zero. The Bridge has no station number of its own -- it sits on
-# each Econet segment as a promiscuous receiver and broadcaster.
+label(0xC000, "net_num_a",
+    description="Econet side A network number, read at `&C000`.\n"
+                "Sourced from a bank of jumpered links buffered by a "
+                "74LS244. 7-bit (range 1-127); the top link is always "
+                "made, so bit 7 reads 0.\n\n"
+                "The Bridge has no station number of its own — it "
+                "sits on each Econet segment as a promiscuous receiver "
+                "and broadcaster.",
+    length=1, group="io_a", access="r")
+label(0xD000, "net_num_b",
+    description="Econet side B network number, read at `&D000`.\n"
+                "Sourced from a bank of jumpered links buffered by a "
+                "74LS244. 7-bit (range 1-127); the top link is always "
+                "made, so bit 7 reads 0.\n\n"
+                "Paired with [`net_num_a`](address:C000) on the "
+                "opposite segment.",
+    length=1, group="io_b", access="r")
 
-label(0xC800, "adlc_a_cr1")     # W: CR1 (or CR3 if AC=1). R: SR1
-label(0xC801, "adlc_a_cr2")     # W: CR2 (or CR4 if AC=1). R: SR2
-label(0xC802, "adlc_a_tx")      # W: TX FIFO (continue). R: RX FIFO
-label(0xC803, "adlc_a_tx2")     # W: TX FIFO (last byte, ends frame)
+label(0xC800, "adlc_a_cr1",
+    description="ADLC A control/status port 0.\n\n"
+                "**Write:** CR1 (or CR3 when AC=1 in CR1). "
+                "**Read:** SR1.\n\n"
+                "IRQ summary is in SR1 bit 7; "
+                "[`wait_adlc_a_irq`](address:E3E4) spins on it.",
+    length=1, group="io_a", access="rw")
+label(0xC801, "adlc_a_cr2",
+    description="ADLC A control/status port 1.\n\n"
+                "**Write:** CR2 (or CR4 when AC=1). **Read:** SR2.",
+    length=1, group="io_a", access="rw")
+label(0xC802, "adlc_a_tx",
+    description="ADLC A TX/RX FIFO port.\n\n"
+                "**Write:** push a byte into the TX FIFO (frame "
+                "continues). **Read:** pop a byte from the RX FIFO.",
+    length=1, group="io_a", access="rw")
+label(0xC803, "adlc_a_tx2",
+    description="ADLC A TX-last-byte port.\n"
+                "**Write:** push the final byte of a frame (chip "
+                "closes the frame and appends the FCS + flag). Reading "
+                "this port is not used by the Bridge.",
+    length=1, group="io_a", access="w")
 
-label(0xD800, "adlc_b_cr1")
-label(0xD801, "adlc_b_cr2")
-label(0xD802, "adlc_b_tx")
-label(0xD803, "adlc_b_tx2")
+label(0xD800, "adlc_b_cr1",
+    description="ADLC B control/status port 0.\n\n"
+                "**Write:** CR1 (or CR3 when AC=1 in CR1). "
+                "**Read:** SR1.\n\n"
+                "IRQ summary is in SR1 bit 7; "
+                "[`wait_adlc_b_irq`](address:E3EA) spins on it.\n\n"
+                "CR3 bit 7 (reached via this port with AC=1) drives "
+                "IC18's `~LOC/DTR` pin, which sinks the front-panel "
+                "status LED. "
+                "[`self_test_reset_adlcs`](address:F005) lights it; "
+                "[`adlc_b_full_reset`](address:E40A) extinguishes it.",
+    length=1, group="io_b", access="rw")
+label(0xD801, "adlc_b_cr2",
+    description="ADLC B control/status port 1.\n\n"
+                "**Write:** CR2 (or CR4 when AC=1). **Read:** SR2.",
+    length=1, group="io_b", access="rw")
+label(0xD802, "adlc_b_tx",
+    description="ADLC B TX/RX FIFO port.\n\n"
+                "**Write:** push a byte into the TX FIFO (frame "
+                "continues). **Read:** pop a byte from the RX FIFO.",
+    length=1, group="io_b", access="rw")
+label(0xD803, "adlc_b_tx2",
+    description="ADLC B TX-last-byte port.\n"
+                "**Write:** push the final byte of a frame (chip "
+                "closes the frame and appends the FCS + flag). Reading "
+                "this port is not used by the Bridge.",
+    length=1, group="io_b", access="w")
 
 
 # =====================================================================
@@ -294,37 +361,102 @@ comment(0xE423, "Return; Econet side B is idle-listen", inline=True)
 # `reachable_via_a` reflected which *handler* used them, not what they
 # represented. Semantics resolved once the payload processing in
 # rx_a_handle_80 revealed the map as a routing table.
-label(0x025A, "reachable_via_b")
-label(0x035A, "reachable_via_a")
+label(0x025A, "reachable_via_b",
+    description="256-byte routing table for forwarding out of side B.\n"
+                "Indexed by destination **network** number; a non-zero "
+                "entry means \"this network is reachable from here\".\n\n"
+                "Consulted by [`rx_frame_a`](address:E0E2). Initialised "
+                "with [`net_num_b`](address:D000) (our own side-B "
+                "network, directly reachable) and 255 (broadcast), "
+                "then extended by bridge-announcement messages "
+                "received on side A.",
+    length=256, group="ram_buffers", access="rw")
+label(0x035A, "reachable_via_a",
+    description="256-byte routing table for forwarding out of side A.\n"
+                "Indexed by destination **network** number; a non-zero "
+                "entry means \"this network is reachable from here\".\n\n"
+                "Consulted by [`rx_frame_b`](address:E263). Initialised "
+                "with [`net_num_a`](address:C000) (our own side-A "
+                "network, directly reachable) and 255 (broadcast), "
+                "then extended by bridge-announcement messages "
+                "received on side B.",
+    length=256, group="ram_buffers", access="rw")
 
 # Multi-byte counter reused for different purposes by several
 # routines. [`wait_adlc_a_idle`](address:E6DC?hex) uses all three bytes as a
 # 24-bit timeout; [`stagger_delay`](address:E448?hex) uses only the low byte as
 # an 8-bit delay counter. Byte-aligned rather than semantic names
 # so the shared use is explicit.
-label(0x0214, "ctr24_lo")
-label(0x0215, "ctr24_mid")
-label(0x0216, "ctr24_hi")
+label(0x0214, "ctr24_lo",
+    description="Low byte of a 24-bit counter reused by several "
+                "routines.\n"
+                "[`wait_adlc_a_idle`](address:E6DC) uses all three "
+                "bytes as a timeout; "
+                "[`stagger_delay`](address:E448) uses this low byte "
+                "alone as an 8-bit delay.",
+    length=1, group="ram_workspace", access="rw")
+label(0x0215, "ctr24_mid",
+    description="Middle byte of the 24-bit counter.\n"
+                "Rooted at [`ctr24_lo`](address:0214).",
+    length=1, group="ram_workspace", access="rw")
+label(0x0216, "ctr24_hi",
+    description="High byte of the 24-bit counter.\n"
+                "Rooted at [`ctr24_lo`](address:0214).",
+    length=1, group="ram_workspace", access="rw")
 
 # RX frame buffer. Inbound frames are drained from the ADLC's RX
 # FIFO into this 20-byte region during the side-A and side-B
 # handlers. The first six bytes are the Econet scout-frame header;
 # bytes 6 onward are payload (max 14 bytes captured, enough for the
 # Bridge-protocol message formats).
-label(0x023C, "rx_dst_stn")   # byte 0: destination station
-label(0x023D, "rx_dst_net")   # byte 1: destination network
-label(0x023E, "rx_src_stn")   # byte 2: source station
-label(0x023F, "rx_src_net")   # byte 3: source network
-label(0x0240, "rx_ctrl")      # byte 4: control byte (bridge: &80-&83)
-label(0x0241, "rx_port")      # byte 5: port (bridge-protocol = &9C)
+label(0x023C, "rx_dst_stn",
+    description="RX frame buffer byte 0 — destination station number.\n"
+                "First byte of the 20-byte RX staging area at "
+                "`&023C-&024F` filled by "
+                "[`rx_frame_a`](address:E0E2) / "
+                "[`rx_frame_b`](address:E263).",
+    length=1, group="ram_buffers", access="rw")
+label(0x023D, "rx_dst_net",
+    description="RX frame buffer byte 1 — destination network "
+                "number.",
+    length=1, group="ram_buffers", access="rw")
+label(0x023E, "rx_src_stn",
+    description="RX frame buffer byte 2 — source station number.",
+    length=1, group="ram_buffers", access="rw")
+label(0x023F, "rx_src_net",
+    description="RX frame buffer byte 3 — source network number.",
+    length=1, group="ram_buffers", access="rw")
+label(0x0240, "rx_ctrl",
+    description="RX frame buffer byte 4 — control byte.\n"
+                "Bridge protocol uses `&80`..`&83`; see "
+                "[`rx_frame_a_dispatch`](address:E14A).",
+    length=1, group="ram_buffers", access="rw")
+label(0x0241, "rx_port",
+    description="RX frame buffer byte 5 — port number.\n"
+                "The bridge-protocol port is `&9C`.",
+    length=1, group="ram_buffers", access="rw")
 # Payload bytes at &0242-&024F; named as they become understood.
 # Byte 12 (&0248) holds a port number the querier wants the response
 # on; byte 13 (&0249) holds a network number that ctrl=&83 queries
 # ask about (the &83 path consults it against reachable_via_b, which
 # is network-keyed).
-label(0x0248, "rx_query_port") # byte 12: port for response frame
-label(0x0249, "rx_query_net")  # byte 13: network number (ctrl=&83)
-label(0x0228, "rx_len")       # bytes received (written at end of drain)
+label(0x0248, "rx_query_port",
+    description="RX frame buffer byte 12 — port on which the querier "
+                "wants the bridge to send its response.",
+    length=1, group="ram_buffers", access="rw")
+label(0x0249, "rx_query_net",
+    description="RX frame buffer byte 13 — network number that a "
+                "`ctrl=&83` (IsNet) query is asking about.\n"
+                "Checked against [`reachable_via_b`](address:025A) / "
+                "[`reachable_via_a`](address:035A) in the query "
+                "handlers.",
+    length=1, group="ram_buffers", access="rw")
+label(0x0228, "rx_len",
+    description="Byte count received into the RX frame buffer.\n"
+                "Written by the drain loop once the ADLC reports "
+                "end-of-frame; read back by the dispatch paths to "
+                "decide how many payload bytes to process.",
+    length=1, group="ram_workspace", access="rw")
 
 # Event-driven re-announcement state. The Bridge does NOT re-
 # announce on a periodic self-triggered timer — it only advertises
@@ -354,10 +486,36 @@ label(0x0228, "rx_len")       # bytes received (written at end of drain)
 # A solo bridge with no peers is silent after its boot-time pair
 # of BridgeReset scouts — there's nothing to trigger the flag.
 # See docs/analysis/event-driven-reannouncement.md.
-label(0x0229, "announce_flag")      # set by rx_?_handle_80 only
-label(0x022A, "announce_tmr_lo")
-label(0x022B, "announce_tmr_hi")
-label(0x022C, "announce_count")     # initialised to 10 (= ten BridgeReplies)
+label(0x0229, "announce_flag",
+    description="Event-driven re-announcement selector.\n\n"
+                "Set by [`rx_a_handle_80`](address:E1D6) / "
+                "[`rx_b_handle_80`](address:E357) to `&40` (side A "
+                "selected) or `&80` (side B) when a peer bridge's "
+                "`BridgeReset` scout arrives. Cleared in "
+                "[`re_announce_done`](address:E0C2) once all ten "
+                "`BridgeReply` frames have been emitted.\n\n"
+                "Polled by [`main_loop_idle`](address:E089); the "
+                "entire re-announcement state machine is quiescent "
+                "while this byte is zero.",
+    length=1, group="ram_workspace", access="rw")
+label(0x022A, "announce_tmr_lo",
+    description="Low byte of the 16-bit re-announcement countdown.\n"
+                "Decremented every pass through "
+                "[`main_loop_idle`](address:E089); fires "
+                "[`re_announce`](address:E098) when it reaches zero.",
+    length=1, group="ram_workspace", access="rw")
+label(0x022B, "announce_tmr_hi",
+    description="High byte of the 16-bit re-announcement countdown.\n"
+                "Paired with [`announce_tmr_lo`](address:022A).",
+    length=1, group="ram_workspace", access="rw")
+label(0x022C, "announce_count",
+    description="Remaining `BridgeReply` frames to emit in the "
+                "current re-announcement burst.\n"
+                "Initialised to 10 when a peer `BridgeReset` is "
+                "heard, decremented in "
+                "[`re_announce`](address:E098), and clears "
+                "[`announce_flag`](address:0229) on reaching zero.",
+    length=1, group="ram_workspace", access="rw")
 
 # Outbound-frame control block at &045A-&0460. Populated by the
 # frame-builder subroutines, then consumed by transmit_frame_a (via
@@ -371,13 +529,41 @@ label(0x022C, "announce_count")     # initialised to 10 (= ten BridgeReplies)
 # See the WhatNet query-response code in rx_a_handle_82, where the
 # "tx_ctrl" and "tx_port" slots are populated with data bytes for
 # the data half of the 4-way handshake.
-label(0x045A, "tx_dst_stn")   # byte 0: destination station
-label(0x045B, "tx_dst_net")   # byte 1: destination network
-label(0x045C, "tx_src_stn")   # byte 2: source station
-label(0x045D, "tx_src_net")   # byte 3: source network
-label(0x045E, "tx_ctrl")      # byte 4: ctrl in a scout / data0 in a data frame
-label(0x045F, "tx_port")      # byte 5: port in a scout / data1 in a data frame
-label(0x0460, "tx_data0")     # byte 6: optional scout payload
+label(0x045A, "tx_dst_stn",
+    description="TX frame buffer byte 0 — destination station number.\n"
+                "First byte of the outbound frame staging area at "
+                "`&045A-&0460+`, populated by the frame-builder "
+                "subroutines and consumed by "
+                "[`transmit_frame_a`](address:E517) / "
+                "[`transmit_frame_b`](address:E4C0).",
+    length=1, group="ram_buffers", access="rw")
+label(0x045B, "tx_dst_net",
+    description="TX frame buffer byte 1 — destination network "
+                "number.",
+    length=1, group="ram_buffers", access="rw")
+label(0x045C, "tx_src_stn",
+    description="TX frame buffer byte 2 — source station number.",
+    length=1, group="ram_buffers", access="rw")
+label(0x045D, "tx_src_net",
+    description="TX frame buffer byte 3 — source network number.",
+    length=1, group="ram_buffers", access="rw")
+label(0x045E, "tx_ctrl",
+    description="TX frame buffer byte 4 — control byte in a scout "
+                "frame, or the first data byte in a data frame.\n"
+                "The same buffer serves both frame types; the caller "
+                "chooses the semantics.",
+    length=1, group="ram_buffers", access="rw")
+label(0x045F, "tx_port",
+    description="TX frame buffer byte 5 — port in a scout frame, or "
+                "the second data byte in a data frame.\n"
+                "Pair with [`tx_ctrl`](address:045E).",
+    length=1, group="ram_buffers", access="rw")
+label(0x0460, "tx_data0",
+    description="TX frame buffer byte 6 — first optional scout "
+                "payload byte.\n"
+                "For example, a queried network number in a "
+                "`WhatNet` response.",
+    length=1, group="ram_buffers", access="rw")
 
 # Transmit end-pointer (16-bit, consumed by transmit_frame_a). The
 # main TX loop sends byte pairs from mem_ptr upward and terminates
@@ -386,8 +572,17 @@ label(0x0460, "tx_data0")     # byte 6: optional scout payload
 # tx_end_hi=&04, corresponding to end address &0406 when combined
 # with the buffer start at &045A (so the loop transmits up to Y=6,
 # i.e. the 6 header bytes).
-label(0x0200, "tx_end_lo")
-label(0x0201, "tx_end_hi")
+label(0x0200, "tx_end_lo",
+    description="Low byte of the TX end-pointer, consumed by "
+                "[`transmit_frame_a`](address:E517).\n"
+                "The TX loop sends byte pairs from "
+                "[`mem_ptr_lo`](address:0080) upward and terminates "
+                "once the index reaches or passes this pointer.",
+    length=1, group="ram_workspace", access="rw")
+label(0x0201, "tx_end_hi",
+    description="High byte of the TX end-pointer.\n"
+                "Paired with [`tx_end_lo`](address:0200).",
+    length=1, group="ram_workspace", access="rw")
 
 
 # =====================================================================
