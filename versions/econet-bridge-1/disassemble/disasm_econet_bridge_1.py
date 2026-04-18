@@ -638,8 +638,8 @@ subroutine(0xE051, "main_loop", hook=None, is_entry_point=False,
 The Bridge's continuous-operation entry point. Reached by fall-
 through from the reset handler once startup completes, and by JMP
 from fourteen other sites — every routine that takes an "escape to
-main" path (wait_adlc_a_idle, transmit_frame_a/b, etc.) lands
-here, so main_loop is the anchor of every packet-processing cycle.
+main" path ([`wait_adlc_a_idle`](address:E6DC), [`transmit_frame_a`](address:E517)/[`transmit_frame_b`](address:E4C0), etc.)
+lands here, so main_loop is the anchor of every packet-processing cycle.
 
 The header (&E051-&E078) forces each ADLC into a known RX-listening
 state: if SR2 bit 0 or 7 (AP or RDA) is already set from a partial
@@ -648,10 +648,10 @@ leave RX running) before setting it to &82 (TX in reset, RX IRQs
 enabled). CR2 is set to &67 — the standard listen-mode value used
 throughout the firmware.
 
-The inner poll loop at main_loop_poll (&E079) tests SR1 bit 7 (IRQ
+The inner poll loop at [`main_loop_poll`](address:E079?hex) tests SR1 bit 7 (IRQ
 summary) on each ADLC in turn, with side B checked first. If either
 chip has a pending IRQ, control jumps straight to the corresponding
-frame handler; otherwise the idle path at main_loop_idle (&E089)
+frame handler; otherwise the idle path at [`main_loop_idle`](address:E089?hex)
 runs the periodic re-announcement.
 
 The re-announce scheme uses three bytes of workspace:

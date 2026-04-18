@@ -149,8 +149,8 @@ adlc_b_tx2      = &d803
 ; The Bridge's continuous-operation entry point. Reached by fall-
 ; through from the reset handler once startup completes, and by JMP
 ; from fourteen other sites — every routine that takes an "escape to
-; main" path (wait_adlc_a_idle, transmit_frame_a/b, etc.) lands
-; here, so main_loop is the anchor of every packet-processing cycle.
+; main" path (wait_adlc_a_idle, transmit_frame_a/transmit_frame_b, etc.)
+; lands here, so main_loop is the anchor of every packet-processing cycle.
 ; 
 ; The header (&E051-&E078) forces each ADLC into a known RX-listening
 ; state: if SR2 bit 0 or 7 (AP or RDA) is already set from a partial
