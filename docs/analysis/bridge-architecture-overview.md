@@ -104,11 +104,11 @@ The self-test is entered via the IRQ/BRK vector when the push-button is pressed.
 3. `&55`/`&AA` pattern test across 8 KiB of RAM
 4. Incrementing-byte pattern test (catches address-line faults)
 5. ADLC register-state checks on both chips
-6. Loopback test A → B (requires a cable between the two ports)
+6. Loopback test A → B (requires the self-test rig: clock box + T-piece + terminator across both ports — not a passive port-to-port cable)
 7. Loopback test B → A
 8. Network-number jumper check (expects `net_num_a=1`, `net_num_b=2`)
 
-The LED serves four distinct functional states — lit solid during a healthy self-test, dark in normal operation, and two different blink patterns for the two classes of failure (countable for specific failures, uncountable for RAM failures). See [*The self-test LED*](led-self-test-indicator.md) for the full failure-mode analysis.
+The LED serves four distinct functional states — lit in normal operation, flashing during a healthy self-test, and two different blink patterns for the two classes of failure (countable for specific failures, uncountable for RAM failures). See [*The status LED*](led-self-test-indicator.md) for the full failure-mode analysis and the polarity walkthrough.
 
 
 ## Reading list
@@ -121,7 +121,7 @@ The writeups in `docs/analysis/` cover specific aspects in depth:
 - [*The Econet Bridge has no station address*](bridge-has-no-station-number.md) — why the Bridge sits on each segment without claiming a station number, and what the `&18` firmware marker in outbound frames is for.
 - [*Bridging the four-way handshake*](four-way-handshake-bridging.md) — how `rx_a_forward` implements full Econet scout/ACK/data/ACK forwarding through a sequence of receive-and-stage + transmit pairs.
 - [*Frame-buffer capacity and the dynamic RAM ceiling*](frame-buffer-capacity-and-ram-sizing.md) — how much frame a standard 8 KiB bridge can absorb, and what the firmware would do if more RAM were fitted.
-- [*The self-test LED*](led-self-test-indicator.md) — how one ADLC output pin encodes four distinct functional states.
+- [*The status LED*](led-self-test-indicator.md) — how one ADLC output pin encodes four distinct functional states (steady-lit in normal operation, flashing during self-test, two failure-blink patterns).
 
 
 ## External references

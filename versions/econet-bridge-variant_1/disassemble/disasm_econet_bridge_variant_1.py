@@ -2393,8 +2393,11 @@ comment(0xE727, "Normal return: caller transmits the frame", inline=True)
 # Entered when the push-button on the 6502 ~IRQ line is pressed. The
 # operator's guide warns not to press this while connected to a live
 # network – consistent with a routine that drives the ADLCs for
-# diagnostic/loopback purposes (the typical use is with a cable
-# looping the two Econet ports back to each other).
+# diagnostic purposes. The official self-test rig is a complete
+# single-segment Econet network – clock box, T-piece across both
+# Bridge ports, terminator on the clock box's other socket – not a
+# passive port-to-port cable. See docs/self-test-connections.png for
+# the manual's diagram.
 #
 # Structure (first half annotated here; deeper tests to follow):
 #   &F000  entry – disable interrupts, clear &03, fall into…
@@ -2419,8 +2422,15 @@ via [`self_test_fail`](address:F2C7?hex) with an error code in A.
 Not to be pressed while the Bridge is connected to a live
 network: the self-test reconfigures the ADLCs and drives their
 control registers in ways that will disturb any in-flight frames.
-Typical usage is with a loopback cable between the two Econet
-ports.""")
+
+The official self-test rig is a complete single-segment Econet
+network: a clock box (which provides both the bit-clock and the
+line bias the ADLCs need to frame anything at all), a T-piece
+joining both Bridge ports to one cable to the clock box, and a
+terminator on the clock box's other socket. A bare port-to-port
+patch cable will not work – without clock and bias the loopback
+tests can never see a frame. See `docs/self-test-connections.png`
+for the manual's diagram.""")
 
 comment(0xF000, "Mask IRQs – this routine polls and must not re-enter", inline=True)
 comment(0xF001, "A = 0: initial value for the scratch pass-phase flag", inline=True)
@@ -2686,11 +2696,13 @@ subroutine(0xF10A, "self_test_loopback_a_to_b", hook=None,
     is_entry_point=False,
     title="Loopback test: transmit on ADLC A, receive on ADLC B",
     description="""\
-Assumes a loopback cable is connected between the two Econet
-ports. Reconfigures ADLC A for transmit (`CR1=&44`) and ADLC B for
-receive (`CR1=&82`), then sends a 256-byte sequence (`0,1,2,…,255`)
-out of A and verifies each byte is received on B in order by
-incrementing X alongside the sender's Y.
+Assumes the official self-test rig is wired up – clock box,
+T-piece across both Bridge ports, terminator on the clock box's
+other socket (see [`self_test`](address:F000) for the rationale).
+Reconfigures ADLC A for transmit (`CR1=&44`) and ADLC B for
+receive (`CR1=&82`), then sends a 256-byte sequence
+(`0,1,2,…,255`) out of A and verifies each byte is received on B
+in order by incrementing X alongside the sender's Y.
 
 Four phases:
 
