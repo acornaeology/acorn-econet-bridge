@@ -248,7 +248,8 @@ subroutine(0xE40A, "adlc_b_full_reset", hook=None,
     title="ADLC B full reset, then enter RX listen",
     description="""\
 Byte-for-byte mirror of [`adlc_a_full_reset`](address:E3F0), targeting ADLC B's
-register set at &D800-&D803. Falls through to adlc_b_listen. CR3=&00
+register set at `&D800-&D803`. Falls through to
+[`adlc_b_listen`](address:E419). `CR3=&00`
 also puts the LOC/DTR pin high, so the front-panel LED is dark after
 this runs -- the distinguishing feature from [`self_test_reset_adlcs`](address:F005).""")
 
@@ -1763,7 +1764,7 @@ comment(0xE098, "Rebuild the frame template from scratch (ctrl=&80 default)", in
 comment(0xE09B, "A = &81: the BridgeReply control byte", inline=True)
 comment(0xE09D, "Patch tx_ctrl to &81 -- this announcement is a reply", inline=True)
 comment(0xE0A0, "Test announce_flag bit 7 via BIT", inline=True)
-comment(0xE0A3, "Bit 7 set -> send via ADLC B (re_announce_side_b)", inline=True)
+comment(0xE0A3, "Bit 7 set -> send via ADLC B ([`re_announce_side_b`](address:E0CA))", inline=True)
 comment(0xE0A5, "Side-A path: silence B's TX first", inline=True)
 comment(0xE0A7, "Reset ADLC B's TX to avoid a cross-side collision", inline=True)
 comment(0xE0AA, "CSMA wait on A before transmitting", inline=True)
@@ -1872,7 +1873,7 @@ comment(0xE54D, "Rotate bit 0 into carry", inline=True)
 comment(0xE54E, "X was even -> no trailing byte, skip ahead", inline=True)
 comment(0xE550, "X was odd -> wait for TDRA once more", inline=True)
 comment(0xE553, "BIT SR1 to test TDRA again", inline=True)
-comment(0xE556, "TDRA clear -> escape (mirror of &E52B)", inline=True)
+comment(0xE556, "TDRA clear -> escape (mirror of [`&E52B`](address:E52B))", inline=True)
 comment(0xE558, "Load the extra trailing byte (tx_data0 in announce frames)", inline=True)
 comment(0xE55A, "Push trailing byte to TX FIFO", inline=True)
 label(0xE55D, "transmit_frame_a_finish")
@@ -1939,7 +1940,7 @@ comment(0xE4F6, "Rotate bit 0 into carry", inline=True)
 comment(0xE4F7, "X was even -> no trailing byte, skip ahead", inline=True)
 comment(0xE4F9, "X was odd -> wait for TDRA once more", inline=True)
 comment(0xE4FC, "BIT SR1 to test TDRA again", inline=True)
-comment(0xE4FF, "TDRA clear -> escape (mirror of &E4D4)", inline=True)
+comment(0xE4FF, "TDRA clear -> escape (mirror of [`&E4D4`](address:E4D4))", inline=True)
 comment(0xE501, "Load the extra trailing byte", inline=True)
 comment(0xE503, "Push trailing byte to TX FIFO", inline=True)
 label(0xE506, "transmit_frame_b_finish")
@@ -2139,7 +2140,7 @@ a resistor to Vcc), so CR3 bit 7 = 1 pulls current through the
 LED and lights it. ADLC A's LOC/DTR pin is not wired and gets the
 same write for code symmetry only.
 
-Re-entered at &F26C after certain test paths need to reset the
+Re-entered at [`&F26C`](address:F26C) after certain test paths need to reset the
 chips again; the LED stays lit until a normal reset runs
 [`adlc_b_full_reset`](address:E40A) and clears CR3.""")
 
@@ -2211,7 +2212,7 @@ comment(0xF04C, "A = 0: low byte of the ROM pointer", inline=True)
 comment(0xF04E, "Store pointer_lo = 0", inline=True)
 comment(0xF050, "A = &20: 32 pages remaining to sum", inline=True)
 comment(0xF052, "Store page counter", inline=True)
-comment(0xF054, "A = &E0: pointer_hi starts at ROM base &E000", inline=True)
+comment(0xF054, "A = &E0: pointer_hi starts at [ROM base &E000](address:E000)", inline=True)
 comment(0xF056, "Store pointer_hi = &E0", inline=True)
 comment(0xF058, "Y = 0: within-page byte offset", inline=True)
 comment(0xF05A, "A = 0: seed the running sum", inline=True)
