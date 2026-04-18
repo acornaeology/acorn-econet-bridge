@@ -54,11 +54,11 @@ If any of the final `wait_adlc_*_idle` or `transmit_frame_*` calls takes its tim
 
 ## Steady state: the main loop
 
-The [main loop (`&E051`)](address:E051@1) is small. Its header re-arms both ADLCs (clearing any lingering status from a previous frame), then enters a tight polling loop at [`main_loop_poll` (`&E079`)](address:E079@1) that tests SR1 bit 7 — the IRQ summary — on each chip in turn:
+The [main loop](address:E051@1?hex) is small. Its header re-arms both ADLCs (clearing any lingering status from a previous frame), then enters a tight polling loop at [`main_loop_poll`](address:E079@1?hex) that tests SR1 bit 7 — the IRQ summary — on each chip in turn:
 
-- If ADLC B has raised IRQ, jump to [`rx_frame_b` (`&E263`)](address:E263@1).
-- Otherwise, if ADLC A has raised IRQ, jump to [`rx_frame_a` (`&E0E2`)](address:E0E2@1).
-- Otherwise, enter the idle path at [`main_loop_idle` (`&E089`)](address:E089@1).
+- If ADLC B has raised IRQ, jump to [`rx_frame_b`](address:E263@1?hex).
+- Otherwise, if ADLC A has raised IRQ, jump to [`rx_frame_a`](address:E0E2@1?hex).
+- Otherwise, enter the idle path at [`main_loop_idle`](address:E089@1?hex).
 
 The idle path decrements a 16-bit timer (`announce_tmr_lo/hi`). When the timer reaches zero, it invokes the re-announcement code, which rebuilds and retransmits the bridge-announcement frame — on side A if `announce_flag`'s bit 7 is clear, on side B otherwise — and decrements a counter. Once the counter runs out, `announce_flag` is cleared and the idle path goes quiet until something else re-enables it.
 
