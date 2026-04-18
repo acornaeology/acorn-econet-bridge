@@ -85,10 +85,8 @@ if 0xE000 <= _nmi_addr <= 0xFFF9:
 # value &46 at this address (and only this address, the rest of
 # the tail being unwritten &FF filler) has been deliberately
 # chosen by the firmware author to bring the total up by the
-# required &46 to land on the expected &55. J.G. Harston's
-# BRIDGE.SRC describes it as "Version byte? CRC check byte?" --
-# the specific value isn't meaningful, only its role in balancing
-# the sum.
+# required &46 to land on the expected &55. The specific value
+# isn't meaningful, only its role in balancing the sum.
 byte(0xFFF0)
 comment(0xFFF0, "Checksum-tuning byte: balances the ROM sum to &55")
 label(0xFFF0, "rom_checksum_adjust")
@@ -569,8 +567,8 @@ subroutine(0xE458, "build_announce_b", hook=None,
     title="Build a BridgeReset scout carrying net_num_b as payload",
     description="""\
 Populates the outbound frame control block at &045A-&0460 with
-an all-broadcast "BridgeReset" scout (JGH's term) -- ctrl=&80,
-port=&9C, payload = net_num_b. At reset time this is transmitted
+an all-broadcast BridgeReset scout -- ctrl=&80, port=&9C, payload
+= net_num_b. At reset time this is transmitted
 via ADLC A first (announcing "network net_num_b is reachable
 through me" to side A's stations), then tx_data0 is patched to
 net_num_a and the same frame is re-transmitted via ADLC B.
@@ -1328,15 +1326,15 @@ subroutine(0xE195, "rx_a_handle_83", hook=None, is_entry_point=False,
     title="Side-A IsNet query (ctrl=&83): targeted network lookup",
     description="""\
 Called when a received frame on side A is broadcast + port=&9C +
-ctrl=&83. In JGH's BRIDGE.SRC this query type is named "IsNet" —
-the querier is asking "can you reach network X?", where X is the
-byte at offset 13 of the payload (rx_query_net).
+ctrl=&83 -- the querier is asking "can you reach network X?",
+where X is the byte at offset 13 of the payload (rx_query_net).
 
-Consults reachable_via_b[rx_query_net]. If the entry is zero, we
-have no route to that network so the query is silently dropped
-(JMP main_loop via &E1D3). If non-zero, falls through to the
-shared response body at rx_a_handle_82 to transmit the reply --
-so IsNet is effectively WhatNet with an up-front routing filter.""")
+Consults reachable_via_b[rx_query_net]. If the entry is zero,
+there is no route to that network so the query is silently
+dropped (JMP main_loop via &E1D3). If non-zero, falls through to
+the shared response body at rx_a_handle_82 to transmit the reply
+-- so the targeted query is effectively the general query with
+an up-front routing filter.""")
 
 comment(0xE195, "Y = the queried network number", inline=True)
 comment(0xE198, "Check if we have a route via the other side", inline=True)
@@ -1348,11 +1346,10 @@ subroutine(0xE19D, "rx_a_handle_82", hook=None, is_entry_point=False,
     title="Side-A WhatNet query (ctrl=&82); also the IsNet response path",
     description="""\
 Called when a received frame on side A is broadcast + port=&9C +
-ctrl=&82 (named "WhatNet" in JGH's BRIDGE.SRC — a general bridge
-query asking "which networks do you reach?"), or when
-rx_a_handle_83 has verified that a specific IsNet queried network
-is in fact reachable via side B and is re-using this response
-path.
+ctrl=&82 -- a general bridge query asking "which networks do you
+reach?" -- or when rx_a_handle_83 has verified that a specific
+IsNet queried network is in fact reachable via side B and is
+re-using this response path.
 
 The response is a complete four-way handshake transaction, which
 the Bridge drives from the responder side as two transmissions
@@ -1565,9 +1562,8 @@ subroutine(0xE1D6, "rx_a_handle_80", hook=None, is_entry_point=False,
     title="Side-A BridgeReset (ctrl=&80): learn topology from scratch",
     description="""\
 Called when a received frame on side A is broadcast + port=&9C +
-ctrl=&80. In JGH's BRIDGE.SRC this control byte is named
-"BridgeReset" -- a bridge on the far side is advertising a fresh
-topology, likely because it has itself just come up. We:
+ctrl=&80 -- a bridge on the far side is advertising a fresh
+topology, likely because it has itself just come up. The handler:
 
   1. Wipe all learned routing state via init_reachable_nets. The
      topology may have changed non-monotonically, so accumulated
@@ -1606,32 +1602,23 @@ label(0xE1EE, "rx_a_handle_81")
 subroutine(0xE1EE, "rx_a_handle_81", hook=None, is_entry_point=False,
     title="Side-A BridgeReply (ctrl=&81): learn and re-broadcast",
     description="""\
-Reached either directly as the ctrl=&81 handler ("BridgeReply" /
-"ResetReply" in JGH's source — the re-announcement that follows
-a BridgeReset) or via fall-through from rx_a_handle_80 (which
-additionally wipes routing state before the learn loop).
+Reached either directly as the ctrl=&81 handler (the
+re-announcement that follows a BridgeReset) or via fall-through
+from rx_a_handle_80 (which additionally wipes routing state
+before the learn loop).
 
 Processes the announcement payload: each byte from offset 6 up
 to rx_len is a network number that the announcer says it can
-reach. Since the announcer is on side A, we can reach those
-networks via side A ourselves -- mark each in reachable_via_a.
+reach. Since the announcer is on side A, those networks are
+reachable via side A from here too -- mark each in
+reachable_via_a.
 
 After the learn loop, append our own net_num_a to the payload
 and bump rx_len. Falling through to rx_a_forward re-broadcasts
 the augmented frame out of ADLC B, so any bridges beyond us on
 that side hear about the announced networks plus us as one
 further hop along the route. This is classic distance-vector
-flooding.
-
-A subtlety: JGH's BRIDGE.SRC memory-layout comments describe
-the payload as sometimes starting with the literal ASCII string
-"BRIDGE" at bytes 6-11 (in query frames). Our handler makes no
-such check -- it treats every byte from offset 6 up as a network
-number. A frame from a "newer" variant that prepended "BRIDGE"
-would have bytes &42 &52 &49 &44 &47 &45 erroneously marked as
-reachable network numbers. No evidence that any in-the-wild
-variant does this for ctrl=&80/&81; our own ROM doesn't emit the
-string in any outbound frame.""")
+flooding.""")
 
 comment(0xE1EE, "Y = 6: skip past the 6-byte scout header", inline=True)
 label(0xE1F0, "rx_a_learn_loop")
