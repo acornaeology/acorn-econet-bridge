@@ -1,8 +1,8 @@
 ; Memory locations
-l0000           = &0000
-l0001           = &0001
-l0002           = &0002
-l0003           = &0003
+st_ptr_lo       = &0000  ; Low byte of the self-test scan pointer.
+st_ptr_hi       = &0001  ; High byte of the self-test scan pointer.
+st_page_count   = &0002  ; Page counter for the self-test scans.
+st_pass_phase   = &0003  ; Self-test pass-phase flag.
 mem_ptr_lo      = &0080  ; Low byte of the indirect pointer.
 mem_ptr_hi      = &0081  ; High byte of the indirect pointer.
 top_ram_page    = &0082  ; Highest page that verified &AA/&55 during ram_test.
@@ -93,13 +93,13 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     inc mem_ptr_hi                                                    ; e013: e6 81       ..             ; Step up to the next candidate page
     lda #&aa                                                          ; e015: a9 aa       ..             ; Pattern 1: &AA (1010_1010) -- half the bits set
     sta (mem_ptr_lo),y                                                ; e017: 91 80       ..             ; Write &AA to (mem_ptr_lo) indirect
-    inc l0000                                                         ; e019: e6 00       ..             ; INC $00: read-modify-write disturbs the data bus...
+    inc st_ptr_lo                                                     ; e019: e6 00       ..             ; INC $00: read-modify-write disturbs the data bus...
     lda (mem_ptr_lo),y                                                ; e01b: b1 80       ..             ; ...then read the probe byte back
     cmp #&aa                                                          ; e01d: c9 aa       ..             ; Did &AA survive the disturbance?
     bne ram_test_done                                                 ; e01f: d0 0c       ..             ; Mismatch -> this page isn't real RAM; back off
     lda #&55 ; 'U'                                                    ; e021: a9 55       .U             ; Pattern 2: &55 (0101_0101) -- exact complement of &AA
     sta (mem_ptr_lo),y                                                ; e023: 91 80       ..             ; Write &55 to (mem_ptr_lo) indirect
-    inc l0000                                                         ; e025: e6 00       ..             ; INC $00 again -- anti-aliasing tripwire
+    inc st_ptr_lo                                                     ; e025: e6 00       ..             ; INC $00 again -- anti-aliasing tripwire
     lda (mem_ptr_lo),y                                                ; e027: b1 80       ..             ; Read pattern 2 back
     cmp #&55 ; 'U'                                                    ; e029: c9 55       .U             ; Did &55 survive?
     beq ram_test_loop                                                 ; e02b: f0 e6       ..             ; Both patterns held -- real RAM, try next page
@@ -1686,7 +1686,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 .self_test
     sei                                                               ; f000: 78          x              ; Mask IRQs -- this routine polls and must not re-enter
     lda #0                                                            ; f001: a9 00       ..             ; A = 0: initial value for the scratch pass-phase flag
-    sta l0003                                                         ; f003: 85 03       ..             ; &03 = pass-phase; toggled by self_test_pass_done
+    sta st_pass_phase                                                 ; f003: 85 03       ..             ; &03 = pass-phase; toggled by self_test_pass_done
 ; ***************************************************************************************
 ; Reset both ADLCs and light the status LED
 ;
@@ -1733,14 +1733,14 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     lda #&55 ; 'U'                                                    ; f02f: a9 55       .U             ; First test pattern = &55 (0101_0101)
 ; &f031 referenced 1 time by &f049
 .self_test_zp_write_read
-    sta l0000                                                         ; f031: 85 00       ..             ; Write pattern to scratch byte &00
-    sta l0001                                                         ; f033: 85 01       ..             ; Write pattern to scratch byte &01
-    sta l0002                                                         ; f035: 85 02       ..             ; Write pattern to scratch byte &02
-    cmp l0000                                                         ; f037: c5 00       ..             ; Check &00 still reads as pattern
+    sta st_ptr_lo                                                     ; f031: 85 00       ..             ; Write pattern to scratch byte &00
+    sta st_ptr_hi                                                     ; f033: 85 01       ..             ; Write pattern to scratch byte &01
+    sta st_page_count                                                 ; f035: 85 02       ..             ; Write pattern to scratch byte &02
+    cmp st_ptr_lo                                                     ; f037: c5 00       ..             ; Check &00 still reads as pattern
     bne self_test_ram_fail_jump                                       ; f039: d0 62       .b             ; Mismatch -> ram_test_fail (distinct blink pattern)
-    cmp l0001                                                         ; f03b: c5 01       ..             ; Check &01 still reads as pattern
+    cmp st_ptr_hi                                                     ; f03b: c5 01       ..             ; Check &01 still reads as pattern
     bne self_test_ram_fail_jump                                       ; f03d: d0 5e       .^             ; Mismatch -> ram_test_fail
-    cmp l0002                                                         ; f03f: c5 02       ..             ; Check &02 still reads as pattern
+    cmp st_page_count                                                 ; f03f: c5 02       ..             ; Check &02 still reads as pattern
     bne self_test_ram_fail_jump                                       ; f041: d0 5a       .Z             ; Mismatch -> ram_test_fail
     cmp #&aa                                                          ; f043: c9 aa       ..             ; Was the pattern &AA? then both halves passed
     beq self_test_rom_checksum                                        ; f045: f0 05       ..             ; Yes -> continue to ROM checksum
@@ -1760,21 +1760,21 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &f04c referenced 1 time by &f045
 .self_test_rom_checksum
     lda #0                                                            ; f04c: a9 00       ..             ; A = 0: low byte of the ROM pointer
-    sta l0000                                                         ; f04e: 85 00       ..             ; Store pointer_lo = 0
+    sta st_ptr_lo                                                     ; f04e: 85 00       ..             ; Store pointer_lo = 0
     lda #&20 ; ' '                                                    ; f050: a9 20       .              ; A = &20: 32 pages remaining to sum
-    sta l0002                                                         ; f052: 85 02       ..             ; Store page counter
+    sta st_page_count                                                 ; f052: 85 02       ..             ; Store page counter
     lda #&e0                                                          ; f054: a9 e0       ..             ; A = &E0: pointer_hi starts at ROM base &E000
-    sta l0001                                                         ; f056: 85 01       ..             ; Store pointer_hi = &E0
+    sta st_ptr_hi                                                     ; f056: 85 01       ..             ; Store pointer_hi = &E0
     ldy #0                                                            ; f058: a0 00       ..             ; Y = 0: within-page byte offset
     tya                                                               ; f05a: 98          .              ; A = 0: seed the running sum
 ; &f05b referenced 2 times by &f05f, &f065
 .self_test_rom_checksum_loop
     clc                                                               ; f05b: 18          .              ; Clear carry before the addition
-    adc (l0000),y                                                     ; f05c: 71 00       q.             ; Add next ROM byte at (pointer),Y into running sum
+    adc (st_ptr_lo),y                                                 ; f05c: 71 00       q.             ; Add next ROM byte at (pointer),Y into running sum
     iny                                                               ; f05e: c8          .              ; Advance to next byte within the page
     bne self_test_rom_checksum_loop                                   ; f05f: d0 fa       ..             ; Loop 256 times through the current page
-    inc l0001                                                         ; f061: e6 01       ..             ; Roll the pointer to the next 256-byte page
-    dec l0002                                                         ; f063: c6 02       ..             ; One page done; decrement the page counter
+    inc st_ptr_hi                                                     ; f061: e6 01       ..             ; Roll the pointer to the next 256-byte page
+    dec st_page_count                                                 ; f063: c6 02       ..             ; One page done; decrement the page counter
     bne self_test_rom_checksum_loop                                   ; f065: d0 f4       ..             ; Loop until all 32 ROM pages have been summed
     cmp #&55 ; 'U'                                                    ; f067: c9 55       .U             ; Compare running sum with the expected &55
     beq self_test_ram_pattern                                         ; f069: f0 05       ..             ; Match -> ROM is intact, proceed to RAM test
@@ -1795,28 +1795,28 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &f070 referenced 1 time by &f069
 .self_test_ram_pattern
     lda #0                                                            ; f070: a9 00       ..             ; A = 0: low byte of the RAM-test indirect pointer
-    sta l0000                                                         ; f072: 85 00       ..             ; Store pointer_lo
+    sta st_ptr_lo                                                     ; f072: 85 00       ..             ; Store pointer_lo
     lda #0                                                            ; f074: a9 00       ..             ; A = 0: high byte -- start scanning at RAM base
-    sta l0001                                                         ; f076: 85 01       ..             ; Store pointer_hi
+    sta st_ptr_hi                                                     ; f076: 85 01       ..             ; Store pointer_hi
     lda #&20 ; ' '                                                    ; f078: a9 20       .              ; A = &20: 32 pages to cover (the full 8 KiB)
-    sta l0002                                                         ; f07a: 85 02       ..             ; Store page counter
+    sta st_page_count                                                 ; f07a: 85 02       ..             ; Store page counter
     ldy #4                                                            ; f07c: a0 04       ..             ; Y = 4: skip &0000-&0003 (self-test scratch)
 ; &f07e referenced 2 times by &f093, &f099
 .self_test_ram_pattern_loop
     lda #&55 ; 'U'                                                    ; f07e: a9 55       .U             ; First pattern = &55 (alternating 1-0 nibbles)
-    sta (l0000),y                                                     ; f080: 91 00       ..             ; Write pattern to the current RAM byte
-    lda (l0000),y                                                     ; f082: b1 00       ..             ; Read the same byte back
+    sta (st_ptr_lo),y                                                 ; f080: 91 00       ..             ; Write pattern to the current RAM byte
+    lda (st_ptr_lo),y                                                 ; f082: b1 00       ..             ; Read the same byte back
     cmp #&55 ; 'U'                                                    ; f084: c9 55       .U             ; Verify the cell held the written pattern
     bne self_test_ram_fail_jump                                       ; f086: d0 15       ..             ; Mismatch -> ram_test_fail (unreliable storage)
     lda #&aa                                                          ; f088: a9 aa       ..             ; Second pattern = &AA (the bitwise complement)
-    sta (l0000),y                                                     ; f08a: 91 00       ..             ; Write complement to catch stuck-bit faults
-    lda (l0000),y                                                     ; f08c: b1 00       ..             ; Read it back
+    sta (st_ptr_lo),y                                                 ; f08a: 91 00       ..             ; Write complement to catch stuck-bit faults
+    lda (st_ptr_lo),y                                                 ; f08c: b1 00       ..             ; Read it back
     cmp #&aa                                                          ; f08e: c9 aa       ..             ; Verify
     bne self_test_ram_fail_jump                                       ; f090: d0 0b       ..             ; Mismatch -> ram_test_fail
     iny                                                               ; f092: c8          .              ; Advance to next byte within the page
     bne self_test_ram_pattern_loop                                    ; f093: d0 e9       ..             ; Loop 256 times through the current page
-    inc l0001                                                         ; f095: e6 01       ..             ; Advance to the next page
-    dec l0002                                                         ; f097: c6 02       ..             ; One page done; decrement the remaining-page count
+    inc st_ptr_hi                                                     ; f095: e6 01       ..             ; Advance to the next page
+    dec st_page_count                                                 ; f097: c6 02       ..             ; One page done; decrement the remaining-page count
     bne self_test_ram_pattern_loop                                    ; f099: d0 e3       ..             ; Continue until all 32 pages verified
     beq self_test_ram_incr                                            ; f09b: f0 03       ..             ; All 8 KiB good -- fall through to the incrementing test
 
@@ -1840,39 +1840,39 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &f0a0 referenced 1 time by &f09b
 .self_test_ram_incr
     lda #0                                                            ; f0a0: a9 00       ..             ; A = 0: low byte of the pointer stays zero
-    sta l0001                                                         ; f0a2: 85 01       ..             ; Reset pointer_hi to RAM base for the fill phase
+    sta st_ptr_hi                                                     ; f0a2: 85 01       ..             ; Reset pointer_hi to RAM base for the fill phase
     lda #&20 ; ' '                                                    ; f0a4: a9 20       .              ; A = &20: full 32-page coverage again
-    sta l0002                                                         ; f0a6: 85 02       ..             ; Store the page counter
+    sta st_page_count                                                 ; f0a6: 85 02       ..             ; Store the page counter
     ldy #4                                                            ; f0a8: a0 04       ..             ; Y = 4: skip the self-test scratch bytes
     ldx #0                                                            ; f0aa: a2 00       ..             ; X = 0: seed the fill value
 ; &f0ac referenced 2 times by &f0b1, &f0b8
 .self_test_ram_incr_fill
     txa                                                               ; f0ac: 8a          .              ; A = X: the current fill value
-    sta (l0000),y                                                     ; f0ad: 91 00       ..             ; Write it to RAM via the indirect pointer
+    sta (st_ptr_lo),y                                                 ; f0ad: 91 00       ..             ; Write it to RAM via the indirect pointer
     inx                                                               ; f0af: e8          .              ; Increment fill value (wraps naturally at 256)
     iny                                                               ; f0b0: c8          .              ; Advance to next byte in the page
     bne self_test_ram_incr_fill                                       ; f0b1: d0 f9       ..             ; Loop 256 times through the page
-    inc l0001                                                         ; f0b3: e6 01       ..             ; Advance to next page
+    inc st_ptr_hi                                                     ; f0b3: e6 01       ..             ; Advance to next page
     inx                                                               ; f0b5: e8          .              ; Bump fill value by one extra per page -- different offset
-    dec l0002                                                         ; f0b6: c6 02       ..             ; Decrement page counter
+    dec st_page_count                                                 ; f0b6: c6 02       ..             ; Decrement page counter
     bne self_test_ram_incr_fill                                       ; f0b8: d0 f2       ..             ; Continue filling all 32 pages
     lda #0                                                            ; f0ba: a9 00       ..             ; Fill done; now reset state for the verify phase
-    sta l0001                                                         ; f0bc: 85 01       ..             ; pointer_hi back to RAM base
+    sta st_ptr_hi                                                     ; f0bc: 85 01       ..             ; pointer_hi back to RAM base
     lda #&20 ; ' '                                                    ; f0be: a9 20       .              ; A = &20: 32 pages again
-    sta l0002                                                         ; f0c0: 85 02       ..             ; Store page counter
+    sta st_page_count                                                 ; f0c0: 85 02       ..             ; Store page counter
     ldy #4                                                            ; f0c2: a0 04       ..             ; Y = 4: skip scratch bytes
     ldx #0                                                            ; f0c4: a2 00       ..             ; X = 0: expected value follows the same sequence
 ; &f0c6 referenced 2 times by &f0cd, &f0d4
 .self_test_ram_incr_verify
     txa                                                               ; f0c6: 8a          .              ; A = X: expected byte value
-    cmp (l0000),y                                                     ; f0c7: d1 00       ..             ; Compare with what we actually wrote and read back
+    cmp (st_ptr_lo),y                                                 ; f0c7: d1 00       ..             ; Compare with what we actually wrote and read back
     bne self_test_ram_fail_jump                                       ; f0c9: d0 d2       ..             ; Mismatch -> ram_test_fail (via &F09D)
     inx                                                               ; f0cb: e8          .              ; Step expected value
     iny                                                               ; f0cc: c8          .              ; Step byte offset
     bne self_test_ram_incr_verify                                     ; f0cd: d0 f7       ..             ; Loop through the page
-    inc l0001                                                         ; f0cf: e6 01       ..             ; Advance to next page
+    inc st_ptr_hi                                                     ; f0cf: e6 01       ..             ; Advance to next page
     inx                                                               ; f0d1: e8          .              ; Bump offset between pages (match fill pattern)
-    dec l0002                                                         ; f0d2: c6 02       ..             ; One page verified; decrement
+    dec st_page_count                                                 ; f0d2: c6 02       ..             ; One page verified; decrement
     bne self_test_ram_incr_verify                                     ; f0d4: d0 f0       ..             ; Continue through all 32 pages; falls through on success
 ; ***************************************************************************************
 ; Verify both ADLCs' register state after reset
@@ -2153,9 +2153,9 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; between passes catching some intermittent faults.
 ; &f264 referenced 1 time by &f25d
 .self_test_pass_done
-    lda l0003                                                         ; f264: a5 03       ..             ; Read the pass-phase flag at &03
+    lda st_pass_phase                                                 ; f264: a5 03       ..             ; Read the pass-phase flag at &03
     eor #&ff                                                          ; f266: 49 ff       I.             ; Invert it so we alternate between passes
-    sta l0003                                                         ; f268: 85 03       ..             ; Store the flipped phase back
+    sta st_pass_phase                                                 ; f268: 85 03       ..             ; Store the flipped phase back
     bmi self_test_alt_pass                                            ; f26a: 30 03       0.             ; If bit 7 set, start a full self_test_reset_adlcs pass
     jmp self_test_reset_adlcs                                         ; f26c: 4c 05 f0    L..            ; Jump up to redo from the top
 
@@ -2257,8 +2257,8 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; pulses to identify the failed test.
 ; &f2c7 referenced 7 times by &f06d, &f102, &f107, &f153, &f1f4, &f255, &f261
 .self_test_fail
-    sta l0000                                                         ; f2c7: 85 00       ..             ; Save error code to &00 (the restart value)
-    sta l0001                                                         ; f2c9: 85 01       ..             ; ...and to &01 (the per-burst countdown)
+    sta st_ptr_lo                                                     ; f2c7: 85 00       ..             ; Save error code to &00 (the restart value)
+    sta st_ptr_hi                                                     ; f2c9: 85 01       ..             ; ...and to &01 (the per-burst countdown)
     ldx #1                                                            ; f2cb: a2 01       ..             ; X = 1: enable AC on ADLC A
     stx adlc_a_cr1                                                    ; f2cd: 8e 00 c8    ...            ; Commit CR1 so cr2 writes hit CR3 from here on
 ; &f2d0 referenced 2 times by &f2f0, &f308
@@ -2283,10 +2283,10 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     bne self_test_fail_lit_delay                                      ; f2e9: d0 fd       ..             ; Inner spin through X's 256 values (LED lit)
     dey                                                               ; f2eb: 88          .              ; Step Y
     bne self_test_fail_lit_delay                                      ; f2ec: d0 fa       ..             ; Outer spin: Y cycles give the same length as the dark phase
-    dec l0001                                                         ; f2ee: c6 01       ..             ; One pulse done; decrement the burst counter
+    dec st_ptr_hi                                                     ; f2ee: c6 01       ..             ; One pulse done; decrement the burst counter
     bne self_test_fail_pulse                                          ; f2f0: d0 de       ..             ; Loop until we've emitted N pulses
     lda #8                                                            ; f2f2: a9 08       ..             ; A = 8: spacer count between bursts
-    sta l0001                                                         ; f2f4: 85 01       ..             ; Seed the spacer loop counter
+    sta st_ptr_hi                                                     ; f2f4: 85 01       ..             ; Seed the spacer loop counter
     ldy #0                                                            ; f2f6: a0 00       ..             ; Y = 0
     ldx #0                                                            ; f2f8: a2 00       ..             ; X = 0
 ; &f2fa referenced 3 times by &f2fb, &f2fe, &f302
@@ -2295,10 +2295,10 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     bne self_test_fail_spacer_delay                                   ; f2fb: d0 fd       ..             ; Inner spin through X's 256 values (LED off)
     dey                                                               ; f2fd: 88          .              ; Step Y
     bne self_test_fail_spacer_delay                                   ; f2fe: d0 fa       ..             ; Outer spin: 8x this pair keeps the gap audibly long
-    dec l0001                                                         ; f300: c6 01       ..             ; Decrement spacer loop counter
+    dec st_ptr_hi                                                     ; f300: c6 01       ..             ; Decrement spacer loop counter
     bne self_test_fail_spacer_delay                                   ; f302: d0 f6       ..             ; Repeat eight times total
-    lda l0000                                                         ; f304: a5 00       ..             ; Reload the N-pulse counter with the saved error code
-    sta l0001                                                         ; f306: 85 01       ..             ; Store into &01 for the next burst
+    lda st_ptr_lo                                                     ; f304: a5 00       ..             ; Reload the N-pulse counter with the saved error code
+    sta st_ptr_hi                                                     ; f306: 85 01       ..             ; Store into &01 for the next burst
     jmp self_test_fail_pulse                                          ; f308: 4c d0 f2    L..            ; Jump back to start another N-pulse burst forever
 
     for _py8dis_fill_n%, 1, 3301 : equb &ff : next                    ; f30b: ff ff ff... ...
@@ -2354,15 +2354,15 @@ save pydis_start, pydis_end
 ;     rx_dst_stn:                   20
 ;     wait_adlc_a_irq:              19
 ;     wait_adlc_b_irq:              19
-;     l0000:                        15
-;     l0001:                        15
+;     st_ptr_hi:                    15
+;     st_ptr_lo:                    15
 ;     main_loop:                    14
 ;     net_num_a:                    13
 ;     loopback_a_to_b_fail:         12
 ;     loopback_b_to_a_fail:         12
 ;     net_num_b:                    12
 ;     rx_len:                       12
-;     l0002:                        10
+;     st_page_count:                10
 ;     tx_src_net:                   10
 ;     rx_dst_net:                    8
 ;     tx_dst_net:                    8
@@ -2399,9 +2399,9 @@ save pydis_start, pydis_end
 ;     wait_adlc_a_idle:              4
 ;     wait_adlc_b_idle:              4
 ;     init_reachable_nets:           3
-;     l0003:                         3
 ;     self_test_fail_adlc_a:         3
 ;     self_test_fail_spacer_delay:   3
+;     st_pass_phase:                 3
 ;     top_ram_page:                  3
 ;     tx_data0:                      3
 ;     wait_adlc_a_idle_loop:         3
@@ -2520,12 +2520,6 @@ save pydis_start, pydis_end
 ;     wait_adlc_a_idle_tick:         1
 ;     wait_adlc_b_idle_ready:        1
 ;     wait_adlc_b_idle_tick:         1
-
-; Automatically generated labels:
-;     l0000
-;     l0001
-;     l0002
-;     l0003
 
 ; Stats:
 ;     Total size (Code + Data) = 2618 bytes

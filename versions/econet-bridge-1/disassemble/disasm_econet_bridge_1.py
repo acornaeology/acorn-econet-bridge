@@ -186,10 +186,60 @@ in the ROM would do the same thing.""")
 # accessed at offsets 0 and 1. The Acorn NFS disassembly uses the
 # pre-AC names (cr1/cr2/tx/tx2) and we follow the same convention.
 
-# Zero-page workspace used by the RAM test at reset. mem_ptr_lo and
-# mem_ptr_hi form an indirect pointer scanned upward one page at a
-# time; top_ram_page receives the last page that verified &AA/&55
-# patterns and is used later by workspace init.
+# Zero-page workspace used by the self-test's scanning loops. The
+# self-test cannot rely on mem_ptr_lo/hi at &80/&81 because those
+# sit in the RAM it is about to test; &00-&03 give it an independent
+# parallel scratch zone. st_ptr_lo/hi plus st_page_count form a
+# 16-bit pointer + page counter for the ROM checksum and RAM pattern
+# scans; st_pass_phase is a pass-phase selector toggled each run.
+label(0x0000, "st_ptr_lo",
+    description="Low byte of the self-test scan pointer.\n"
+                "Paired with [`st_ptr_hi`](address:0001) to form a "
+                "16-bit indirect pointer walked by "
+                "[`self_test_rom_checksum`](address:F04C) and "
+                "[`self_test_ram_pattern`](address:F070).\n\n"
+                "Also used as an anti-aliasing tripwire byte (the "
+                "`INC $00`) in [`ram_test`](address:E00B), and as "
+                "a scratch victim byte during "
+                "[`self_test_zp`](address:F02F) when the zero-page "
+                "itself is under test.",
+    length=1, group="zero_page", access="rw")
+label(0x0001, "st_ptr_hi",
+    description="High byte of the self-test scan pointer.\n"
+                "Paired with [`st_ptr_lo`](address:0000); incremented "
+                "page by page as the scanning loops stride through "
+                "each 256-byte block of ROM or RAM.\n\n"
+                "Also a scratch victim byte during "
+                "[`self_test_zp`](address:F02F).",
+    length=1, group="zero_page", access="rw")
+label(0x0002, "st_page_count",
+    description="Page counter for the self-test scans.\n"
+                "Pre-loaded with the number of 256-byte pages the "
+                "current scan covers (`&20` for the 8 KiB ROM, "
+                "[`top_ram_page`](address:0082) for RAM) and "
+                "decremented once per page by "
+                "[`self_test_rom_checksum`](address:F04C) and "
+                "[`self_test_ram_pattern`](address:F070).\n\n"
+                "Also a scratch victim byte during "
+                "[`self_test_zp`](address:F02F).",
+    length=1, group="zero_page", access="rw")
+label(0x0003, "st_pass_phase",
+    description="Self-test pass-phase flag.\n"
+                "Initialised by [`self_test`](address:F000) at entry "
+                "and toggled by "
+                "[`self_test_pass_done`](address:F264) at the end of "
+                "each full pass; bit 7 then selects between a plain "
+                "restart from [`self_test_reset_adlcs`](address:F005) "
+                "and the alternate path through "
+                "[`self_test_alt_pass`](address:F26F), which drives "
+                "the ADLC control registers slightly differently to "
+                "catch intermittent faults.",
+    length=1, group="zero_page", access="rw")
+
+# Zero-page workspace used by the main code. mem_ptr_lo and mem_ptr_hi
+# form an indirect pointer scanned upward one page at a time;
+# top_ram_page receives the last page that verified &AA/&55 patterns
+# during ram_test and is used later by workspace init.
 label(0x0080, "mem_ptr_lo",
     description="Low byte of the indirect pointer.\n"
                 "Paired with [`mem_ptr_hi`](address:0081).\n\n"
