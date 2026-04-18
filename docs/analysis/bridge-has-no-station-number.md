@@ -22,7 +22,7 @@ The Installation Guide describes attaching the box to a cable "exactly as though
 
 ## The firmware
 
-The firmware's internal structures reflect the same asymmetry. The two 256-byte routing tables at `&025A` and `&035A` — which I originally mis-labelled as per-station tables and have since renamed `reachable_via_b` and `reachable_via_a` — are indexed by **destination network number**, not destination station. The Bridge's inbound-frame filter in `rx_frame_a` reads the second byte of the incoming scout (`rx_dst_net`) and consults the routing table on that value alone:
+The firmware's internal structures reflect the same asymmetry. The two 256-byte routing tables `reachable_via_b` (`&025A`) and `reachable_via_a` (`&035A`) are indexed by **destination network number**, not destination station. The Bridge's inbound-frame filter in `rx_frame_a` reads the second byte of the incoming scout (`rx_dst_net`) and consults the routing table on that value alone:
 
 ```
 ldy adlc_a_tx               ; read byte 1 = rx_dst_net
@@ -65,7 +65,7 @@ ctrl    = &80 or &81             initial- vs re-announcement
 port    = &9C                    bridge-protocol port
 ```
 
-Any one of those would probably be sufficient for dispatch; taken together they form a defensive redundancy that makes bridge-protocol frames recognisable even in the face of corruption, coincidence, or misconfiguration on another station. The choice of `&18` specifically has no meaning that I can find in the firmware or the guide; it might as well have been `&42`.
+Any one of those would probably be sufficient for dispatch; taken together they form a defensive redundancy that makes bridge-protocol frames recognisable even in the face of corruption, coincidence, or misconfiguration on another station. The choice of `&18` specifically has no documented meaning in the firmware or the Installation Guide; it might as well have been `&42`.
 
 
 ## Why this works
@@ -83,10 +83,7 @@ Giving the Bridge no station address is not a cost-cutting shortcut — it is a 
 
 ## Implications for the disassembly
 
-For anyone working through the Bridge ROM, the practical takeaway is: don't look for station-level decision-making. Anywhere the code reads a byte that might have been a station number, it's almost certainly a network number (or an index into a network-keyed table, or the `&FF` broadcast sentinel). The two places where a station number actually appears are:
-
-- `rx_dst_stn` (byte 0 of every inbound frame) — preserved for forwarding, never acted on locally.
-- `rx_query_stn` (byte 13 of an inbound frame with control `&83`) — consulted by a handler whose full meaning is still TBD, but which looks up the station-keyed... no, actually it looks up the byte in `reachable_via_a`, which is network-keyed. Even that one apparent exception turns out, on inspection, to be a network-number dereference with a `_stn` label that's likely to get renamed once the `&83` handler is fully analysed.
+For anyone working through the Bridge ROM, the practical takeaway is: don't look for station-level decision-making. Anywhere the code reads a byte that might have been a station number, it's almost certainly a network number (or an index into a network-keyed table, or the `&FF` broadcast sentinel). The one place where a station number actually appears in code is `rx_dst_stn` (byte 0 of every inbound frame) — and even that is only preserved for forwarding, never acted on locally.
 
 The Bridge lives one level up from the station-address plane — it cares about networks, and it treats stations as opaque bytes to be forwarded unchanged. The firmware's clean separation between the two is one of the nicer architectural features of the design.
 

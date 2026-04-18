@@ -78,7 +78,7 @@ The asymmetry between `build_announce_b` and the reset sequence is what makes th
 
 After that first transmission, the reset handler rewrites `tx_data0` with `station_id_a` so that the second transmission — sent via ADLC B — announces the Bridge's side-A station number to the stations on side B. No second builder routine; no second frame; no second buffer. Just a one-byte patch and a call through the mirror of the transmit routine.
 
-There's a corresponding non-trivial naming decision in the disassembly: I've labelled the builder `build_announce_b` because it sets the payload to `station_id_b`, but the frame it produces is transmitted to side A. The name describes the contents, not the destination. Rename candidates (`build_announce_payload_b`? `build_for_far_side_b`?) all end up more awkward. I've left it as `build_announce_b` and noted the subtlety in the driver.
+There's a corresponding non-trivial naming choice in the disassembly: the builder is called `build_announce_b` because it sets the payload to `station_id_b`, but the frame it produces is transmitted to side A. The name describes the contents, not the destination — alternatives like `build_announce_payload_b` or `build_for_far_side_b` all end up more awkward.
 
 
 ## What the idiom tells us
