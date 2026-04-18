@@ -65,16 +65,16 @@
             "label": "The Replica Acorn Econet Bridge project",
             "url": "https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/replica_acorn_econet_bridge.html",
             "icon": "ref",
-            "note": "A modern reproduction of the Acorn Econet Bridge, with useful photographs and build notes."
+            "note": "Chris Oddy's modern reproduction of the Acorn Econet Bridge, with useful photographs and build notes."
         },
         {
             "label": "Replica Econet Bridge Schematic (PDF)",
             "url": "https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/Replica%20Econet%20Bridge%20Schematic.pdf",
             "icon": "doc",
-            "note": "Schematic for the replica board, closely matching the original Acorn design."
+            "note": "Chris Oddy's schematic for the replica board, closely matching the original Acorn design."
         },
         {
-            "label": "Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF)",
+            "label": "Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF) [requires Stardot login]",
             "url": "https://stardot.org.uk/forums/download/file.php?id=26508",
             "icon": "doc",
             "note": "Schematic reverse-engineered from an original Acorn board, shared in the Stardot forum thread below."
@@ -117,9 +117,9 @@
         },
         {
             "label": "Motorola MC68B54P ADLC datasheet (PDF)",
-            "url": "docs/Motorola-MC68B54P-datasheet.pdf",
+            "url": "https://github.com/acornaeology/acorn-econet-bridge/raw/master/docs/Motorola-MC68B54P-datasheet.pdf",
             "icon": "doc",
-            "note": "Datasheet for the Advanced Data Link Controller used on each Econet port of the Bridge. Authoritative reference for CR1-CR4 and SR1/SR2 bit meanings."
+            "note": "Datasheet for the Advanced Data Link Controller used on each Econet port of the Bridge. Authoritative reference for CR1-CR4 and SR1/SR2 bit meanings. The canonical source has dropped off the web; this is the copy kept in the repository's `docs/` folder, served as raw PDF from GitHub."
         }
     ]
 }

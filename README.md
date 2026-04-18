@@ -63,10 +63,10 @@ Writeups of interesting details uncovered during the disassembly work.
 - [Econet Installation Guide (0482,009 Issue 1, 27 September 1988) (PDF)](https://www.theoddys.com/acorn/acorn_system_filing_systems/econet/documentation/Econet%20Installation%20Guide%200482%2C009%20Issue%201%2027%20September%201988.pdf)
   Acorn's official Econet installation guide. Chapter 3 covers the Bridge. A local copy is kept in docs/.
 - [The Replica Acorn Econet Bridge project](https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/replica_acorn_econet_bridge.html)
-  A modern reproduction of the Acorn Econet Bridge, with useful photographs and build notes.
+  Chris Oddy's modern reproduction of the Acorn Econet Bridge, with useful photographs and build notes.
 - [Replica Econet Bridge Schematic (PDF)](https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/Replica%20Econet%20Bridge%20Schematic.pdf)
-  Schematic for the replica board, closely matching the original Acorn design.
-- [Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF)](https://stardot.org.uk/forums/download/file.php?id=26508)
+  Chris Oddy's schematic for the replica board, closely matching the original Acorn design.
+- [Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF) [requires Stardot login]](https://stardot.org.uk/forums/download/file.php?id=26508)
   Schematic reverse-engineered from an original Acorn board, shared in the Stardot forum thread below.
 - [Stardot Forums: Econet Bridge schematic thread](https://stardot.org.uk/forums/viewtopic.php?t=12324)
   Discussion of Ian Stocks's reverse-engineered schematic and Bridge hardware details.
@@ -80,8 +80,8 @@ Writeups of interesting details uncovered during the disassembly work.
   Directory listing for the Acorn Econet Bridge on mdfs.net.
 - [J.G. Harston's Bridge disassembly (BBC BASIC embedded-assembler source)](https://mdfs.net/System/ROMs/Econet/Bridge/BRIDGE.SRC)
   A parallel disassembly of the same binary variant using BBC BASIC's inline assembler, with memory-layout comments and protocol-level terminology (BridgeReset / BridgeReply / WhatNet / IsNet / BridgeQuery port). Useful as a second reading. JGH is a fellow reverse-engineer, and his comments have been paraphrased rather than quoted and weighed against the evidence, like ours.
-- [Motorola MC68B54P ADLC datasheet (PDF)](docs/Motorola-MC68B54P-datasheet.pdf)
-  Datasheet for the Advanced Data Link Controller used on each Econet port of the Bridge. Authoritative reference for CR1-CR4 and SR1/SR2 bit meanings.
+- [Motorola MC68B54P ADLC datasheet (PDF)](https://github.com/acornaeology/acorn-econet-bridge/raw/master/docs/Motorola-MC68B54P-datasheet.pdf)
+  Datasheet for the Advanced Data Link Controller used on each Econet port of the Bridge. Authoritative reference for CR1-CR4 and SR1/SR2 bit meanings. The canonical source has dropped off the web; this is the copy kept in the repository's `docs/` folder, served as raw PDF from GitHub.
 
 ## Credits
 

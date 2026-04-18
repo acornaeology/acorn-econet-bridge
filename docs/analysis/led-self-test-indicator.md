@@ -87,5 +87,5 @@ A one-bit output reused four ways — normal operation, diagnostic-active, struc
 
 ## External references
 
-- MC68B54 datasheet in [`docs/Motorola-MC68B54P-datasheet.pdf`](../Motorola-MC68B54P-datasheet.pdf) — CR3 bit meanings.
-- [Ian Stocks's reverse-engineered schematic](https://stardot.org.uk/forums/download/file.php?id=26508).
+- [MC68B54 datasheet](https://github.com/acornaeology/acorn-econet-bridge/raw/master/docs/Motorola-MC68B54P-datasheet.pdf) — CR3 bit meanings.
+- [Ian Stocks's reverse-engineered schematic](https://stardot.org.uk/forums/download/file.php?id=26508) [requires Stardot login].
