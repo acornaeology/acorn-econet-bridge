@@ -113,7 +113,7 @@
             "label": "J.G. Harston's Bridge disassembly (BBC BASIC embedded-assembler source)",
             "url": "https://mdfs.net/System/ROMs/Econet/Bridge/BRIDGE.SRC",
             "icon": "ref",
-            "note": "A parallel disassembly of the same binary variant using BBC BASIC's inline assembler, with memory-layout comments and protocol-level terminology (BridgeReset / BridgeReply / WhatNet / IsNet / BridgeQuery port). Useful as a second reading, though JGH is another reverse-engineer rather than an authoritative source -- his comments are paraphrased rather than quoted, and weighed against our own analysis."
+            "note": "A parallel disassembly of the same binary variant using BBC BASIC's inline assembler, with memory-layout comments and protocol-level terminology (BridgeReset / BridgeReply / WhatNet / IsNet / BridgeQuery port). Useful as a second reading. JGH is a fellow reverse-engineer, and his comments have been paraphrased rather than quoted and weighed against the evidence, like ours."
         },
         {
             "label": "Motorola MC68B54P ADLC datasheet (PDF)",
