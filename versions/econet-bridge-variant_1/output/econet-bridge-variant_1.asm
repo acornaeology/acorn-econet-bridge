@@ -940,16 +940,17 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
 ; ADLC B full reset, then enter RX listen
 ;
 ; Byte-for-byte mirror of adlc_a_full_reset, targeting ADLC B's register set at
-; &D800-&D803. Falls through to adlc_b_listen. CR3=&00 also puts the LOC/DTR pin high,
-; so the front-panel LED is dark after this runs – the distinguishing feature from
-; self_test_reset_adlcs.
+; &D800-&D803. Falls through to adlc_b_listen. CR3=&00 puts the LOC/DTR pin HIGH,
+; sourcing current through the front-panel status LED – so the LED is LIT throughout
+; normal operation, the distinguishing feature from self_test_reset_adlcs which writes
+; CR3 = &80 to extinguish it.
 ; &e40a referenced 1 time by &e008
 .adlc_b_full_reset
     lda #&c1                                                          ; e40a: a9 c1       ..             ; Mask: reset TX and RX, unlock CR3/CR4 via AC=1
     sta adlc_b_cr1                                                    ; e40c: 8d 00 d8    ...            ; Drop ADLC B into full reset
     lda #&1e                                                          ; e40f: a9 1e       ..             ; Mask: 8-bit RX word length, abort-extend, NRZ
     sta adlc_b_tx2                                                    ; e411: 8d 03 d8    ...            ; Program CR4 (reached via tx2 slot while AC=1)
-    lda #0                                                            ; e414: a9 00       ..             ; Mask: CR3 bit 7 clear → LOC/DTR high → status LED OFF
+    lda #0                                                            ; e414: a9 00       ..             ; Mask: CR3 bit 7 clear → LOC/DTR pin high → status LED ON
     sta adlc_b_cr2                                                    ; e416: 8d 01 d8    ...            ; Program CR3; fall through into listen mode
 ; ***************************************************************************************
 ; Enter ADLC B RX listen mode
@@ -1687,18 +1688,30 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
     lda #0                                                            ; f001: a9 00       ..             ; A = 0: initial value for the scratch pass-phase flag
     sta st_pass_phase                                                 ; f003: 85 03       ..             ; &03 = pass-phase; toggled by self_test_pass_done
 ; ***************************************************************************************
-; Reset both ADLCs and light the status LED
+; Reset both ADLCs and extinguish the status LED
 ;
 ; Byte-for-byte identical to the adlc_*_full_reset pair except for one crucial detail:
 ; CR3 is programmed to &80 (bit 7 set) instead of &00. CR3 bit 7 is the MC6854's
-; LOC/DTR control bit – but the pin it drives is inverted: when the control bit is
-; HIGH, the pin output goes LOW. On ADLC B (IC18) that pin sinks the low side of the
-; front-panel status LED (which has its high side tied through a resistor to Vcc), so
-; CR3 bit 7 = 1 pulls current through the LED and lights it. ADLC A's LOC/DTR pin is
-; not wired and gets the same write for code symmetry only.
+; LOC/DTR control bit, and the pin it drives is inverted relative to the bit – when the
+; control bit is HIGH, the pin output goes LOW. On ADLC B (IC18) that pin sources
+; current through the front-panel status LED (anode tied to the pin, cathode to
+; ground), so CR3 bit 7 = 1 leaves the LED dark. The LED is therefore extinguished at
+; the start of every normal self-test pass, marking the transition out of
+; normal-operation steady-on. ADLC A's LOC/DTR pin is not wired and gets the same write
+; for code symmetry only.
 ;
-; Re-entered at &F26C after certain test paths need to reset the chips again; the LED
-; stays lit until a normal reset runs adlc_b_full_reset and clears CR3.
+; The LED does not stay dark for the whole test pass: the loopback tests at
+; self_test_loopback_a_to_b and self_test_loopback_b_to_a each begin with a full ADLC
+; reset (CR1 = &C0 on both chips), and that reset clears CR3 bit 7 back to 0 – which
+; lights the LED again for the rest of the pass. The visible flash the operator sees
+; during a healthy self-test is the alternation between this dark "early-tests" phase
+; and the lit "loopback-and-after" phase, modulated by the two-pass structure described
+; at self_test_pass_done.
+;
+; Re-entered at &F26C after each "normal" pass completes; the alternate path at
+; self_test_alt_pass deliberately skips this routine on every other pass, leaving B's
+; CR3 bit 7 cleared from the previous loopback reset (so the alt-pass runs entirely in
+; the LED-lit state).
 ; &f005 referenced 1 time by &f26c
 .self_test_reset_adlcs
     lda #&c1                                                          ; f005: a9 c1       ..             ; Mask: reset TX+RX, AC=1 to reach CR3/CR4
@@ -1707,10 +1720,10 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
     lda #&1e                                                          ; f00d: a9 1e       ..             ; Mask: 8-bit RX, abort-extend, NRZ encoding
     sta adlc_a_tx2                                                    ; f00f: 8d 03 c8    ...            ; Program ADLC A's CR4 (via tx2 while AC=1)
     sta adlc_b_tx2                                                    ; f012: 8d 03 d8    ...            ; Program ADLC B's CR4
-    lda #&80                                                          ; f015: a9 80       ..             ; Mask &80: CR3 bit 7 = light the LED via LOC/DTR
+    lda #&80                                                          ; f015: a9 80       ..             ; Mask &80: CR3 bit 7 = drive LOC/DTR low → LED OFF
     sta adlc_a_cr2                                                    ; f017: 8d 01 c8    ...            ; Program ADLC A's CR3 (pin not wired; no effect)
     lda #&80                                                          ; f01a: a9 80       ..             ; Mask &80 again (separate load for symmetry)
-    sta adlc_b_cr2                                                    ; f01c: 8d 01 d8    ...            ; Program ADLC B's CR3 – lights the status LED
+    sta adlc_b_cr2                                                    ; f01c: 8d 01 d8    ...            ; Program ADLC B's CR3 – extinguishes the status LED
     lda #&82                                                          ; f01f: a9 82       ..             ; Mask: TX in reset, RX IRQ enabled, AC=0
     sta adlc_a_cr1                                                    ; f021: 8d 00 c8    ...            ; Release CR1 AC bit on ADLC A (CR3 value sticks)
     sta adlc_b_cr1                                                    ; f024: 8d 00 d8    ...            ; Release CR1 AC bit on ADLC B (CR3 value sticks)
@@ -2144,25 +2157,33 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
 ; Reached when every test in a pass has succeeded. The self-test doesn't stop – it
 ; loops indefinitely until reset. Toggles bit 7 of &0003 (the self-test scratch byte)
 ; via EOR #&FF; if bit 7 is set after the toggle, JMPs to self_test_reset_adlcs for
-; another full pass. Otherwise falls through to a slower test variant that resets ADLCs
+; another full pass. Otherwise falls through to self_test_alt_pass, which resets ADLCs
 ; differently before re-entering the ZP test.
 ;
-; Two-pass structure lets the operator see continuous LED activity (via the self-test
-; ADLC reset's CR3=&80) for as long as the test is running, with minor variation
-; between passes catching some intermittent faults.
+; The two-pass structure is what produces the "even mark-space" flashing the operator
+; sees during a healthy self-test. A "normal" pass starts with self_test_reset_adlcs
+; writing CR3 = &80 on ADLC B (LED dark), and the LED stays dark through the ZP,
+; ROM-checksum, and RAM tests. The first loopback test then issues CR1 = &C0 on B,
+; which – per the MC6854 datasheet – clears the LOC/DTR control bit, so the LED comes
+; on for the rest of the pass. The alt-pass runs the same tests over again but skips
+; self_test_reset_adlcs, so B's CR3 stays cleared from the previous loopback reset and
+; the LED stays lit for the entire alt-pass. The cycle is therefore: short dark stretch
+; (early normal-pass tests) → long lit stretch (rest of normal pass + entire alt-pass)
+; → short dark stretch → … – a slow, asymmetric flash whose mark and space the operator
+; perceives as the "running" indicator.
 ; &f264 referenced 1 time by &f25d
 .self_test_pass_done
     lda st_pass_phase                                                 ; f264: a5 03       ..             ; Read the pass-phase flag at &03
     eor #&ff                                                          ; f266: 49 ff       I.             ; Invert it so we alternate between passes
     sta st_pass_phase                                                 ; f268: 85 03       ..             ; Store the flipped phase back
-    bmi self_test_alt_pass                                            ; f26a: 30 03       0.             ; If bit 7 set, start a full self_test_reset_adlcs pass
+    bmi self_test_alt_pass                                            ; f26a: 30 03       0.             ; If bit 7 set, restart with full self_test_reset_adlcs (LED goes dark)
     jmp self_test_reset_adlcs                                         ; f26c: 4c 05 f0    L..            ; Jump up to redo from the top
 
 ; &f26f referenced 1 time by &f26a
 .self_test_alt_pass
-    lda #&c1                                                          ; f26f: a9 c1       ..             ; Alt-pass: full reset first but CR3=&00 only on A
+    lda #&c1                                                          ; f26f: a9 c1       ..             ; Alt-pass: partial reset on A only; B's CR3 carries over (LED stays lit)
     sta adlc_a_cr1                                                    ; f271: 8d 00 c8    ...            ; ADLC A CR1 = &C1 (reset + AC=1)
-    lda #0                                                            ; f274: a9 00       ..             ; A = 0: CR3=&00 for A (LED state unchanged on B)
+    lda #0                                                            ; f274: a9 00       ..             ; A = 0: CR3=&00 for A only (B's CR3 untouched – stays cleared from last loopback)
     sta adlc_a_cr2                                                    ; f276: 8d 01 c8    ...            ; Program CR3 on A only this pass
     lda #&82                                                          ; f279: a9 82       ..             ; Mask: back to normal listen-mode CR1
     sta adlc_a_cr1                                                    ; f27b: 8d 00 c8    ...            ; Commit CR1 on ADLC A
@@ -2182,9 +2203,10 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
 ; without touching RAM.
 ;
 ; Sets CR1=1 (AC=1) so writes to adlc_a_cr2 target CR3. Alternates CR3 between &00 (LED
-; off) and &80 (LED on) in an infinite loop paced by DEX/DEY delays and by seven DEC
-; instructions that read-modify-write (but actually just read, since writes to ROM are
-; ignored) bytes in the ROM starting at the reset vector.
+; on – LOC/DTR pin high) and &80 (LED off – LOC/DTR pin driven low) in an infinite loop
+; paced by DEX/DEY delays and by seven DEC instructions that read-modify-write (but
+; actually just read, since writes to ROM are ignored) bytes in the ROM starting at the
+; reset vector.
 ;
 ; Continues forever; the operator infers "the RAM is bad" from the fact that the LED is
 ; blinking but no specific error code can be counted out – distinct from the more
@@ -2195,7 +2217,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
     stx adlc_a_cr1                                                    ; f28e: 8e 00 c8    ...            ; Commit CR1 on ADLC A
 ; &f291 referenced 1 time by &f2c4
 .ram_test_fail_loop
-    ldx #0                                                            ; f291: a2 00       ..             ; CR3 = 0 → LED off on ADLC B (LOC/DTR pin high)
+    ldx #0                                                            ; f291: a2 00       ..             ; CR3 = 0 → LOC/DTR pin high → LED ON on ADLC B
     stx adlc_a_cr2                                                    ; f293: 8e 01 c8    ...            ; Commit CR3
     ldx #0                                                            ; f296: a2 00       ..             ; X = 0: inner delay counter
     ldy #0                                                            ; f298: a0 00       ..             ; Y = 0: outer delay counter
@@ -2205,14 +2227,14 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
     bne ram_test_fail_short_delay                                     ; f29b: d0 fd       ..             ; Spin through X's 256 values
     dey                                                               ; f29d: 88          .              ; Bump Y
     bne ram_test_fail_short_delay                                     ; f29e: d0 fa       ..             ; Spin through Y's 256 values
-    ldx #&80                                                          ; f2a0: a2 80       ..             ; CR3 = &80 → LED on (LOC/DTR pin driven low)
+    ldx #&80                                                          ; f2a0: a2 80       ..             ; CR3 = &80 → LOC/DTR pin driven low → LED OFF
     stx adlc_a_cr2                                                    ; f2a2: 8e 01 c8    ...            ; Commit CR3
     ldy #0                                                            ; f2a5: a0 00       ..             ; Y = 0 for the longer delay phase
     ldx #0                                                            ; f2a7: a2 00       ..             ; X = 0
 ; &f2a9 referenced 2 times by &f2bf, &f2c2
 .ram_test_fail_long_delay
     dec reset,x                                                       ; f2a9: de 00 e0    ...            ; DEC of ROM (writes ignored); seven of them in a row…
-    dec reset,x                                                       ; f2ac: de 00 e0    ...            ; …pace the LED-on interval without RAM writes
+    dec reset,x                                                       ; f2ac: de 00 e0    ...            ; …pace the LED-off interval without RAM writes
     dec reset,x                                                       ; f2af: de 00 e0    ...            ; (all seven DECs hit the same RO address)
     dec reset,x                                                       ; f2b2: de 00 e0    ...            ; DEC reset,X again – 4 cycles, no side effect
     dec reset,x                                                       ; f2b5: de 00 e0    ...            ; DEC reset,X again – 4 cycles, no side effect
@@ -2250,10 +2272,14 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
 ; (&F28C) uses a distinct ROM-only blink instead.
 ;
 ; Blink pattern: CR1=1 sets the ADLC's AC bit so writes to CR2's address hit CR3. The
-; handler alternates CR3=&00 (LED off) and CR3=&80 (LED on) N times, where N = error
-; code held in &01, with delay loops between each pulse. After each N-pulse burst, a
-; fixed 8-pulse spacer pattern runs before the outer loop repeats. The operator counts
-; pulses to identify the failed test.
+; handler alternates CR3=&00 (LED on – LOC/DTR pin high) and CR3=&80 (LED off – pin
+; driven low) N times, where N = error code held in &01. Each pulse pair runs ~1 s of
+; LED-on followed by ~1 s of LED-off, so a burst of N pulses contains N visible
+; flashes. After the burst, the LED is left in its OFF state (the last CR3 = &80 write
+; before the spacer runs) and the spacer's 8× DEX/DEY iteration extends that OFF state
+; to ~8 s before the next burst begins. The operator counts the LED-on flashes inside
+; each burst – distinguishing them from the long ~8 s LED-off gap that separates bursts
+; – to identify the failed test.
 ; &f2c7 referenced 7 times by &f06d, &f102, &f107, &f153, &f1f4, &f255, &f261
 .self_test_fail
     sta st_ptr_lo                                                     ; f2c7: 85 00       ..             ; Save error code to &00 (the restart value)
@@ -2262,26 +2288,26 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
     stx adlc_a_cr1                                                    ; f2cd: 8e 00 c8    ...            ; Commit CR1 so cr2 writes hit CR3 from here on
 ; &f2d0 referenced 2 times by &f2f0, &f308
 .self_test_fail_pulse
-    ldx #0                                                            ; f2d0: a2 00       ..             ; X = 0: CR3 off → LED dark
+    ldx #0                                                            ; f2d0: a2 00       ..             ; X = 0: CR3 off → LOC/DTR pin high → LED LIT
     stx adlc_a_cr2                                                    ; f2d2: 8e 01 c8    ...            ; Commit CR3 = 0
-    ldy #0                                                            ; f2d5: a0 00       ..             ; Y = 0: outer loop counter for the dark phase
+    ldy #0                                                            ; f2d5: a0 00       ..             ; Y = 0: outer loop counter for the LED-lit phase
     ldx #0                                                            ; f2d7: a2 00       ..             ; X = 0: inner loop counter
 ; &f2d9 referenced 2 times by &f2da, &f2dd
-.self_test_fail_dark_delay
+.self_test_fail_lit_delay
     dex                                                               ; f2d9: ca          .              ; DEX – tick the inner counter
-    bne self_test_fail_dark_delay                                     ; f2da: d0 fd       ..             ; Inner spin through X's 256 values
+    bne self_test_fail_lit_delay                                      ; f2da: d0 fd       ..             ; Inner spin through X's 256 values
     dey                                                               ; f2dc: 88          .              ; Step Y
-    bne self_test_fail_dark_delay                                     ; f2dd: d0 fa       ..             ; Outer spin: Y cycles give ~65K iterations of dark
-    ldx #&80                                                          ; f2df: a2 80       ..             ; X = &80: CR3 bit 7 set → LED lit
+    bne self_test_fail_lit_delay                                      ; f2dd: d0 fa       ..             ; Outer spin: Y cycles give ~65K iterations with LED lit
+    ldx #&80                                                          ; f2df: a2 80       ..             ; X = &80: CR3 bit 7 set → LOC/DTR pin low → LED DARK
     stx adlc_a_cr2                                                    ; f2e1: 8e 01 c8    ...            ; Commit CR3 = &80
     ldy #0                                                            ; f2e4: a0 00       ..             ; Y = 0
     ldx #0                                                            ; f2e6: a2 00       ..             ; X = 0
 ; &f2e8 referenced 2 times by &f2e9, &f2ec
-.self_test_fail_lit_delay
+.self_test_fail_dark_delay
     dex                                                               ; f2e8: ca          .              ; DEX – tick the inner counter
-    bne self_test_fail_lit_delay                                      ; f2e9: d0 fd       ..             ; Inner spin through X's 256 values (LED lit)
+    bne self_test_fail_dark_delay                                     ; f2e9: d0 fd       ..             ; Inner spin through X's 256 values (LED dark)
     dey                                                               ; f2eb: 88          .              ; Step Y
-    bne self_test_fail_lit_delay                                      ; f2ec: d0 fa       ..             ; Outer spin: Y cycles give the same length as the dark phase
+    bne self_test_fail_dark_delay                                     ; f2ec: d0 fa       ..             ; Outer spin: Y cycles give the same length as the lit phase
     dec st_ptr_hi                                                     ; f2ee: c6 01       ..             ; One pulse done; decrement the burst counter
     bne self_test_fail_pulse                                          ; f2f0: d0 de       ..             ; Loop until we've emitted N pulses
     lda #8                                                            ; f2f2: a9 08       ..             ; A = 8: spacer count between bursts
@@ -2291,7 +2317,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
 ; &f2fa referenced 3 times by &f2fb, &f2fe, &f302
 .self_test_fail_spacer_delay
     dex                                                               ; f2fa: ca          .              ; DEX – tick the inner spacer counter
-    bne self_test_fail_spacer_delay                                   ; f2fb: d0 fd       ..             ; Inner spin through X's 256 values (LED off)
+    bne self_test_fail_spacer_delay                                   ; f2fb: d0 fd       ..             ; Inner spin through X's 256 values (LED stays off after last pulse)
     dey                                                               ; f2fd: 88          .              ; Step Y
     bne self_test_fail_spacer_delay                                   ; f2fe: d0 fa       ..             ; Outer spin: 8x this pair keeps the gap audibly long
     dec st_ptr_hi                                                     ; f300: c6 01       ..             ; Decrement spacer loop counter

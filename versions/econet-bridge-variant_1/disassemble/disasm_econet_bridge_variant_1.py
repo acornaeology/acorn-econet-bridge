@@ -311,10 +311,17 @@ label(0xD800, "adlc_b_cr1",
                 "IRQ summary is in SR1 bit 7; "
                 "[`wait_adlc_b_irq`](address:E3EA) spins on it.\n\n"
                 "CR3 bit 7 (reached via this port with AC=1) drives "
-                "IC18's `~LOC/DTR` pin, which sinks the front-panel "
-                "status LED. "
-                "[`self_test_reset_adlcs`](address:F005) lights it; "
-                "[`adlc_b_full_reset`](address:E40A) extinguishes it.",
+                "IC18's `~LOC/DTR` pin, which sources current to the "
+                "front-panel status LED (anode tied to the pin, "
+                "cathode to ground). The MC6854 inverts the bit when "
+                "driving the pin, so CR3 bit 7 = 0 puts the pin HIGH "
+                "and the LED LIT; CR3 bit 7 = 1 puts the pin LOW and "
+                "the LED DARK. [`adlc_b_full_reset`](address:E40A) "
+                "writes CR3 = &00 (LED on – the steady normal-"
+                "operation state); "
+                "[`self_test_reset_adlcs`](address:F005) writes "
+                "CR3 = &80 (LED off – marks the start of a self-test "
+                "pass).",
     length=1, group="io_b", access="rw")
 label(0xD801, "adlc_b_cr2",
     description="ADLC B control/status port 1.\n\n"
@@ -413,15 +420,17 @@ subroutine(0xE40A, "adlc_b_full_reset", hook=None,
     description="""\
 Byte-for-byte mirror of [`adlc_a_full_reset`](address:E3F0), targeting ADLC B's
 register set at `&D800-&D803`. Falls through to
-[`adlc_b_listen`](address:E419). `CR3=&00`
-also puts the LOC/DTR pin high, so the front-panel LED is dark after
-this runs – the distinguishing feature from [`self_test_reset_adlcs`](address:F005).""")
+[`adlc_b_listen`](address:E419). `CR3=&00` puts the LOC/DTR pin
+HIGH, sourcing current through the front-panel status LED – so the
+LED is LIT throughout normal operation, the distinguishing feature
+from [`self_test_reset_adlcs`](address:F005) which writes CR3 = &80
+to extinguish it.""")
 
 comment(0xE40A, "Mask: reset TX and RX, unlock CR3/CR4 via AC=1", inline=True)
 comment(0xE40C, "Drop ADLC B into full reset", inline=True)
 comment(0xE40F, "Mask: 8-bit RX word length, abort-extend, NRZ", inline=True)
 comment(0xE411, "Program CR4 (reached via tx2 slot while AC=1)", inline=True)
-comment(0xE414, "Mask: CR3 bit 7 clear → LOC/DTR high → status LED OFF", inline=True)
+comment(0xE414, "Mask: CR3 bit 7 clear → LOC/DTR pin high → status LED ON", inline=True)
 comment(0xE416, "Program CR3; fall through into listen mode", inline=True)
 
 label(0xE419, "adlc_b_listen")
@@ -2420,21 +2429,35 @@ comment(0xF003, "&03 = pass-phase; toggled by [`self_test_pass_done`](address:F2
 label(0xF005, "self_test_reset_adlcs")
 subroutine(0xF005, "self_test_reset_adlcs", hook=None,
     is_entry_point=False,
-    title="Reset both ADLCs and light the status LED",
+    title="Reset both ADLCs and extinguish the status LED",
     description="""\
 Byte-for-byte identical to the adlc_*_full_reset pair except for
 one crucial detail: CR3 is programmed to &80 (bit 7 set) instead
-of &00. CR3 bit 7 is the MC6854's LOC/DTR control bit – but the
-pin it drives is inverted: when the control bit is HIGH, the pin
-output goes LOW. On ADLC B (IC18) that pin sinks the low side of
-the front-panel status LED (which has its high side tied through
-a resistor to Vcc), so CR3 bit 7 = 1 pulls current through the
-LED and lights it. ADLC A's LOC/DTR pin is not wired and gets the
-same write for code symmetry only.
+of &00. CR3 bit 7 is the MC6854's LOC/DTR control bit, and the pin
+it drives is inverted relative to the bit – when the control bit
+is HIGH, the pin output goes LOW. On ADLC B (IC18) that pin
+sources current through the front-panel status LED (anode tied to
+the pin, cathode to ground), so CR3 bit 7 = 1 leaves the LED
+*dark*. The LED is therefore extinguished at the start of every
+normal self-test pass, marking the transition out of
+normal-operation steady-on. ADLC A's LOC/DTR pin is not wired and
+gets the same write for code symmetry only.
 
-Re-entered at [`&F26C`](address:F26C) after certain test paths need to reset the
-chips again; the LED stays lit until a normal reset runs
-[`adlc_b_full_reset`](address:E40A) and clears CR3.""")
+The LED does not stay dark for the whole test pass: the loopback
+tests at [`self_test_loopback_a_to_b`](address:F10A) and
+[`self_test_loopback_b_to_a`](address:F1AB) each begin with a full
+ADLC reset (CR1 = &C0 on both chips), and that reset clears CR3
+bit 7 back to 0 – which lights the LED again for the rest of the
+pass. The visible flash the operator sees during a healthy
+self-test is the alternation between this dark "early-tests" phase
+and the lit "loopback-and-after" phase, modulated by the two-pass
+structure described at [`self_test_pass_done`](address:F264).
+
+Re-entered at [`&F26C`](address:F26C) after each "normal" pass completes; the
+alternate path at [`self_test_alt_pass`](address:F26F) deliberately skips this
+routine on every other pass, leaving B's CR3 bit 7 cleared from
+the previous loopback reset (so the alt-pass runs entirely in the
+LED-lit state).""")
 
 comment(0xF005, "Mask: reset TX+RX, AC=1 to reach CR3/CR4", inline=True)
 comment(0xF007, "Drop ADLC A into full reset", inline=True)
@@ -2442,10 +2465,10 @@ comment(0xF00A, "Drop ADLC B into full reset", inline=True)
 comment(0xF00D, "Mask: 8-bit RX, abort-extend, NRZ encoding", inline=True)
 comment(0xF00F, "Program ADLC A's CR4 (via tx2 while AC=1)", inline=True)
 comment(0xF012, "Program ADLC B's CR4", inline=True)
-comment(0xF015, "Mask &80: CR3 bit 7 = light the LED via LOC/DTR", inline=True)
+comment(0xF015, "Mask &80: CR3 bit 7 = drive LOC/DTR low → LED OFF", inline=True)
 comment(0xF017, "Program ADLC A's CR3 (pin not wired; no effect)", inline=True)
 comment(0xF01A, "Mask &80 again (separate load for symmetry)", inline=True)
-comment(0xF01C, "Program ADLC B's CR3 – lights the status LED", inline=True)
+comment(0xF01C, "Program ADLC B's CR3 – extinguishes the status LED", inline=True)
 comment(0xF01F, "Mask: TX in reset, RX IRQ enabled, AC=0", inline=True)
 comment(0xF021, "Release CR1 AC bit on ADLC A (CR3 value sticks)", inline=True)
 comment(0xF024, "Release CR1 AC bit on ADLC B (CR3 value sticks)", inline=True)
@@ -2906,23 +2929,34 @@ doesn't stop – it loops indefinitely until reset. Toggles bit 7
 of `&0003` (the self-test scratch byte) via `EOR #&FF`; if bit 7
 is set after the toggle, JMPs to
 [`self_test_reset_adlcs`](address:F005) for another full pass.
-Otherwise falls through to a slower test variant that resets
-ADLCs differently before re-entering the ZP test.
+Otherwise falls through to [`self_test_alt_pass`](address:F26F),
+which resets ADLCs differently before re-entering the ZP test.
 
-Two-pass structure lets the operator see continuous LED activity
-(via the self-test ADLC reset's `CR3=&80`) for as long as the
-test is running, with minor variation between passes catching
-some intermittent faults.""")
+The two-pass structure is what produces the "even mark-space"
+flashing the operator sees during a healthy self-test. A "normal"
+pass starts with [`self_test_reset_adlcs`](address:F005) writing
+CR3 = &80 on ADLC B (LED dark), and the LED stays dark through
+the ZP, ROM-checksum, and RAM tests. The first loopback test then
+issues `CR1 = &C0` on B, which – per the MC6854 datasheet – clears
+the LOC/DTR control bit, so the LED comes on for the rest of the
+pass. The alt-pass runs the same tests over again but skips
+[`self_test_reset_adlcs`](address:F005), so B's CR3 stays cleared
+from the previous loopback reset and the LED stays *lit* for the
+entire alt-pass. The cycle is therefore: short dark stretch (early
+normal-pass tests) → long lit stretch (rest of normal pass + entire
+alt-pass) → short dark stretch → … – a slow, asymmetric flash
+whose mark and space the operator perceives as the "running"
+indicator.""")
 
 comment(0xF264, "Read the pass-phase flag at &03", inline=True)
 comment(0xF266, "Invert it so we alternate between passes", inline=True)
 comment(0xF268, "Store the flipped phase back", inline=True)
-comment(0xF26A, "If bit 7 set, start a full [`self_test_reset_adlcs`](address:F005) pass", inline=True)
+comment(0xF26A, "If bit 7 set, restart with full [`self_test_reset_adlcs`](address:F005) (LED goes dark)", inline=True)
 comment(0xF26C, "Jump up to redo from the top", inline=True)
 label(0xF26F, "self_test_alt_pass")
-comment(0xF26F, "Alt-pass: full reset first but CR3=&00 only on A", inline=True)
+comment(0xF26F, "Alt-pass: partial reset on A only; B's CR3 carries over (LED stays lit)", inline=True)
 comment(0xF271, "ADLC A CR1 = &C1 (reset + AC=1)", inline=True)
-comment(0xF274, "A = 0: CR3=&00 for A (LED state unchanged on B)", inline=True)
+comment(0xF274, "A = 0: CR3=&00 for A only (B's CR3 untouched – stays cleared from last loopback)", inline=True)
 comment(0xF276, "Program CR3 on A only this pass", inline=True)
 comment(0xF279, "Mask: back to normal listen-mode CR1", inline=True)
 comment(0xF27B, "Commit CR1 on ADLC A", inline=True)
@@ -2944,10 +2978,11 @@ pattern from ROM-based DEC abs,X instructions that exercise the
 CPU for timing without touching RAM.
 
 Sets CR1=1 (AC=1) so writes to adlc_a_cr2 target CR3. Alternates
-CR3 between &00 (LED off) and &80 (LED on) in an infinite loop
-paced by DEX/DEY delays and by seven DEC instructions that
-read-modify-write (but actually just read, since writes to ROM
-are ignored) bytes in the ROM starting at the reset vector.
+CR3 between &00 (LED on – LOC/DTR pin high) and &80 (LED off –
+LOC/DTR pin driven low) in an infinite loop paced by DEX/DEY
+delays and by seven DEC instructions that read-modify-write (but
+actually just read, since writes to ROM are ignored) bytes in the
+ROM starting at the reset vector.
 
 Continues forever; the operator infers "the RAM is bad" from the
 fact that the LED is blinking but no specific error code can be
@@ -2957,7 +2992,7 @@ produced by [`self_test_fail`](address:F2C7) with codes 2-8.""")
 comment(0xF28C, "CR1 = 1: enable AC so cr2 writes hit CR3", inline=True)
 comment(0xF28E, "Commit CR1 on ADLC A", inline=True)
 label(0xF291, "ram_test_fail_loop")
-comment(0xF291, "CR3 = 0 → LED off on ADLC B (LOC/DTR pin high)", inline=True)
+comment(0xF291, "CR3 = 0 → LOC/DTR pin high → LED ON on ADLC B", inline=True)
 comment(0xF293, "Commit CR3", inline=True)
 comment(0xF296, "X = 0: inner delay counter", inline=True)
 comment(0xF298, "Y = 0: outer delay counter", inline=True)
@@ -2966,13 +3001,13 @@ comment(0xF29A, "Pure-register busy-wait (no RAM access)", inline=True)
 comment(0xF29B, "Spin through X's 256 values", inline=True)
 comment(0xF29D, "Bump Y", inline=True)
 comment(0xF29E, "Spin through Y's 256 values", inline=True)
-comment(0xF2A0, "CR3 = &80 → LED on (LOC/DTR pin driven low)", inline=True)
+comment(0xF2A0, "CR3 = &80 → LOC/DTR pin driven low → LED OFF", inline=True)
 comment(0xF2A2, "Commit CR3", inline=True)
 comment(0xF2A5, "Y = 0 for the longer delay phase", inline=True)
 comment(0xF2A7, "X = 0", inline=True)
 label(0xF2A9, "ram_test_fail_long_delay")
 comment(0xF2A9, "DEC of ROM (writes ignored); seven of them in a row…", inline=True)
-comment(0xF2AC, "…pace the LED-on interval without RAM writes", inline=True)
+comment(0xF2AC, "…pace the LED-off interval without RAM writes", inline=True)
 comment(0xF2AF, "(all seven DECs hit the same RO address)", inline=True)
 comment(0xF2B2, "DEC reset,X again – 4 cycles, no side effect", inline=True)
 comment(0xF2B5, "DEC reset,X again – 4 cycles, no side effect", inline=True)
@@ -3015,35 +3050,41 @@ loops can't be trusted. [`ram_test_fail`](address:F28C?hex) uses a
 distinct ROM-only blink instead.
 
 **Blink pattern**: `CR1=1` sets the ADLC's AC bit so writes to
-CR2's address hit CR3. The handler alternates `CR3=&00` (LED off)
-and `CR3=&80` (LED on) N times, where N = error code held in
-`&01`, with delay loops between each pulse. After each N-pulse
-burst, a fixed 8-pulse spacer pattern runs before the outer loop
-repeats. The operator counts pulses to identify the failed test.""")
+CR2's address hit CR3. The handler alternates `CR3=&00` (LED on
+– LOC/DTR pin high) and `CR3=&80` (LED off – pin driven low) N
+times, where N = error code held in `&01`. Each pulse pair runs
+~1 s of LED-on followed by ~1 s of LED-off, so a burst of N pulses
+contains N visible flashes. After the burst, the LED is left in
+its OFF state (the last `CR3 = &80` write before the spacer runs)
+and the spacer's 8× DEX/DEY iteration extends that OFF state to
+~8 s before the next burst begins. The operator counts the LED-on
+flashes inside each burst – distinguishing them from the long
+~8 s LED-off gap that separates bursts – to identify the failed
+test.""")
 
 comment(0xF2C7, "Save error code to &00 (the restart value)", inline=True)
 comment(0xF2C9, "…and to &01 (the per-burst countdown)", inline=True)
 comment(0xF2CB, "X = 1: enable AC on ADLC A", inline=True)
 comment(0xF2CD, "Commit CR1 so cr2 writes hit CR3 from here on", inline=True)
 label(0xF2D0, "self_test_fail_pulse")
-comment(0xF2D0, "X = 0: CR3 off → LED dark", inline=True)
+comment(0xF2D0, "X = 0: CR3 off → LOC/DTR pin high → LED LIT", inline=True)
 comment(0xF2D2, "Commit CR3 = 0", inline=True)
-comment(0xF2D5, "Y = 0: outer loop counter for the dark phase", inline=True)
+comment(0xF2D5, "Y = 0: outer loop counter for the LED-lit phase", inline=True)
 comment(0xF2D7, "X = 0: inner loop counter", inline=True)
-label(0xF2D9, "self_test_fail_dark_delay")
+label(0xF2D9, "self_test_fail_lit_delay")
 comment(0xF2D9, "DEX – tick the inner counter", inline=True)
 comment(0xF2DA, "Inner spin through X's 256 values", inline=True)
 comment(0xF2DC, "Step Y", inline=True)
-comment(0xF2DD, "Outer spin: Y cycles give ~65K iterations of dark", inline=True)
-comment(0xF2DF, "X = &80: CR3 bit 7 set → LED lit", inline=True)
+comment(0xF2DD, "Outer spin: Y cycles give ~65K iterations with LED lit", inline=True)
+comment(0xF2DF, "X = &80: CR3 bit 7 set → LOC/DTR pin low → LED DARK", inline=True)
 comment(0xF2E1, "Commit CR3 = &80", inline=True)
 comment(0xF2E4, "Y = 0", inline=True)
 comment(0xF2E6, "X = 0", inline=True)
-label(0xF2E8, "self_test_fail_lit_delay")
+label(0xF2E8, "self_test_fail_dark_delay")
 comment(0xF2E8, "DEX – tick the inner counter", inline=True)
-comment(0xF2E9, "Inner spin through X's 256 values (LED lit)", inline=True)
+comment(0xF2E9, "Inner spin through X's 256 values (LED dark)", inline=True)
 comment(0xF2EB, "Step Y", inline=True)
-comment(0xF2EC, "Outer spin: Y cycles give the same length as the dark phase", inline=True)
+comment(0xF2EC, "Outer spin: Y cycles give the same length as the lit phase", inline=True)
 comment(0xF2EE, "One pulse done; decrement the burst counter", inline=True)
 comment(0xF2F0, "Loop until we've emitted N pulses", inline=True)
 comment(0xF2F2, "A = 8: spacer count between bursts", inline=True)
@@ -3052,7 +3093,7 @@ comment(0xF2F6, "Y = 0", inline=True)
 comment(0xF2F8, "X = 0", inline=True)
 label(0xF2FA, "self_test_fail_spacer_delay")
 comment(0xF2FA, "DEX – tick the inner spacer counter", inline=True)
-comment(0xF2FB, "Inner spin through X's 256 values (LED off)", inline=True)
+comment(0xF2FB, "Inner spin through X's 256 values (LED stays off after last pulse)", inline=True)
 comment(0xF2FD, "Step Y", inline=True)
 comment(0xF2FE, "Outer spin: 8x this pair keeps the gap audibly long", inline=True)
 comment(0xF300, "Decrement spacer loop counter", inline=True)
