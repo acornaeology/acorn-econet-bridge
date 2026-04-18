@@ -1144,7 +1144,7 @@ adlc_b_tx2      = &d803
 ; 
 ; Called from the reset handler at &E038 and again from &E098 (the
 ; main-loop periodic re-announce path). A structurally identical
-; cousin builder lives at sub_ce48d (&E48D) and is called from four
+; cousin builder is build_query_response (&E48D), called from four
 ; sites; it populates the same fields with values drawn from RAM
 ; variables at rx_src_stn and rx_query_net rather than baked-in
 ; constants.
@@ -2296,10 +2296,10 @@ adlc_b_tx2      = &d803
 ;   8   net_num_b != 2 (self_test_check_netnums, &F261)
 ; 
 ; (Code 1 is not used: the zero-page integrity test's failure path
-; routes to ram_test_fail via cf09d, not here, because any failure
-; of the first three RAM tests means normal counting loops can't
-; be trusted. ram_test_fail at &F28C uses a distinct ROM-only
-; blink instead.)
+; routes to ram_test_fail via self_test_ram_fail_jump (&F09D), not
+; here, because any failure of the first three RAM tests means
+; normal counting loops can't be trusted. ram_test_fail at &F28C
+; uses a distinct ROM-only blink instead.)
 ; 
 ; Blink pattern: CR1=1 sets the ADLC's AC bit so writes to CR2's
 ; address hit CR3. The handler alternates CR3=&00 (LED off) and
