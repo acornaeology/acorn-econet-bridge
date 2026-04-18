@@ -331,13 +331,13 @@ adlc_b_tx2      = &d803
 ; Dispatch on rx_ctrl (after verifying rx_port == &9C = bridge
 ; protocol):
 ; 
-;   &80  ->  rx_a_handle_80  (&E1D6) - initial bridge announcement
-;   &81  ->  rx_a_handle_81  (&E1EE) - re-announcement
-;   &82  ->  rx_a_handle_82  (&E19D) - bridge query (tentative)
-;   &83  ->  rx_a_handle_83  (&E195) - bridge query, known-station
-;   other ->  rx_a_forward   (&E208) - forward or discard
+;   &80  ->  rx_a_handle_80  - initial bridge announcement
+;   &81  ->  rx_a_handle_81  - re-announcement
+;   &82  ->  rx_a_handle_82  - bridge query (tentative)
+;   &83  ->  rx_a_handle_83  - bridge query, known-station
+;   other -> rx_a_forward   - forward or discard
 ; 
-; The side-B handler at &E263 is the mirror of this routine.
+; The side-B handler rx_frame_b (&E263) is the mirror of this routine.
 ; &e0e2 referenced 1 time by &e086
 .rx_frame_a
     lda #1                                                            ; e0e2: a9 01       ..             ; A = &01: mask SR2 bit 0 (AP = Address Present)
@@ -393,7 +393,7 @@ adlc_b_tx2      = &d803
 
 ; &e147 referenced 2 times by &e171, &e180
 .rx_a_to_forward
-    jmp rx_a_forward                                                  ; e147: 4c 08 e2    L..            ; Out-of-range JMP to rx_a_forward (JSR can't reach &E208)
+    jmp rx_a_forward                                                  ; e147: 4c 08 e2    L..            ; Out-of-range JMP to rx_a_forward (JSR can't reach)
 
 ; &e14a referenced 2 times by &e131, &e13a
 .rx_frame_a_dispatch
@@ -605,10 +605,10 @@ adlc_b_tx2      = &d803
 ;   * rx_a_to_forward (&E147): the A-side frame is addressed to a
 ;     remote station (not a full broadcast), and we have accepted
 ;     it via the routing filter.
-;   * rx_frame_a ctrl dispatch fall-through (&E193): the frame is
+;   * rx_frame_a ctrl dispatch fall-through (at &E193): the frame is
 ;     broadcast + port &9C but has a control byte outside the
 ;     recognised bridge-protocol set (&80-&83).
-;   * Fall-through from rx_a_handle_81 (&E207): we've learned from
+;   * Fall-through from rx_a_handle_81 (at &E207): we've learned from
 ;     the announcement and appended net_num_a to the payload; now
 ;     propagate it onward.
 ; 
@@ -697,11 +697,11 @@ adlc_b_tx2      = &d803
 ; 
 ; Bridge-protocol dispatch for this side:
 ; 
-;   &80  ->  rx_b_handle_80  (&E357) - initial bridge announcement
-;   &81  ->  rx_b_handle_81  (&E36F) - re-announcement
-;   &82  ->  rx_b_handle_82  (&E31E) - bridge query (shared &83 path)
-;   &83  ->  rx_b_handle_83  (&E316) - bridge query, known-station
-;   other ->  rx_b_forward   (&E389) - forward or discard
+;   &80  ->  rx_b_handle_80 (&E357) - initial bridge announcement
+;   &81  ->  rx_b_handle_81 (&E36F) - re-announcement
+;   &82  ->  rx_b_handle_82 (&E31E) - bridge query (shared &83 path)
+;   &83  ->  rx_b_handle_83 (&E316) - bridge query, known-station
+;   other ->  rx_b_forward (&E389) - forward or discard
 ; 
 ; See rx_frame_a for the full per-instruction explanation.
 ; &e263 referenced 1 time by &e07e
@@ -759,7 +759,7 @@ adlc_b_tx2      = &d803
 
 ; &e2c8 referenced 2 times by &e2f2, &e301
 .rx_b_to_forward
-    jmp rx_b_forward                                                  ; e2c8: 4c 89 e3    L..            ; Out-of-range JMP to rx_b_forward (JSR can't reach &E389)
+    jmp rx_b_forward                                                  ; e2c8: 4c 89 e3    L..            ; Out-of-range JMP to rx_b_forward (JSR can't reach)
 
 ; &e2cb referenced 2 times by &e2b2, &e2bb
 .rx_frame_b_dispatch
@@ -1763,7 +1763,7 @@ adlc_b_tx2      = &d803
 ; Invoked by pressing the self-test push-button on the 6502 ~IRQ
 ; line (and, implicitly, by any BRK instruction in the ROM). Runs
 ; through a sequence of hardware checks, signalling any failure
-; via self_test_fail at &F2C7 with an error code in A.
+; via self_test_fail (&F2C7) with an error code in A.
 ; 
 ; Not to be pressed while the Bridge is connected to a live
 ; network: the self-test reconfigures the ADLCs and drives their
@@ -1880,7 +1880,7 @@ adlc_b_tx2      = &d803
 ; store both &55 and &AA. Pointer in (&00,&01) = &0000, Y starts
 ; at 4 and wraps, page count in &02 = &20 (32 pages = 8 KiB).
 ; 
-; On mismatch, jumps to ram_test_fail at &F28C (note: a *different*
+; On mismatch, jumps to ram_test_fail (&F28C) (note: a *different*
 ; failure handler from self_test_fail, because a broken RAM cannot
 ; use the normal blink-code loop which needs RAM workspace).
 ; &f070 referenced 1 time by &f069
@@ -1929,7 +1929,7 @@ adlc_b_tx2      = &d803
 ; and &0420 would land at the same cell and produce the same bytes
 ; under a uniform pattern but different bytes under this one.
 ; 
-; On mismatch, jumps to ram_test_fail at &F28C.
+; On mismatch, jumps to ram_test_fail (&F28C).
 ; &f0a0 referenced 1 time by &f09b
 .self_test_ram_incr
     lda #0                                                            ; f0a0: a9 00       ..             ; A = 0: low byte of the pointer stays zero
@@ -2338,7 +2338,7 @@ adlc_b_tx2      = &d803
 ; 
 ; Error code table:
 ; 
-;   2   ROM checksum mismatch (self_test_rom_checksum at &F04C)
+;   2   ROM checksum mismatch (self_test_rom_checksum (&F04C))
 ;   3   ADLC A register state wrong (self_test_adlc_state, &F107)
 ;   4   ADLC B register state wrong (self_test_adlc_state, &F102)
 ;   5   A-to-B loopback fail (self_test_loopback_a_to_b, &F153)
@@ -2349,7 +2349,7 @@ adlc_b_tx2      = &d803
 ; (Code 1 is not used: the zero-page integrity test's failure path
 ; routes to ram_test_fail via self_test_ram_fail_jump (&F09D), not
 ; here, because any failure of the first three RAM tests means
-; normal counting loops can't be trusted. ram_test_fail at &F28C
+; normal counting loops can't be trusted. ram_test_fail (&F28C)
 ; uses a distinct ROM-only blink instead.)
 ; 
 ; Blink pattern: CR1=1 sets the ADLC's AC bit so writes to CR2's
