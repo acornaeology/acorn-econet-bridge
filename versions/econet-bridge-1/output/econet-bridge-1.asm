@@ -16,23 +16,23 @@ announce_flag   = &0229  ; Event-driven re-announcement selector.
 announce_tmr_lo = &022a  ; Low byte of the 16-bit re-announcement countdown.
 announce_tmr_hi = &022b  ; High byte of the 16-bit re-announcement countdown.
 announce_count  = &022c  ; Remaining BridgeReply frames to emit in the current re-announcement burst.
-rx_dst_stn      = &023c  ; RX frame buffer byte 0 — destination station number.
-rx_dst_net      = &023d  ; RX frame buffer byte 1 — destination network number.
-rx_src_stn      = &023e  ; RX frame buffer byte 2 — source station number.
-rx_src_net      = &023f  ; RX frame buffer byte 3 — source network number.
-rx_ctrl         = &0240  ; RX frame buffer byte 4 — control byte.
-rx_port         = &0241  ; RX frame buffer byte 5 — port number.
-rx_query_port   = &0248  ; RX frame buffer byte 12 — port on which the querier wants the bridge to send its response.
-rx_query_net    = &0249  ; RX frame buffer byte 13 — network number that a ctrl=&83 (IsNet) query is asking about.
+rx_dst_stn      = &023c  ; RX frame buffer byte 0 – destination station number.
+rx_dst_net      = &023d  ; RX frame buffer byte 1 – destination network number.
+rx_src_stn      = &023e  ; RX frame buffer byte 2 – source station number.
+rx_src_net      = &023f  ; RX frame buffer byte 3 – source network number.
+rx_ctrl         = &0240  ; RX frame buffer byte 4 – control byte.
+rx_port         = &0241  ; RX frame buffer byte 5 – port number.
+rx_query_port   = &0248  ; RX frame buffer byte 12 – port on which the querier wants the bridge to send its response.
+rx_query_net    = &0249  ; RX frame buffer byte 13 – network number that a ctrl=&83 (IsNet) query is asking about.
 reachable_via_b = &025a  ; 256-byte routing table for forwarding out of side B.
 reachable_via_a = &035a  ; 256-byte routing table for forwarding out of side A.
-tx_dst_stn      = &045a  ; TX frame buffer byte 0 — destination station number.
-tx_dst_net      = &045b  ; TX frame buffer byte 1 — destination network number.
-tx_src_stn      = &045c  ; TX frame buffer byte 2 — source station number.
-tx_src_net      = &045d  ; TX frame buffer byte 3 — source network number.
-tx_ctrl         = &045e  ; TX frame buffer byte 4 — control byte in a scout frame, or the first data byte in a data frame.
-tx_port         = &045f  ; TX frame buffer byte 5 — port in a scout frame, or the second data byte in a data frame.
-tx_data0        = &0460  ; TX frame buffer byte 6 — first optional scout payload byte.
+tx_dst_stn      = &045a  ; TX frame buffer byte 0 – destination station number.
+tx_dst_net      = &045b  ; TX frame buffer byte 1 – destination network number.
+tx_src_stn      = &045c  ; TX frame buffer byte 2 – source station number.
+tx_src_net      = &045d  ; TX frame buffer byte 3 – source network number.
+tx_ctrl         = &045e  ; TX frame buffer byte 4 – control byte in a scout frame, or the first data byte in a data frame.
+tx_port         = &045f  ; TX frame buffer byte 5 – port in a scout frame, or the second data byte in a data frame.
+tx_data0        = &0460  ; TX frame buffer byte 6 – first optional scout payload byte.
 net_num_a       = &c000  ; Econet side A network number, read at &C000.
 adlc_a_cr1      = &c800  ; ADLC A control/status port 0.
 adlc_a_cr2      = &c801  ; ADLC A control/status port 1.
@@ -76,7 +76,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;    exploited here), clobbering any residue of &AA or &55.
 ; 2. The choice of &00 specifically is an alias tripwire. If the address decoder is
 ;    miswired and the target address aliases into zero page, the obvious alias landing
-;    point is &00 -- so disturbing &00 between write and read forces any alias-based
+;    point is &00 – so disturbing &00 between write and read forces any alias-based
 ;    false-positive to fail the CMP.
 ; 3. The two patterns &AA and &55 are bitwise complements: a stuck bit is detected on
 ;    whichever pattern it contradicts, and a single-value bus residue cannot spoof both
@@ -91,18 +91,18 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e013 referenced 1 time by &e02b
 .ram_test_loop
     inc mem_ptr_hi                                                    ; e013: e6 81       ..             ; Step up to the next candidate page
-    lda #&aa                                                          ; e015: a9 aa       ..             ; Pattern 1: &AA (1010_1010) -- half the bits set
+    lda #&aa                                                          ; e015: a9 aa       ..             ; Pattern 1: &AA (1010_1010) – half the bits set
     sta (mem_ptr_lo),y                                                ; e017: 91 80       ..             ; Write &AA to (mem_ptr_lo) indirect
-    inc st_ptr_lo                                                     ; e019: e6 00       ..             ; INC $00: read-modify-write disturbs the data bus...
-    lda (mem_ptr_lo),y                                                ; e01b: b1 80       ..             ; ...then read the probe byte back
+    inc st_ptr_lo                                                     ; e019: e6 00       ..             ; INC $00: read-modify-write disturbs the data bus…
+    lda (mem_ptr_lo),y                                                ; e01b: b1 80       ..             ; …then read the probe byte back
     cmp #&aa                                                          ; e01d: c9 aa       ..             ; Did &AA survive the disturbance?
-    bne ram_test_done                                                 ; e01f: d0 0c       ..             ; Mismatch -> this page isn't real RAM; back off
-    lda #&55 ; 'U'                                                    ; e021: a9 55       .U             ; Pattern 2: &55 (0101_0101) -- exact complement of &AA
+    bne ram_test_done                                                 ; e01f: d0 0c       ..             ; Mismatch → this page isn't real RAM; back off
+    lda #&55 ; 'U'                                                    ; e021: a9 55       .U             ; Pattern 2: &55 (0101_0101) – exact complement of &AA
     sta (mem_ptr_lo),y                                                ; e023: 91 80       ..             ; Write &55 to (mem_ptr_lo) indirect
-    inc st_ptr_lo                                                     ; e025: e6 00       ..             ; INC $00 again -- anti-aliasing tripwire
+    inc st_ptr_lo                                                     ; e025: e6 00       ..             ; INC $00 again – anti-aliasing tripwire
     lda (mem_ptr_lo),y                                                ; e027: b1 80       ..             ; Read pattern 2 back
     cmp #&55 ; 'U'                                                    ; e029: c9 55       .U             ; Did &55 survive?
-    beq ram_test_loop                                                 ; e02b: f0 e6       ..             ; Both patterns held -- real RAM, try next page
+    beq ram_test_loop                                                 ; e02b: f0 e6       ..             ; Both patterns held – real RAM, try next page
 ; &e02d referenced 1 time by &e01f
 .ram_test_done
     dec mem_ptr_hi                                                    ; e02d: c6 81       ..             ; Step back one: last-probed page failed, prior page was OK
@@ -127,17 +127,17 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     jsr build_announce_b                                              ; e038: 20 58 e4     X.            ; Build the BridgeReset scout template into &045A-&0460
     jsr wait_adlc_a_idle                                              ; e03b: 20 dc e6     ..            ; CSMA: wait for side A's line to go idle
     jsr transmit_frame_a                                              ; e03e: 20 17 e5     ..            ; Transmit first broadcast (announcing net_num_b to side A)
-    lda net_num_a                                                     ; e041: ad 00 c0    ...            ; Load net_num_a -- the payload byte for the B-side broadcast
+    lda net_num_a                                                     ; e041: ad 00 c0    ...            ; Load net_num_a – the payload byte for the B-side broadcast
     sta tx_data0                                                      ; e044: 8d 60 04    .`.            ; Patch payload byte 0 of the template in-place
-    lda #4                                                            ; e047: a9 04       ..             ; A = &04: reset mem_ptr_hi to the template's base page...
-    sta mem_ptr_hi                                                    ; e049: 85 81       ..             ; ...so transmit_frame_b re-reads from &045A
+    lda #4                                                            ; e047: a9 04       ..             ; A = &04: reset mem_ptr_hi to the template's base page…
+    sta mem_ptr_hi                                                    ; e049: 85 81       ..             ; …so transmit_frame_b re-reads from &045A
     jsr wait_adlc_b_idle                                              ; e04b: 20 90 e6     ..            ; CSMA: wait for side B's line to go idle
     jsr transmit_frame_b                                              ; e04e: 20 c0 e4     ..            ; Transmit second broadcast (announcing net_num_a to side B)
 ; ***************************************************************************************
 ; Main Bridge loop: re-arm ADLCs, poll for frames, re-announce
 ;
 ; The Bridge's continuous-operation entry point. Reached by fall- through from the
-; reset handler once startup completes, and by JMP from fourteen other sites — every
+; reset handler once startup completes, and by JMP from fourteen other sites – every
 ; routine that takes an "escape to main" path (wait_adlc_a_idle,
 ; transmit_frame_a/transmit_frame_b, etc.) lands here, so main_loop is the anchor of
 ; every packet-processing cycle.
@@ -145,7 +145,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; The header (&E051-&E078) forces each ADLC into a known RX-listening state: if SR2 bit
 ; 0 or 7 (AP or RDA) is already set from a partial or aborted previous operation, CR1
 ; is cycled through &C2 (reset TX, leave RX running) before setting it to &82 (TX in
-; reset, RX IRQs enabled). CR2 is set to &67 — the standard listen-mode value used
+; reset, RX IRQs enabled). CR2 is set to &67 – the standard listen-mode value used
 ; throughout the firmware.
 ;
 ; The inner poll loop at main_loop_poll (&E079) tests SR1 bit 7 (IRQ summary) on each
@@ -170,7 +170,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 .main_loop
     lda adlc_a_cr2                                                    ; e051: ad 01 c8    ...            ; Read ADLC A's SR2
     and #&81                                                          ; e054: 29 81       ).             ; Mask AP/RDA bits to test for any stale RX state
-    beq main_loop_arm_a                                               ; e056: f0 05       ..             ; Clean -> skip the TX reset
+    beq main_loop_arm_a                                               ; e056: f0 05       ..             ; Clean → skip the TX reset
     lda #&c2                                                          ; e058: a9 c2       ..             ; Mask: reset TX, leave RX running
     sta adlc_a_cr1                                                    ; e05a: 8d 00 c8    ...            ; Clear any stale TX state on ADLC A
 ; &e05d referenced 1 time by &e056
@@ -181,7 +181,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sty adlc_a_cr2                                                    ; e064: 8c 01 c8    ...            ; Commit CR2 on ADLC A
     lda adlc_b_cr2                                                    ; e067: ad 01 d8    ...            ; Read ADLC B's SR2
     and #&81                                                          ; e06a: 29 81       ).             ; Mask AP/RDA to test for any stale RX state
-    beq main_loop_arm_b                                               ; e06c: f0 05       ..             ; Clean -> skip the TX reset on B
+    beq main_loop_arm_b                                               ; e06c: f0 05       ..             ; Clean → skip the TX reset on B
     lda #&c2                                                          ; e06e: a9 c2       ..             ; Mask: reset TX, leave RX running
     sta adlc_b_cr1                                                    ; e070: 8d 00 d8    ...            ; Clear any stale TX state on ADLC B
 ; &e073 referenced 1 time by &e06c
@@ -190,31 +190,31 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sty adlc_b_cr2                                                    ; e076: 8c 01 d8    ...            ; Commit CR2 on ADLC B (Y still = &67)
 ; &e079 referenced 5 times by &e08c, &e091, &e096, &e144, &e2c5
 .main_loop_poll
-    bit adlc_b_cr1                                                    ; e079: 2c 00 d8    ,..            ; BIT ADLC B's SR1 -- N <- bit 7 (IRQ summary)
-    bpl main_loop_poll_a                                              ; e07c: 10 03       ..             ; B quiet -> check A
-    jmp rx_frame_b                                                    ; e07e: 4c 63 e2    Lc.            ; B has an event -> dispatch to rx_frame_b
+    bit adlc_b_cr1                                                    ; e079: 2c 00 d8    ,..            ; BIT ADLC B's SR1 – N ← bit 7 (IRQ summary)
+    bpl main_loop_poll_a                                              ; e07c: 10 03       ..             ; B quiet → check A
+    jmp rx_frame_b                                                    ; e07e: 4c 63 e2    Lc.            ; B has an event → dispatch to rx_frame_b
 
 ; &e081 referenced 1 time by &e07c
 .main_loop_poll_a
-    bit adlc_a_cr1                                                    ; e081: 2c 00 c8    ,..            ; BIT ADLC A's SR1 -- N <- bit 7 (IRQ summary)
-    bpl main_loop_idle                                                ; e084: 10 03       ..             ; A quiet -> nothing to do; maybe re-announce
-    jmp rx_frame_a                                                    ; e086: 4c e2 e0    L..            ; A has an event -> dispatch to rx_frame_a
+    bit adlc_a_cr1                                                    ; e081: 2c 00 c8    ,..            ; BIT ADLC A's SR1 – N ← bit 7 (IRQ summary)
+    bpl main_loop_idle                                                ; e084: 10 03       ..             ; A quiet → nothing to do; maybe re-announce
+    jmp rx_frame_a                                                    ; e086: 4c e2 e0    L..            ; A has an event → dispatch to rx_frame_a
 
 ; &e089 referenced 1 time by &e084
 .main_loop_idle
-    lda announce_flag                                                 ; e089: ad 29 02    .).            ; Read announce_flag -- is a re-announce burst pending?
-    beq main_loop_poll                                                ; e08c: f0 eb       ..             ; No burst in progress -> straight back to polling
+    lda announce_flag                                                 ; e089: ad 29 02    .).            ; Read announce_flag – is a re-announce burst pending?
+    beq main_loop_poll                                                ; e08c: f0 eb       ..             ; No burst in progress → straight back to polling
     dec announce_tmr_lo                                               ; e08e: ce 2a 02    .*.            ; Tick the 16-bit re-announce countdown, low byte
-    bne main_loop_poll                                                ; e091: d0 e6       ..             ; Low byte didn't wrap -> keep polling
-    dec announce_tmr_hi                                               ; e093: ce 2b 02    .+.            ; Low byte wrapped -> tick the high byte too
-    bne main_loop_poll                                                ; e096: d0 e1       ..             ; Timer hasn't expired yet -> keep polling
+    bne main_loop_poll                                                ; e091: d0 e6       ..             ; Low byte didn't wrap → keep polling
+    dec announce_tmr_hi                                               ; e093: ce 2b 02    .+.            ; Low byte wrapped → tick the high byte too
+    bne main_loop_poll                                                ; e096: d0 e1       ..             ; Timer hasn't expired yet → keep polling
 ; ***************************************************************************************
 ; Emit one BridgeReply in an in-progress response burst
 ;
 ; Reached from main_loop_idle once the 16-bit announce_tmr has ticked down to zero and
 ; announce_flag is non-zero. Both conditions are only met after rx_a_handle_80 or
 ; rx_b_handle_80 has set the flag in response to a BridgeReset received from another
-; bridge. This routine is the per-tick action of that response burst -- it is not a
+; bridge. This routine is the per-tick action of that response burst – it is not a
 ; self-scheduled periodic announcement.
 ;
 ; Rebuilds the outbound template via build_announce_b and patches tx_ctrl from &80 (the
@@ -239,15 +239,15 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 .re_announce
     jsr build_announce_b                                              ; e098: 20 58 e4     X.            ; Rebuild the frame template from scratch (ctrl=&80 default)
     lda #&81                                                          ; e09b: a9 81       ..             ; A = &81: the BridgeReply control byte
-    sta tx_ctrl                                                       ; e09d: 8d 5e 04    .^.            ; Patch tx_ctrl to &81 -- this announcement is a reply
+    sta tx_ctrl                                                       ; e09d: 8d 5e 04    .^.            ; Patch tx_ctrl to &81 – this announcement is a reply
     bit announce_flag                                                 ; e0a0: 2c 29 02    ,).            ; Test announce_flag bit 7 via BIT
-    bmi re_announce_side_b                                            ; e0a3: 30 25       0%             ; Bit 7 set -> send via ADLC B (re_announce_side_b)
+    bmi re_announce_side_b                                            ; e0a3: 30 25       0%             ; Bit 7 set → send via ADLC B (re_announce_side_b)
     lda #&c2                                                          ; e0a5: a9 c2       ..             ; Side-A path: silence B's TX first
     sta adlc_b_cr1                                                    ; e0a7: 8d 00 d8    ...            ; Reset ADLC B's TX to avoid a cross-side collision
     jsr wait_adlc_a_idle                                              ; e0aa: 20 dc e6     ..            ; CSMA wait on A before transmitting
     jsr transmit_frame_a                                              ; e0ad: 20 17 e5     ..            ; Send the BridgeReply on ADLC A
     dec announce_count                                                ; e0b0: ce 2c 02    .,.            ; Decrement burst-remaining count
-    beq re_announce_done                                              ; e0b3: f0 0d       ..             ; Count hit zero -> clear announce_flag
+    beq re_announce_done                                              ; e0b3: f0 0d       ..             ; Count hit zero → clear announce_flag
 ; &e0b5 referenced 1 time by &e0e0
 .re_announce_rearm
     lda #&80                                                          ; e0b5: a9 80       ..             ; A = &80: reseed timer high byte
@@ -271,8 +271,8 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     jsr wait_adlc_b_idle                                              ; e0d5: 20 90 e6     ..            ; CSMA wait on B
     jsr transmit_frame_b                                              ; e0d8: 20 c0 e4     ..            ; Send the BridgeReply on ADLC B
     dec announce_count                                                ; e0db: ce 2c 02    .,.            ; Decrement burst-remaining count
-    beq re_announce_done                                              ; e0de: f0 e2       ..             ; Count hit zero -> clear announce_flag
-    bne re_announce_rearm                                             ; e0e0: d0 d3       ..             ; Not exhausted -> re-arm timer and continue (ALWAYS branch)
+    beq re_announce_done                                              ; e0de: f0 e2       ..             ; Count hit zero → clear announce_flag
+    bne re_announce_rearm                                             ; e0e0: d0 d3       ..             ; Not exhausted → re-arm timer and continue (ALWAYS branch)
 
 ; ***************************************************************************************
 ; Drain and dispatch an inbound frame on ADLC A
@@ -281,7 +281,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; frame from the RX FIFO into the rx_* buffer at &023C-&024F, runs two levels of
 ; filtering, and then dispatches on the control byte to per-message handlers.
 ;
-; 1. Addressing filter. Expect SR2 bit 0 (AP: Address Present) -- if missing, bail to
+; 1. Addressing filter. Expect SR2 bit 0 (AP: Address Present) – if missing, bail to
 ;    main_loop (spurious IRQ). Read byte 0 (rx_dst_stn) and byte 1 (rx_dst_net). If
 ;    rx_dst_net is zero (local net) or reachable_via_b[rx_dst_net] is zero (unknown
 ;    network), jump to rx_a_not_for_us (&E13F): ignore the frame, re-listen, drop back
@@ -289,7 +289,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; 2. Drain. Read the rest of the frame in byte-pairs into &023C+Y up to Y=20 (the
 ;    Bridge only keeps the first 20 bytes). After the drain, force CR1=0 and CR2=&84 to
 ;    halt the chip and test SR2 bit 1 (FV, Frame Valid). If FV is clear, the frame was
-;    corrupt or short -- bail to main_loop. If SR2 bit 7 (RDA) is also set, read one
+;    corrupt or short – bail to main_loop. If SR2 bit 7 (RDA) is also set, read one
 ;    trailing byte.
 ; 3. Broadcast check. Only frames with dst_stn == dst_net == &FF (full broadcast)
 ;    proceed to the bridge-protocol dispatcher. Everything else falls to rx_a_forward
@@ -308,24 +308,24 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e0e2 referenced 1 time by &e086
 .rx_frame_a
     lda #1                                                            ; e0e2: a9 01       ..             ; A = &01: mask SR2 bit 0 (AP = Address Present)
-    bit adlc_a_cr2                                                    ; e0e4: 2c 01 c8    ,..            ; BIT SR2 -- confirm the IRQ was a frame start
-    beq rx_frame_a_bail                                               ; e0e7: f0 53       .S             ; AP not set -> spurious IRQ, return to main_loop
+    bit adlc_a_cr2                                                    ; e0e4: 2c 01 c8    ,..            ; BIT SR2 – confirm the IRQ was a frame start
+    beq rx_frame_a_bail                                               ; e0e7: f0 53       .S             ; AP not set → spurious IRQ, return to main_loop
     lda adlc_a_tx                                                     ; e0e9: ad 02 c8    ...            ; Read FIFO byte 0: destination station
     sta rx_dst_stn                                                    ; e0ec: 8d 3c 02    .<.            ; Stage dst_stn into the rx header buffer
     jsr wait_adlc_a_irq                                               ; e0ef: 20 e4 e3     ..            ; Block until ADLC A IRQs again (byte 1 ready)
-    bit adlc_a_cr2                                                    ; e0f2: 2c 01 c8    ,..            ; BIT SR2 -- RDA still set for the next byte?
+    bit adlc_a_cr2                                                    ; e0f2: 2c 01 c8    ,..            ; BIT SR2 – RDA still set for the next byte?
     bpl rx_frame_a_bail                                               ; e0f5: 10 45       .E             ; RDA cleared: frame truncated before dst_net, bail
     ldy adlc_a_tx                                                     ; e0f7: ac 02 c8    ...            ; Read byte 1 into Y: destination network
-    beq rx_a_not_for_us                                               ; e0fa: f0 43       .C             ; dst_net == 0 means 'local net of sender' -- not for us
+    beq rx_a_not_for_us                                               ; e0fa: f0 43       .C             ; dst_net == 0 means 'local net of sender' – not for us
     lda reachable_via_b,y                                             ; e0fc: b9 5a 02    .Z.            ; Probe reachable_via_b[dst_net] for a route via side B
-    beq rx_a_not_for_us                                               ; e0ff: f0 3e       .>             ; No route -> frame isn't ours to drain, re-listen
+    beq rx_a_not_for_us                                               ; e0ff: f0 3e       .>             ; No route → frame isn't ours to drain, re-listen
     sty rx_dst_net                                                    ; e101: 8c 3d 02    .=.            ; Commit dst_net now that it has passed filtering
     ldy #2                                                            ; e104: a0 02       ..             ; Y = 2: resume drain at offset 2 (after header)
 ; &e106 referenced 1 time by &e11e
 .rx_frame_a_drain
     jsr wait_adlc_a_irq                                               ; e106: 20 e4 e3     ..            ; Wait for the next FIFO byte IRQ
-    bit adlc_a_cr2                                                    ; e109: 2c 01 c8    ,..            ; BIT SR2 -- RDA still asserted?
-    bpl rx_frame_a_end                                                ; e10c: 10 12       ..             ; RDA cleared mid-body -> go to FV check
+    bit adlc_a_cr2                                                    ; e109: 2c 01 c8    ,..            ; BIT SR2 – RDA still asserted?
+    bpl rx_frame_a_end                                                ; e10c: 10 12       ..             ; RDA cleared mid-body → go to FV check
     lda adlc_a_tx                                                     ; e10e: ad 02 c8    ...            ; Read byte Y of payload from TX/RX FIFO
     sta rx_dst_stn,y                                                  ; e111: 99 3c 02    .<.            ; Store into rx_dst_stn+Y (buffer grows into rx_*)
     iny                                                               ; e114: c8          .              ; Advance Y to the next slot
@@ -333,7 +333,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta rx_dst_stn,y                                                  ; e118: 99 3c 02    .<.            ; Store the second byte of the pair
     iny                                                               ; e11b: c8          .              ; Advance Y past the pair
     cpy #&14                                                          ; e11c: c0 14       ..             ; Cap at 20 bytes (6-byte header + up to 14 payload)
-    bcc rx_frame_a_drain                                              ; e11e: 90 e6       ..             ; Under cap -> keep draining
+    bcc rx_frame_a_drain                                              ; e11e: 90 e6       ..             ; Under cap → keep draining
 ; &e120 referenced 1 time by &e10c
 .rx_frame_a_end
     lda #0                                                            ; e120: a9 00       ..             ; A = &00: halt ADLC A
@@ -341,9 +341,9 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     lda #&84                                                          ; e125: a9 84       ..             ; A = &84: clear-RX-status + FV-clear bits
     sta adlc_a_cr2                                                    ; e127: 8d 01 c8    ...            ; Commit CR2: acknowledge end-of-frame
     lda #2                                                            ; e12a: a9 02       ..             ; A = &02: mask SR2 bit 1 (FV: Frame Valid)
-    bit adlc_a_cr2                                                    ; e12c: 2c 01 c8    ,..            ; BIT SR2 -- test FV and RDA
-    beq rx_frame_a_bail                                               ; e12f: f0 0b       ..             ; FV clear -> frame corrupt or short, bail
-    bpl rx_frame_a_dispatch                                           ; e131: 10 17       ..             ; FV set + no RDA -> clean end; go to dispatch
+    bit adlc_a_cr2                                                    ; e12c: 2c 01 c8    ,..            ; BIT SR2 – test FV and RDA
+    beq rx_frame_a_bail                                               ; e12f: f0 0b       ..             ; FV clear → frame corrupt or short, bail
+    bpl rx_frame_a_dispatch                                           ; e131: 10 17       ..             ; FV set + no RDA → clean end; go to dispatch
     lda adlc_a_tx                                                     ; e133: ad 02 c8    ...            ; FV + RDA: one trailing byte still in FIFO
     sta rx_dst_stn,y                                                  ; e136: 99 3c 02    .<.            ; Store the odd trailing byte
     iny                                                               ; e139: c8          .              ; Advance Y to count that final byte
@@ -365,63 +365,63 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e14a referenced 2 times by &e131, &e13a
 .rx_frame_a_dispatch
     sty rx_len                                                        ; e14a: 8c 28 02    .(.            ; Save final byte count (even if 0 bytes of payload)
-    cpy #6                                                            ; e14d: c0 06       ..             ; Compare to 6 -- minimum valid scout header
-    bcc rx_frame_a_bail                                               ; e14f: 90 eb       ..             ; Shorter than header -> bail
+    cpy #6                                                            ; e14d: c0 06       ..             ; Compare to 6 – minimum valid scout header
+    bcc rx_frame_a_bail                                               ; e14f: 90 eb       ..             ; Shorter than header → bail
     lda rx_src_net                                                    ; e151: ad 3f 02    .?.            ; Load src_net from the drained frame
-    bne rx_a_src_net_resolved                                         ; e154: d0 06       ..             ; Non-zero -> sender supplied src_net, keep it
+    bne rx_a_src_net_resolved                                         ; e154: d0 06       ..             ; Non-zero → sender supplied src_net, keep it
     lda net_num_a                                                     ; e156: ad 00 c0    ...            ; Sender left src_net = 0 ('my local net')
-    sta rx_src_net                                                    ; e159: 8d 3f 02    .?.            ; ...substitute our own A-side network number
+    sta rx_src_net                                                    ; e159: 8d 3f 02    .?.            ; …substitute our own A-side network number
 ; &e15c referenced 1 time by &e154
 .rx_a_src_net_resolved
     lda net_num_b                                                     ; e15c: ad 00 d0    ...            ; Load our B-side network number for comparison
     cmp rx_dst_net                                                    ; e15f: cd 3d 02    .=.            ; Compare against the incoming dst_net
-    bne rx_a_broadcast_check                                          ; e162: d0 05       ..             ; Not for side B -> skip the local rewrite
-    lda #0                                                            ; e164: a9 00       ..             ; dst_net names our B-side network...
-    sta rx_dst_net                                                    ; e166: 8d 3d 02    .=.            ; ...normalise dst_net to 0 (local on B)
+    bne rx_a_broadcast_check                                          ; e162: d0 05       ..             ; Not for side B → skip the local rewrite
+    lda #0                                                            ; e164: a9 00       ..             ; dst_net names our B-side network…
+    sta rx_dst_net                                                    ; e166: 8d 3d 02    .=.            ; …normalise dst_net to 0 (local on B)
 ; &e169 referenced 1 time by &e162
 .rx_a_broadcast_check
     lda rx_dst_stn                                                    ; e169: ad 3c 02    .<.            ; Load dst_stn for the broadcast test
     and rx_dst_net                                                    ; e16c: 2d 3d 02    -=.            ; AND with dst_net (both &FF only if full broadcast)
     cmp #&ff                                                          ; e16f: c9 ff       ..             ; Compare result to &FF
-    bne rx_a_to_forward                                               ; e171: d0 d4       ..             ; Not a full broadcast -> forward path
+    bne rx_a_to_forward                                               ; e171: d0 d4       ..             ; Not a full broadcast → forward path
     jsr adlc_a_listen                                                 ; e173: 20 ff e3     ..            ; Broadcast: re-arm A's listen mode for any follow-up
     lda #&c2                                                          ; e176: a9 c2       ..             ; A = &C2: reset TX, enable RX
     sta adlc_a_cr1                                                    ; e178: 8d 00 c8    ...            ; Commit CR1 while we process the bridge-protocol frame
     lda rx_port                                                       ; e17b: ad 41 02    .A.            ; Load the port byte from the drained frame
     cmp #&9c                                                          ; e17e: c9 9c       ..             ; Compare with &9C (bridge-protocol port)
-    bne rx_a_to_forward                                               ; e180: d0 c5       ..             ; Not our port -> drop into forward path
+    bne rx_a_to_forward                                               ; e180: d0 c5       ..             ; Not our port → drop into forward path
     lda rx_ctrl                                                       ; e182: ad 40 02    .@.            ; Load ctrl byte for the per-type dispatch
     cmp #&81                                                          ; e185: c9 81       ..             ; Test &81 (BridgeReply: re-announcement)
-    beq rx_a_handle_81                                                ; e187: f0 65       .e             ; Match -> rx_a_handle_81
+    beq rx_a_handle_81                                                ; e187: f0 65       .e             ; Match → rx_a_handle_81
     cmp #&80                                                          ; e189: c9 80       ..             ; Test &80 (BridgeReset: initial announcement)
-    beq rx_a_handle_80                                                ; e18b: f0 49       .I             ; Match -> rx_a_handle_80
+    beq rx_a_handle_80                                                ; e18b: f0 49       .I             ; Match → rx_a_handle_80
     cmp #&82                                                          ; e18d: c9 82       ..             ; Test &82 (WhatNet: general query)
-    beq rx_a_handle_82                                                ; e18f: f0 0c       ..             ; Match -> rx_a_handle_82
+    beq rx_a_handle_82                                                ; e18f: f0 0c       ..             ; Match → rx_a_handle_82
     cmp #&83                                                          ; e191: c9 83       ..             ; Test &83 (IsNet: targeted query)
-    bne rx_a_forward                                                  ; e193: d0 73       .s             ; Unknown ctrl -> forward path (fall through to rx_a_handle_83 on match)
+    bne rx_a_forward                                                  ; e193: d0 73       .s             ; Unknown ctrl → forward path (fall through to rx_a_handle_83 on match)
 ; ***************************************************************************************
 ; Side-A IsNet query (ctrl=&83): targeted network lookup
 ;
-; Called when a received frame on side A is broadcast + port=&9C + ctrl=&83 -- the
+; Called when a received frame on side A is broadcast + port=&9C + ctrl=&83 – the
 ; querier is asking "can you reach network X?", where X is the byte at offset 13 of the
 ; payload (rx_query_net).
 ;
 ; Consults reachable_via_b[rx_query_net]. If the entry is zero, there is no route to
 ; that network so the query is silently dropped (JMP main_loop via rx_a_query_done). If
 ; non-zero, falls through to the shared response body at rx_a_handle_82 to transmit the
-; reply -- so the targeted query is effectively the general query with an up-front
+; reply – so the targeted query is effectively the general query with an up-front
 ; routing filter.
 .rx_a_handle_83
     ldy rx_query_net                                                  ; e195: ac 49 02    .I.            ; Y = the queried network number
     lda reachable_via_b,y                                             ; e198: b9 5a 02    .Z.            ; Check if we have a route via the other side
-    beq rx_a_query_done                                               ; e19b: f0 36       .6             ; Unknown -> silently drop this IsNet query
+    beq rx_a_query_done                                               ; e19b: f0 36       .6             ; Unknown → silently drop this IsNet query
 ; ***************************************************************************************
 ; Side-A WhatNet query (ctrl=&82); also the IsNet response path
 ;
-; Called when a received frame on side A is broadcast + port=&9C + ctrl=&82 -- a
-; general bridge query asking "which networks do you reach?" -- or when rx_a_handle_83
-; has verified that a specific IsNet queried network is in fact reachable via side B
-; and is re-using this response path.
+; Called when a received frame on side A is broadcast + port=&9C + ctrl=&82 – a general
+; bridge query asking "which networks do you reach?" – or when rx_a_handle_83 has
+; verified that a specific IsNet queried network is in fact reachable via side B and is
+; re-using this response path.
 ;
 ; The response is a complete four-way handshake transaction, which the Bridge drives
 ; from the responder side as two transmissions (scout, then data) with an inbound ACK
@@ -434,7 +434,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;    stagger their responses would overlap on the wire; seeding from the network number
 ;    gives each bridge a deterministic but distinct delay.
 ; 3. CSMA, transmit the scout, then handshake_rx_a to receive the scout-ACK.
-; 4. Rebuild the frame via build_query_response again -- this time to be a data frame
+; 4. Rebuild the frame via build_query_response again – this time to be a data frame
 ;    following the scout we just exchanged, not a new scout. The patches that follow
 ;    populate the first two payload bytes of that data frame (at the byte positions
 ;    labelled tx_ctrl and tx_port, but those names refer to scout semantics; in a data
@@ -464,7 +464,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     jsr wait_adlc_a_idle                                              ; e1af: 20 dc e6     ..            ; CSMA wait on A so we don't collide with live traffic
     jsr transmit_frame_a                                              ; e1b2: 20 17 e5     ..            ; Transmit the reply scout
     jsr handshake_rx_a                                                ; e1b5: 20 6e e5     n.            ; Wait for the querier's scout-ACK on A
-    jsr build_query_response                                          ; e1b8: 20 8d e4     ..            ; Rebuild template -- next frame is the data response
+    jsr build_query_response                                          ; e1b8: 20 8d e4     ..            ; Rebuild template – next frame is the data response
     lda net_num_b                                                     ; e1bb: ad 00 d0    ...            ; Fetch net_num_b
     sta tx_src_net                                                    ; e1be: 8d 5d 04    .].            ; Re-patch src_net (rebuilt block needs it again)
     lda net_num_a                                                     ; e1c1: ad 00 c0    ...            ; Fetch net_num_a
@@ -475,12 +475,12 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     jsr handshake_rx_a                                                ; e1d0: 20 6e e5     n.            ; Wait for the querier's final data-ACK
 ; &e1d3 referenced 1 time by &e19b
 .rx_a_query_done
-    jmp main_loop                                                     ; e1d3: 4c 51 e0    LQ.            ; Transaction complete -> back to main_loop
+    jmp main_loop                                                     ; e1d3: 4c 51 e0    LQ.            ; Transaction complete → back to main_loop
 
 ; ***************************************************************************************
 ; Side-A BridgeReset (ctrl=&80): learn topology from scratch
 ;
-; Called when a received frame on side A is broadcast + port=&9C + ctrl=&80 -- a bridge
+; Called when a received frame on side A is broadcast + port=&9C + ctrl=&80 – a bridge
 ; on the far side is advertising a fresh topology, likely because it has itself just
 ; come up. The handler:
 ;
@@ -521,7 +521,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;
 ; Processes the announcement payload: each byte from offset 6 up to rx_len is a network
 ; number that the announcer says it can reach. Since the announcer is on side A, those
-; networks are reachable via side A from here too -- mark each in reachable_via_a.
+; networks are reachable via side A from here too – mark each in reachable_via_a.
 ;
 ; After the learn loop, append our own net_num_a to the payload and bump rx_len.
 ; Falling through to rx_a_forward re-broadcasts the augmented frame out of ADLC B, so
@@ -538,7 +538,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta reachable_via_a,x                                             ; e1f6: 9d 5a 03    .Z.            ; Remember that network X is reachable via side A
     iny                                                               ; e1f9: c8          .              ; Advance to next payload byte
     cpy rx_len                                                        ; e1fa: cc 28 02    .(.            ; Have we reached the end of the payload?
-    bne rx_a_learn_loop                                               ; e1fd: d0 f1       ..             ; No -- keep learning
+    bne rx_a_learn_loop                                               ; e1fd: d0 f1       ..             ; No – keep learning
     lda net_num_a                                                     ; e1ff: ad 00 c0    ...            ; Load our own side-A network number
     sta rx_dst_stn,y                                                  ; e202: 99 3c 02    .<.            ; Append it to the payload for the onward broadcast
     inc rx_len                                                        ; e205: ee 28 02    .(.            ; Payload grew by one byte; record the new length
@@ -583,8 +583,8 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e216 referenced 1 time by &e22f
 .rx_a_forward_pair_loop
     jsr wait_adlc_b_irq                                               ; e216: 20 ea e3     ..            ; Wait for ADLC B's TDRA
-    bit adlc_b_cr1                                                    ; e219: 2c 00 d8    ,..            ; BIT SR1 -- V <- bit 6 (TDRA)
-    bvc rx_a_forward_done                                             ; e21c: 50 42       PB             ; TDRA clear -> chip lost sync, escape to main_loop
+    bit adlc_b_cr1                                                    ; e219: 2c 00 d8    ,..            ; BIT SR1 – V ← bit 6 (TDRA)
+    bvc rx_a_forward_done                                             ; e21c: 50 42       PB             ; TDRA clear → chip lost sync, escape to main_loop
     lda rx_dst_stn,y                                                  ; e21e: b9 3c 02    .<.            ; Load byte Y of the received scout
     sta adlc_b_tx                                                     ; e221: 8d 02 d8    ...            ; Push it to ADLC B's TX FIFO
     iny                                                               ; e224: c8          .              ; Advance Y
@@ -592,28 +592,28 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta adlc_b_tx                                                     ; e228: 8d 02 d8    ...            ; Push the second byte of the pair
     iny                                                               ; e22b: c8          .              ; Advance Y again
     cpy rx_len                                                        ; e22c: cc 28 02    .(.            ; Have we reached the even-rounded length yet?
-    bcc rx_a_forward_pair_loop                                        ; e22f: 90 e5       ..             ; No -> keep looping
+    bcc rx_a_forward_pair_loop                                        ; e22f: 90 e5       ..             ; No → keep looping
     txa                                                               ; e231: 8a          .              ; Recover original length from X for parity check
-    ror a                                                             ; e232: 6a          j              ; ROR: carry <- bit 0 (= original length was odd?)
-    bcc rx_a_forward_ack_round                                        ; e233: 90 09       ..             ; Even -> skip the trailing-byte path
+    ror a                                                             ; e232: 6a          j              ; ROR: carry ← bit 0 (= original length was odd?)
+    bcc rx_a_forward_ack_round                                        ; e233: 90 09       ..             ; Even → skip the trailing-byte path
     jsr wait_adlc_b_irq                                               ; e235: 20 ea e3     ..            ; Odd: wait for TDRA once more for the last byte
     lda rx_dst_stn,y                                                  ; e238: b9 3c 02    .<.            ; Load the trailing byte
     sta adlc_b_tx                                                     ; e23b: 8d 02 d8    ...            ; Push it to the TX FIFO
 ; &e23e referenced 1 time by &e233
 .rx_a_forward_ack_round
     lda #&3f ; '?'                                                    ; e23e: a9 3f       .?             ; A = &3F: end-of-burst CR2 value
-    sta adlc_b_cr2                                                    ; e240: 8d 01 d8    ...            ; Commit CR2 -- ADLC B flushes the scout
+    sta adlc_b_cr2                                                    ; e240: 8d 01 d8    ...            ; Commit CR2 – ADLC B flushes the scout
     jsr wait_adlc_b_irq                                               ; e243: 20 ea e3     ..            ; Wait for the frame-complete IRQ
     lda #&5a ; 'Z'                                                    ; e246: a9 5a       .Z             ; A = &5A: reset mem_ptr_lo for the handshake stages below
     sta mem_ptr_lo                                                    ; e248: 85 80       ..             ; Store mem_ptr_lo
     lda #4                                                            ; e24a: a9 04       ..             ; A = 4: reset mem_ptr_hi
-    sta mem_ptr_hi                                                    ; e24c: 85 81       ..             ; Store mem_ptr_hi -- handshake_rx_? will write here
-    jsr handshake_rx_b                                                ; e24e: 20 ff e5     ..            ; Stage 2: drain ACK1 from B into &045A...
-    jsr transmit_frame_a                                              ; e251: 20 17 e5     ..            ; ...and retransmit it on A so the originator hears its ACK
-    jsr handshake_rx_a                                                ; e254: 20 6e e5     n.            ; Stage 3: drain DATA from A into &045A...
-    jsr transmit_frame_b                                              ; e257: 20 c0 e4     ..            ; ...and retransmit it on B to the destination
-    jsr handshake_rx_b                                                ; e25a: 20 ff e5     ..            ; Stage 4: drain ACK2 from B into &045A...
-    jsr transmit_frame_a                                              ; e25d: 20 17 e5     ..            ; ...and retransmit it on A as the final ACK
+    sta mem_ptr_hi                                                    ; e24c: 85 81       ..             ; Store mem_ptr_hi – handshake_rx_? will write here
+    jsr handshake_rx_b                                                ; e24e: 20 ff e5     ..            ; Stage 2: drain ACK1 from B into &045A…
+    jsr transmit_frame_a                                              ; e251: 20 17 e5     ..            ; …and retransmit it on A so the originator hears its ACK
+    jsr handshake_rx_a                                                ; e254: 20 6e e5     n.            ; Stage 3: drain DATA from A into &045A…
+    jsr transmit_frame_b                                              ; e257: 20 c0 e4     ..            ; …and retransmit it on B to the destination
+    jsr handshake_rx_b                                                ; e25a: 20 ff e5     ..            ; Stage 4: drain ACK2 from B into &045A…
+    jsr transmit_frame_a                                              ; e25d: 20 17 e5     ..            ; …and retransmit it on A as the final ACK
 ; &e260 referenced 1 time by &e21c
 .rx_a_forward_done
     jmp main_loop                                                     ; e260: 4c 51 e0    LQ.            ; 4-way handshake bridged; back to main_loop
@@ -640,24 +640,24 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e263 referenced 1 time by &e07e
 .rx_frame_b
     lda #1                                                            ; e263: a9 01       ..             ; A = &01: mask SR2 bit 0 (AP = Address Present)
-    bit adlc_b_cr2                                                    ; e265: 2c 01 d8    ,..            ; BIT SR2 -- confirm the IRQ was a frame start
-    beq rx_frame_b_bail                                               ; e268: f0 53       .S             ; AP not set -> spurious IRQ, return to main_loop
+    bit adlc_b_cr2                                                    ; e265: 2c 01 d8    ,..            ; BIT SR2 – confirm the IRQ was a frame start
+    beq rx_frame_b_bail                                               ; e268: f0 53       .S             ; AP not set → spurious IRQ, return to main_loop
     lda adlc_b_tx                                                     ; e26a: ad 02 d8    ...            ; Read FIFO byte 0: destination station
     sta rx_dst_stn                                                    ; e26d: 8d 3c 02    .<.            ; Stage dst_stn into the rx header buffer
     jsr wait_adlc_b_irq                                               ; e270: 20 ea e3     ..            ; Block until ADLC B IRQs again (byte 1 ready)
-    bit adlc_b_cr2                                                    ; e273: 2c 01 d8    ,..            ; BIT SR2 -- RDA still set for the next byte?
+    bit adlc_b_cr2                                                    ; e273: 2c 01 d8    ,..            ; BIT SR2 – RDA still set for the next byte?
     bpl rx_frame_b_bail                                               ; e276: 10 45       .E             ; RDA cleared: frame truncated before dst_net, bail
     ldy adlc_b_tx                                                     ; e278: ac 02 d8    ...            ; Read byte 1 into Y: destination network
-    beq rx_b_not_for_us                                               ; e27b: f0 43       .C             ; dst_net == 0 means 'local net of sender' -- not for us
+    beq rx_b_not_for_us                                               ; e27b: f0 43       .C             ; dst_net == 0 means 'local net of sender' – not for us
     lda reachable_via_a,y                                             ; e27d: b9 5a 03    .Z.            ; Probe reachable_via_a[dst_net] for a route via side A
-    beq rx_b_not_for_us                                               ; e280: f0 3e       .>             ; No route -> frame isn't ours to drain, re-listen
+    beq rx_b_not_for_us                                               ; e280: f0 3e       .>             ; No route → frame isn't ours to drain, re-listen
     sty rx_dst_net                                                    ; e282: 8c 3d 02    .=.            ; Commit dst_net now that it has passed filtering
     ldy #2                                                            ; e285: a0 02       ..             ; Y = 2: resume drain at offset 2 (after header)
 ; &e287 referenced 1 time by &e29f
 .rx_frame_b_drain
     jsr wait_adlc_b_irq                                               ; e287: 20 ea e3     ..            ; Wait for the next FIFO byte IRQ
-    bit adlc_b_cr2                                                    ; e28a: 2c 01 d8    ,..            ; BIT SR2 -- RDA still asserted?
-    bpl rx_frame_b_end                                                ; e28d: 10 12       ..             ; RDA cleared mid-body -> go to FV check
+    bit adlc_b_cr2                                                    ; e28a: 2c 01 d8    ,..            ; BIT SR2 – RDA still asserted?
+    bpl rx_frame_b_end                                                ; e28d: 10 12       ..             ; RDA cleared mid-body → go to FV check
     lda adlc_b_tx                                                     ; e28f: ad 02 d8    ...            ; Read byte Y of payload from TX/RX FIFO
     sta rx_dst_stn,y                                                  ; e292: 99 3c 02    .<.            ; Store into rx_dst_stn+Y (buffer grows into rx_*)
     iny                                                               ; e295: c8          .              ; Advance Y to the next slot
@@ -665,7 +665,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta rx_dst_stn,y                                                  ; e299: 99 3c 02    .<.            ; Store the second byte of the pair
     iny                                                               ; e29c: c8          .              ; Advance Y past the pair
     cpy #&14                                                          ; e29d: c0 14       ..             ; Cap at 20 bytes (6-byte header + up to 14 payload)
-    bcc rx_frame_b_drain                                              ; e29f: 90 e6       ..             ; Under cap -> keep draining
+    bcc rx_frame_b_drain                                              ; e29f: 90 e6       ..             ; Under cap → keep draining
 ; &e2a1 referenced 1 time by &e28d
 .rx_frame_b_end
     lda #0                                                            ; e2a1: a9 00       ..             ; A = &00: halt ADLC B
@@ -673,9 +673,9 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     lda #&84                                                          ; e2a6: a9 84       ..             ; A = &84: clear-RX-status + FV-clear bits
     sta adlc_b_cr2                                                    ; e2a8: 8d 01 d8    ...            ; Commit CR2: acknowledge end-of-frame
     lda #2                                                            ; e2ab: a9 02       ..             ; A = &02: mask SR2 bit 1 (FV: Frame Valid)
-    bit adlc_b_cr2                                                    ; e2ad: 2c 01 d8    ,..            ; BIT SR2 -- test FV and RDA
-    beq rx_frame_b_bail                                               ; e2b0: f0 0b       ..             ; FV clear -> frame corrupt or short, bail
-    bpl rx_frame_b_dispatch                                           ; e2b2: 10 17       ..             ; FV set + no RDA -> clean end; go to dispatch
+    bit adlc_b_cr2                                                    ; e2ad: 2c 01 d8    ,..            ; BIT SR2 – test FV and RDA
+    beq rx_frame_b_bail                                               ; e2b0: f0 0b       ..             ; FV clear → frame corrupt or short, bail
+    bpl rx_frame_b_dispatch                                           ; e2b2: 10 17       ..             ; FV set + no RDA → clean end; go to dispatch
     lda adlc_b_tx                                                     ; e2b4: ad 02 d8    ...            ; FV + RDA: one trailing byte still in FIFO
     sta rx_dst_stn,y                                                  ; e2b7: 99 3c 02    .<.            ; Store the odd trailing byte
     iny                                                               ; e2ba: c8          .              ; Advance Y to count that final byte
@@ -697,40 +697,40 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e2cb referenced 2 times by &e2b2, &e2bb
 .rx_frame_b_dispatch
     sty rx_len                                                        ; e2cb: 8c 28 02    .(.            ; Save final byte count (even if 0 bytes of payload)
-    cpy #6                                                            ; e2ce: c0 06       ..             ; Compare to 6 -- minimum valid scout header
-    bcc rx_frame_b_bail                                               ; e2d0: 90 eb       ..             ; Shorter than header -> bail
+    cpy #6                                                            ; e2ce: c0 06       ..             ; Compare to 6 – minimum valid scout header
+    bcc rx_frame_b_bail                                               ; e2d0: 90 eb       ..             ; Shorter than header → bail
     lda rx_src_net                                                    ; e2d2: ad 3f 02    .?.            ; Load src_net from the drained frame
-    bne rx_b_src_net_resolved                                         ; e2d5: d0 06       ..             ; Non-zero -> sender supplied src_net, keep it
+    bne rx_b_src_net_resolved                                         ; e2d5: d0 06       ..             ; Non-zero → sender supplied src_net, keep it
     lda net_num_b                                                     ; e2d7: ad 00 d0    ...            ; Sender left src_net = 0 ('my local net')
-    sta rx_src_net                                                    ; e2da: 8d 3f 02    .?.            ; ...substitute our own B-side network number
+    sta rx_src_net                                                    ; e2da: 8d 3f 02    .?.            ; …substitute our own B-side network number
 ; &e2dd referenced 1 time by &e2d5
 .rx_b_src_net_resolved
     lda net_num_a                                                     ; e2dd: ad 00 c0    ...            ; Load our A-side network number for comparison
     cmp rx_dst_net                                                    ; e2e0: cd 3d 02    .=.            ; Compare against the incoming dst_net
-    bne rx_b_broadcast_check                                          ; e2e3: d0 05       ..             ; Not for side A -> skip the local rewrite
-    lda #0                                                            ; e2e5: a9 00       ..             ; dst_net names our A-side network...
-    sta rx_dst_net                                                    ; e2e7: 8d 3d 02    .=.            ; ...normalise dst_net to 0 (local on A)
+    bne rx_b_broadcast_check                                          ; e2e3: d0 05       ..             ; Not for side A → skip the local rewrite
+    lda #0                                                            ; e2e5: a9 00       ..             ; dst_net names our A-side network…
+    sta rx_dst_net                                                    ; e2e7: 8d 3d 02    .=.            ; …normalise dst_net to 0 (local on A)
 ; &e2ea referenced 1 time by &e2e3
 .rx_b_broadcast_check
     lda rx_dst_stn                                                    ; e2ea: ad 3c 02    .<.            ; Load dst_stn for the broadcast test
     and rx_dst_net                                                    ; e2ed: 2d 3d 02    -=.            ; AND with dst_net (both &FF only if full broadcast)
     cmp #&ff                                                          ; e2f0: c9 ff       ..             ; Compare result to &FF
-    bne rx_b_to_forward                                               ; e2f2: d0 d4       ..             ; Not a full broadcast -> forward path
+    bne rx_b_to_forward                                               ; e2f2: d0 d4       ..             ; Not a full broadcast → forward path
     jsr adlc_b_listen                                                 ; e2f4: 20 19 e4     ..            ; Broadcast: re-arm B's listen mode for any follow-up
     lda #&c2                                                          ; e2f7: a9 c2       ..             ; A = &C2: reset TX, enable RX
     sta adlc_b_cr1                                                    ; e2f9: 8d 00 d8    ...            ; Commit CR1 while we process the bridge-protocol frame
     lda rx_port                                                       ; e2fc: ad 41 02    .A.            ; Load the port byte from the drained frame
     cmp #&9c                                                          ; e2ff: c9 9c       ..             ; Compare with &9C (bridge-protocol port)
-    bne rx_b_to_forward                                               ; e301: d0 c5       ..             ; Not our port -> drop into forward path
+    bne rx_b_to_forward                                               ; e301: d0 c5       ..             ; Not our port → drop into forward path
     lda rx_ctrl                                                       ; e303: ad 40 02    .@.            ; Load ctrl byte for the per-type dispatch
     cmp #&81                                                          ; e306: c9 81       ..             ; Test &81 (BridgeReply: re-announcement)
-    beq rx_b_handle_81                                                ; e308: f0 65       .e             ; Match -> rx_b_handle_81
+    beq rx_b_handle_81                                                ; e308: f0 65       .e             ; Match → rx_b_handle_81
     cmp #&80                                                          ; e30a: c9 80       ..             ; Test &80 (BridgeReset: initial announcement)
-    beq rx_b_handle_80                                                ; e30c: f0 49       .I             ; Match -> rx_b_handle_80
+    beq rx_b_handle_80                                                ; e30c: f0 49       .I             ; Match → rx_b_handle_80
     cmp #&82                                                          ; e30e: c9 82       ..             ; Test &82 (WhatNet: general query)
-    beq rx_b_handle_82                                                ; e310: f0 0c       ..             ; Match -> rx_b_handle_82
+    beq rx_b_handle_82                                                ; e310: f0 0c       ..             ; Match → rx_b_handle_82
     cmp #&83                                                          ; e312: c9 83       ..             ; Test &83 (IsNet: targeted query)
-    bne rx_b_forward                                                  ; e314: d0 73       .s             ; Unknown ctrl -> forward path (fall through to rx_b_handle_83 on match)
+    bne rx_b_forward                                                  ; e314: d0 73       .s             ; Unknown ctrl → forward path (fall through to rx_b_handle_83 on match)
 ; ***************************************************************************************
 ; Side-B IsNet query (ctrl=&83): targeted network lookup
 ;
@@ -740,7 +740,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 .rx_b_handle_83
     ldy rx_query_net                                                  ; e316: ac 49 02    .I.            ; Y = the queried network number
     lda reachable_via_a,y                                             ; e319: b9 5a 03    .Z.            ; Check if we have a route via the other side
-    beq rx_b_query_done                                               ; e31c: f0 36       .6             ; Unknown -> silently drop this IsNet query
+    beq rx_b_query_done                                               ; e31c: f0 36       .6             ; Unknown → silently drop this IsNet query
 ; ***************************************************************************************
 ; Side-B WhatNet query (ctrl=&82); also IsNet response path
 ;
@@ -759,7 +759,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     jsr wait_adlc_b_idle                                              ; e330: 20 90 e6     ..            ; CSMA wait on B
     jsr transmit_frame_b                                              ; e333: 20 c0 e4     ..            ; Transmit the reply scout
     jsr handshake_rx_b                                                ; e336: 20 ff e5     ..            ; Wait for the querier's scout-ACK on B
-    jsr build_query_response                                          ; e339: 20 8d e4     ..            ; Rebuild template -- next frame is the data response
+    jsr build_query_response                                          ; e339: 20 8d e4     ..            ; Rebuild template – next frame is the data response
     lda net_num_a                                                     ; e33c: ad 00 c0    ...            ; Fetch net_num_a
     sta tx_src_net                                                    ; e33f: 8d 5d 04    .].            ; Re-patch src_net
     lda net_num_b                                                     ; e342: ad 00 d0    ...            ; Fetch net_num_b
@@ -770,7 +770,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     jsr handshake_rx_b                                                ; e351: 20 ff e5     ..            ; Wait for final data-ACK
 ; &e354 referenced 1 time by &e31c
 .rx_b_query_done
-    jmp main_loop                                                     ; e354: 4c 51 e0    LQ.            ; Transaction complete -> back to main_loop
+    jmp main_loop                                                     ; e354: 4c 51 e0    LQ.            ; Transaction complete → back to main_loop
 
 ; ***************************************************************************************
 ; Side-B BridgeReset (ctrl=&80): learn topology from scratch
@@ -811,7 +811,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta reachable_via_b,x                                             ; e377: 9d 5a 02    .Z.            ; Remember that network X is reachable via side B
     iny                                                               ; e37a: c8          .              ; Advance to next payload byte
     cpy rx_len                                                        ; e37b: cc 28 02    .(.            ; Have we reached the end of the payload?
-    bne rx_b_learn_loop                                               ; e37e: d0 f1       ..             ; No -- keep learning
+    bne rx_b_learn_loop                                               ; e37e: d0 f1       ..             ; No – keep learning
     lda net_num_b                                                     ; e380: ad 00 d0    ...            ; Load our own side-B network number
     sta rx_dst_stn,y                                                  ; e383: 99 3c 02    .<.            ; Append it to the payload for the onward broadcast
     inc rx_len                                                        ; e386: ee 28 02    .(.            ; Payload grew by one byte; record the new length
@@ -850,8 +850,8 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e397 referenced 1 time by &e3b0
 .rx_b_forward_pair_loop
     jsr wait_adlc_a_irq                                               ; e397: 20 e4 e3     ..            ; Wait for ADLC A's TDRA
-    bit adlc_a_cr1                                                    ; e39a: 2c 00 c8    ,..            ; BIT SR1 -- V <- bit 6 (TDRA)
-    bvc rx_b_forward_done                                             ; e39d: 50 42       PB             ; TDRA clear -> chip lost sync, escape to main_loop
+    bit adlc_a_cr1                                                    ; e39a: 2c 00 c8    ,..            ; BIT SR1 – V ← bit 6 (TDRA)
+    bvc rx_b_forward_done                                             ; e39d: 50 42       PB             ; TDRA clear → chip lost sync, escape to main_loop
     lda rx_dst_stn,y                                                  ; e39f: b9 3c 02    .<.            ; Load byte Y of the received scout
     sta adlc_a_tx                                                     ; e3a2: 8d 02 c8    ...            ; Push it to ADLC A's TX FIFO
     iny                                                               ; e3a5: c8          .              ; Advance Y
@@ -859,28 +859,28 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta adlc_a_tx                                                     ; e3a9: 8d 02 c8    ...            ; Push the second byte of the pair
     iny                                                               ; e3ac: c8          .              ; Advance Y again
     cpy rx_len                                                        ; e3ad: cc 28 02    .(.            ; Have we reached the even-rounded length yet?
-    bcc rx_b_forward_pair_loop                                        ; e3b0: 90 e5       ..             ; No -> keep looping
+    bcc rx_b_forward_pair_loop                                        ; e3b0: 90 e5       ..             ; No → keep looping
     txa                                                               ; e3b2: 8a          .              ; Recover original length from X for parity check
-    ror a                                                             ; e3b3: 6a          j              ; ROR: carry <- bit 0 (= original length was odd?)
-    bcc rx_b_forward_ack_round                                        ; e3b4: 90 09       ..             ; Even -> skip the trailing-byte path
+    ror a                                                             ; e3b3: 6a          j              ; ROR: carry ← bit 0 (= original length was odd?)
+    bcc rx_b_forward_ack_round                                        ; e3b4: 90 09       ..             ; Even → skip the trailing-byte path
     jsr wait_adlc_a_irq                                               ; e3b6: 20 e4 e3     ..            ; Odd: wait for TDRA once more for the last byte
     lda rx_dst_stn,y                                                  ; e3b9: b9 3c 02    .<.            ; Load the trailing byte
     sta adlc_a_tx                                                     ; e3bc: 8d 02 c8    ...            ; Push it to the TX FIFO
 ; &e3bf referenced 1 time by &e3b4
 .rx_b_forward_ack_round
     lda #&3f ; '?'                                                    ; e3bf: a9 3f       .?             ; A = &3F: end-of-burst CR2 value
-    sta adlc_a_cr2                                                    ; e3c1: 8d 01 c8    ...            ; Commit CR2 -- ADLC A flushes the scout
+    sta adlc_a_cr2                                                    ; e3c1: 8d 01 c8    ...            ; Commit CR2 – ADLC A flushes the scout
     jsr wait_adlc_a_irq                                               ; e3c4: 20 e4 e3     ..            ; Wait for the frame-complete IRQ
     lda #&5a ; 'Z'                                                    ; e3c7: a9 5a       .Z             ; A = &5A: reset mem_ptr_lo for the handshake stages below
     sta mem_ptr_lo                                                    ; e3c9: 85 80       ..             ; Store mem_ptr_lo
     lda #4                                                            ; e3cb: a9 04       ..             ; A = 4: reset mem_ptr_hi
-    sta mem_ptr_hi                                                    ; e3cd: 85 81       ..             ; Store mem_ptr_hi -- handshake_rx_? will write here
-    jsr handshake_rx_a                                                ; e3cf: 20 6e e5     n.            ; Stage 2: drain ACK1 from A into &045A...
-    jsr transmit_frame_b                                              ; e3d2: 20 c0 e4     ..            ; ...and retransmit it on B so the originator hears its ACK
-    jsr handshake_rx_b                                                ; e3d5: 20 ff e5     ..            ; Stage 3: drain DATA from B into &045A...
-    jsr transmit_frame_a                                              ; e3d8: 20 17 e5     ..            ; ...and retransmit it on A to the destination
-    jsr handshake_rx_a                                                ; e3db: 20 6e e5     n.            ; Stage 4: drain ACK2 from A into &045A...
-    jsr transmit_frame_b                                              ; e3de: 20 c0 e4     ..            ; ...and retransmit it on B as the final ACK
+    sta mem_ptr_hi                                                    ; e3cd: 85 81       ..             ; Store mem_ptr_hi – handshake_rx_? will write here
+    jsr handshake_rx_a                                                ; e3cf: 20 6e e5     n.            ; Stage 2: drain ACK1 from A into &045A…
+    jsr transmit_frame_b                                              ; e3d2: 20 c0 e4     ..            ; …and retransmit it on B so the originator hears its ACK
+    jsr handshake_rx_b                                                ; e3d5: 20 ff e5     ..            ; Stage 3: drain DATA from B into &045A…
+    jsr transmit_frame_a                                              ; e3d8: 20 17 e5     ..            ; …and retransmit it on A to the destination
+    jsr handshake_rx_a                                                ; e3db: 20 6e e5     n.            ; Stage 4: drain ACK2 from A into &045A…
+    jsr transmit_frame_b                                              ; e3de: 20 c0 e4     ..            ; …and retransmit it on B as the final ACK
 ; &e3e1 referenced 1 time by &e39d
 .rx_b_forward_done
     jmp main_loop                                                     ; e3e1: 4c 51 e0    LQ.            ; 4-way handshake bridged; back to main_loop
@@ -941,7 +941,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;
 ; Byte-for-byte mirror of adlc_a_full_reset, targeting ADLC B's register set at
 ; &D800-&D803. Falls through to adlc_b_listen. CR3=&00 also puts the LOC/DTR pin high,
-; so the front-panel LED is dark after this runs -- the distinguishing feature from
+; so the front-panel LED is dark after this runs – the distinguishing feature from
 ; self_test_reset_adlcs.
 ; &e40a referenced 1 time by &e008
 .adlc_b_full_reset
@@ -949,7 +949,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta adlc_b_cr1                                                    ; e40c: 8d 00 d8    ...            ; Drop ADLC B into full reset
     lda #&1e                                                          ; e40f: a9 1e       ..             ; Mask: 8-bit RX word length, abort-extend, NRZ
     sta adlc_b_tx2                                                    ; e411: 8d 03 d8    ...            ; Program CR4 (reached via tx2 slot while AC=1)
-    lda #0                                                            ; e414: a9 00       ..             ; Mask: CR3 bit 7 clear -> LOC/DTR high -> status LED OFF
+    lda #0                                                            ; e414: a9 00       ..             ; Mask: CR3 bit 7 clear → LOC/DTR high → status LED OFF
     sta adlc_b_cr2                                                    ; e416: 8d 01 d8    ...            ; Program CR3; fall through into listen mode
 ; ***************************************************************************************
 ; Enter ADLC B RX listen mode
@@ -980,10 +980,9 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; Everything else starts at zero and is populated later by bridge-protocol
 ; announcements learned in the rx handlers (see rx_a_handle_80 / rx_b_handle_80).
 ;
-; Called from the reset handler and also re-invoked from the two rx_?_handle_80 paths
-; -- receiving an initial bridge announcement indicates a topology change that
-; invalidates the learned state, so the Bridge forgets everything and starts
-; accumulating again.
+; Called from the reset handler and also re-invoked from the two rx_?_handle_80 paths –
+; receiving an initial bridge announcement indicates a topology change that invalidates
+; the learned state, so the Bridge forgets everything and starts accumulating again.
 ; &e424 referenced 3 times by &e002, &e1d6, &e357
 .init_reachable_nets
     ldy #0                                                            ; e424: a0 00       ..             ; Y: walks every network number 0..255
@@ -1024,21 +1023,21 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; to ~7 ms. This spread means multiple bridges on the same segment responding to a
 ; broadcast query (ctrl=&82) transmit their responses at measurably different times,
 ; reducing the chance of collisions on the shared medium. Bridges with higher network
-; numbers back off longer -- a cheap deterministic priority scheme that requires no
+; numbers back off longer – a cheap deterministic priority scheme that requires no
 ; coordination.
 ; &e448 referenced 2 times by &e1ac, &e32d
 .stagger_delay
     ldy #&40 ; '@'                                                    ; e448: a0 40       .@             ; Y = &40: seed for the fixed-length settling delay
 ; &e44a referenced 1 time by &e44b
 .stagger_delay_prelude
-    dey                                                               ; e44a: 88          .              ; Tight DEY/BNE loop -- burns ~160 us regardless of caller
+    dey                                                               ; e44a: 88          .              ; Tight DEY/BNE loop – burns ~160 us regardless of caller
     bne stagger_delay_prelude                                         ; e44b: d0 fd       ..             ; Spin until the prelude counter hits zero
 ; &e44d referenced 1 time by &e455
 .stagger_delay_outer
     ldy #&14                                                          ; e44d: a0 14       ..             ; Y = &14: seed for one inner-loop iteration
 ; &e44f referenced 1 time by &e450
 .stagger_delay_inner
-    dey                                                               ; e44f: 88          .              ; Tight DEY/BNE -- ~50 us per outer iteration
+    dey                                                               ; e44f: 88          .              ; Tight DEY/BNE – ~50 us per outer iteration
     bne stagger_delay_inner                                           ; e450: d0 fd       ..             ; Spin until the inner counter hits zero
     dec ctr24_lo                                                      ; e452: ce 14 02    ...            ; One tick of the caller's network-number count
     bne stagger_delay_outer                                           ; e455: d0 f6       ..             ; Loop until ctr24_lo reaches zero (net_num_? ticks)
@@ -1048,7 +1047,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; Build a BridgeReset scout carrying net_num_b as payload
 ;
 ; Populates the outbound frame control block at &045A-&0460 with an all-broadcast
-; BridgeReset scout -- ctrl=&80, port=&9C, payload=net_num_b. At reset time this is
+; BridgeReset scout – ctrl=&80, port=&9C, payload=net_num_b. At reset time this is
 ; transmitted via ADLC A first (announcing "network net_num_b is reachable through me"
 ; to side A's stations), then tx_data0 is patched to net_num_a and the same frame is
 ; re-transmitted via ADLC B.
@@ -1072,7 +1071,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; received frame is a well-formed bridge announcement.
 ;
 ; Also writes &06 to tx_end_lo and &04 to tx_end_hi (so the transmit routine sends
-; bytes &045A..&0460 inclusive -- 7 bytes when X=1), loads X=1 (trailing-byte flag for
+; bytes &045A..&0460 inclusive – 7 bytes when X=1), loads X=1 (trailing-byte flag for
 ; transmit_frame_a), and points mem_ptr at the frame block (&045A).
 ;
 ; Called from the reset handler at &E038 and again from &E098 (the main-loop periodic
@@ -1110,7 +1109,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; A second frame-builder (sibling of build_announce_b) used by the bridge-query
 ; response path. Called twice per response: once to build the reply scout (ctrl=&80 +
 ; reply_port as the port), then after the querier's scout-ACK has been received, called
-; again to rebuild the buffer as a data frame -- the caller then patches bytes 4 and 5
+; again to rebuild the buffer as a data frame – the caller then patches bytes 4 and 5
 ; (labelled tx_ctrl and tx_port but genuinely payload in a data frame) with the routing
 ; answer. Where build_announce_b writes a broadcast-addressed template, this one builds
 ; a unicast reply:
@@ -1130,7 +1129,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;
 ; Called from the two query-response paths (&E1A0 and &E1B8 on side A; &E321 and &E339
 ; on side B). Each caller then patches a subset of the fields before calling
-; transmit_frame_? -- the idiomatic second call in particular overwrites tx_ctrl and
+; transmit_frame_? – the idiomatic second call in particular overwrites tx_ctrl and
 ; tx_port to carry the bridge's routing answer.
 ; &e48d referenced 4 times by &e1a0, &e1b8, &e321, &e339
 .build_query_response
@@ -1175,13 +1174,13 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e4cc referenced 2 times by &e4ec, &e4f3
 .transmit_frame_b_pair_loop
     jsr wait_adlc_b_irq                                               ; e4cc: 20 ea e3     ..            ; Wait for ADLC B IRQ (TDRA = FIFO ready for bytes)
-    bit adlc_b_cr1                                                    ; e4cf: 2c 00 d8    ,..            ; BIT SR1 -- V flag <- bit 6 (TDRA)
-    bvs transmit_frame_b_send_pair                                    ; e4d2: 70 05       p.             ; TDRA set -> FIFO has room, send the next pair
+    bit adlc_b_cr1                                                    ; e4cf: 2c 00 d8    ,..            ; BIT SR1 – V flag ← bit 6 (TDRA)
+    bvs transmit_frame_b_send_pair                                    ; e4d2: 70 05       p.             ; TDRA set → FIFO has room, send the next pair
 ; &e4d4 referenced 1 time by &e4ff
 .transmit_frame_b_escape
-    pla                                                               ; e4d4: 68          h              ; TDRA clear -> ADLC state bad; drop return address...
-    pla                                                               ; e4d5: 68          h              ; ...(second PLA completes the drop)
-    jmp main_loop                                                     ; e4d6: 4c 51 e0    LQ.            ; ...and escape to main_loop
+    pla                                                               ; e4d4: 68          h              ; TDRA clear → ADLC state bad; drop return address…
+    pla                                                               ; e4d5: 68          h              ; …(second PLA completes the drop)
+    jmp main_loop                                                     ; e4d6: 4c 51 e0    LQ.            ; …and escape to main_loop
 
 ; &e4d9 referenced 1 time by &e4d2
 .transmit_frame_b_send_pair
@@ -1191,41 +1190,41 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     lda (mem_ptr_lo),y                                                ; e4df: b1 80       ..             ; Load the next frame byte
     sta adlc_b_tx                                                     ; e4e1: 8d 02 d8    ...            ; Push the second byte of the pair
     iny                                                               ; e4e4: c8          .              ; Advance Y again
-    bne transmit_frame_b_end_check                                    ; e4e5: d0 02       ..             ; Non-zero Y -> stay on current page
-    inc mem_ptr_hi                                                    ; e4e7: e6 81       ..             ; Y wrapped to zero -> bump mem_ptr to next page
+    bne transmit_frame_b_end_check                                    ; e4e5: d0 02       ..             ; Non-zero Y → stay on current page
+    inc mem_ptr_hi                                                    ; e4e7: e6 81       ..             ; Y wrapped to zero → bump mem_ptr to next page
 ; &e4e9 referenced 1 time by &e4e5
 .transmit_frame_b_end_check
     cpy tx_end_lo                                                     ; e4e9: cc 00 02    ...            ; Compare Y with tx_end_lo
-    bne transmit_frame_b_pair_loop                                    ; e4ec: d0 de       ..             ; Still short of end-of-frame low byte -> more to send
+    bne transmit_frame_b_pair_loop                                    ; e4ec: d0 de       ..             ; Still short of end-of-frame low byte → more to send
     lda mem_ptr_hi                                                    ; e4ee: a5 81       ..             ; Load current mem_ptr_hi
     cmp tx_end_hi                                                     ; e4f0: cd 01 02    ...            ; Compare with tx_end_hi
-    bcc transmit_frame_b_pair_loop                                    ; e4f3: 90 d7       ..             ; Still on a lower page than the end -> more to send
+    bcc transmit_frame_b_pair_loop                                    ; e4f3: 90 d7       ..             ; Still on a lower page than the end → more to send
     txa                                                               ; e4f5: 8a          .              ; Recover X (trailing-byte flag) from before the loop
     ror a                                                             ; e4f6: 6a          j              ; Rotate bit 0 into carry
-    bcc transmit_frame_b_finish                                       ; e4f7: 90 0d       ..             ; X was even -> no trailing byte, skip ahead
-    jsr wait_adlc_b_irq                                               ; e4f9: 20 ea e3     ..            ; X was odd -> wait for TDRA once more
+    bcc transmit_frame_b_finish                                       ; e4f7: 90 0d       ..             ; X was even → no trailing byte, skip ahead
+    jsr wait_adlc_b_irq                                               ; e4f9: 20 ea e3     ..            ; X was odd → wait for TDRA once more
     bit adlc_b_cr1                                                    ; e4fc: 2c 00 d8    ,..            ; BIT SR1 to test TDRA again
-    bvc transmit_frame_b_escape                                       ; e4ff: 50 d3       P.             ; TDRA clear -> escape (mirror of &E4D4)
+    bvc transmit_frame_b_escape                                       ; e4ff: 50 d3       P.             ; TDRA clear → escape (mirror of &E4D4)
     lda (mem_ptr_lo),y                                                ; e501: b1 80       ..             ; Load the extra trailing byte
     sta adlc_b_tx                                                     ; e503: 8d 02 d8    ...            ; Push trailing byte to TX FIFO
 ; &e506 referenced 1 time by &e4f7
 .transmit_frame_b_finish
     lda #&3f ; '?'                                                    ; e506: a9 3f       .?             ; A = &3F: signal end-of-burst via CR2
-    sta adlc_b_cr2                                                    ; e508: 8d 01 d8    ...            ; Commit CR2 -- ADLC flushes and flags frame-complete
+    sta adlc_b_cr2                                                    ; e508: 8d 01 d8    ...            ; Commit CR2 – ADLC flushes and flags frame-complete
     jsr wait_adlc_b_irq                                               ; e50b: 20 ea e3     ..            ; Wait for the frame-complete IRQ
     lda #&5a ; 'Z'                                                    ; e50e: a9 5a       .Z             ; A = &5A: reset mem_ptr_lo to &045A base
     sta mem_ptr_lo                                                    ; e510: 85 80       ..             ; Store mem_ptr_lo
     lda #4                                                            ; e512: a9 04       ..             ; A = 4: reset mem_ptr_hi to page &04
-    sta mem_ptr_hi                                                    ; e514: 85 81       ..             ; Store mem_ptr_hi -- pointer ready for next builder
+    sta mem_ptr_hi                                                    ; e514: 85 81       ..             ; Store mem_ptr_hi – pointer ready for next builder
     rts                                                               ; e516: 60          `              ; Return; the frame has left ADLC B
 
 ; ***************************************************************************************
 ; Send the frame at mem_ptr out through ADLC A's TX FIFO
 ;
-; Sends the frame starting at mem_ptr (&80/&81 -- normally pointing at the outbound
+; Sends the frame starting at mem_ptr (&80/&81 – normally pointing at the outbound
 ; control block &045A) through ADLC A's TX FIFO. Termination is controlled by the
 ; 16-bit pointer tx_end_lo/tx_end_hi (&0200/&0201): the loop sends byte pairs until
-; mem_ptr + Y reaches or passes (tx_end_hi:tx_end_lo). X is a flag -- non-zero means
+; mem_ptr + Y reaches or passes (tx_end_hi:tx_end_lo). X is a flag – non-zero means
 ; send one extra trailing byte after the terminator (used by builders that append a
 ; payload like build_announce_b's net_num_b at &0460).
 ;
@@ -1245,7 +1244,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;
 ; Abnormal exit: if any of the three wait_adlc_a_irq polls returns with SR1's V-bit
 ; clear instead of set (meaning the ADLC didn't reach the expected TDRA state), the
-; routine drops the caller's return address from the stack and JMP's into main_loop --
+; routine drops the caller's return address from the stack and JMP's into main_loop –
 ; the same escape-to-main pattern used by wait_adlc_a_idle.
 ;
 ; Called from seven sites: reset (&E03E), &E0AD, &E1B2, &E1CD, &E251, &E25D, &E3D8.
@@ -1259,13 +1258,13 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e523 referenced 2 times by &e543, &e54a
 .transmit_frame_a_pair_loop
     jsr wait_adlc_a_irq                                               ; e523: 20 e4 e3     ..            ; Wait for ADLC A IRQ (TDRA = FIFO ready for bytes)
-    bit adlc_a_cr1                                                    ; e526: 2c 00 c8    ,..            ; BIT SR1 -- V flag <- bit 6 (TDRA)
-    bvs transmit_frame_a_send_pair                                    ; e529: 70 05       p.             ; TDRA set -> FIFO has room, send the next pair
+    bit adlc_a_cr1                                                    ; e526: 2c 00 c8    ,..            ; BIT SR1 – V flag ← bit 6 (TDRA)
+    bvs transmit_frame_a_send_pair                                    ; e529: 70 05       p.             ; TDRA set → FIFO has room, send the next pair
 ; &e52b referenced 1 time by &e556
 .transmit_frame_a_escape
-    pla                                                               ; e52b: 68          h              ; TDRA clear -> ADLC state bad; drop return address...
-    pla                                                               ; e52c: 68          h              ; ...(second PLA completes the drop)
-    jmp main_loop                                                     ; e52d: 4c 51 e0    LQ.            ; ...and escape to main_loop
+    pla                                                               ; e52b: 68          h              ; TDRA clear → ADLC state bad; drop return address…
+    pla                                                               ; e52c: 68          h              ; …(second PLA completes the drop)
+    jmp main_loop                                                     ; e52d: 4c 51 e0    LQ.            ; …and escape to main_loop
 
 ; &e530 referenced 1 time by &e529
 .transmit_frame_a_send_pair
@@ -1275,32 +1274,32 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     lda (mem_ptr_lo),y                                                ; e536: b1 80       ..             ; Load the next frame byte
     sta adlc_a_tx                                                     ; e538: 8d 02 c8    ...            ; Push the second byte of the pair
     iny                                                               ; e53b: c8          .              ; Advance Y again
-    bne transmit_frame_a_end_check                                    ; e53c: d0 02       ..             ; Non-zero Y -> stay on current page
-    inc mem_ptr_hi                                                    ; e53e: e6 81       ..             ; Y wrapped to zero -> bump mem_ptr to next page
+    bne transmit_frame_a_end_check                                    ; e53c: d0 02       ..             ; Non-zero Y → stay on current page
+    inc mem_ptr_hi                                                    ; e53e: e6 81       ..             ; Y wrapped to zero → bump mem_ptr to next page
 ; &e540 referenced 1 time by &e53c
 .transmit_frame_a_end_check
     cpy tx_end_lo                                                     ; e540: cc 00 02    ...            ; Compare Y with tx_end_lo
-    bne transmit_frame_a_pair_loop                                    ; e543: d0 de       ..             ; Still short of end-of-frame low byte -> more to send
+    bne transmit_frame_a_pair_loop                                    ; e543: d0 de       ..             ; Still short of end-of-frame low byte → more to send
     lda mem_ptr_hi                                                    ; e545: a5 81       ..             ; Load current mem_ptr_hi
     cmp tx_end_hi                                                     ; e547: cd 01 02    ...            ; Compare with tx_end_hi
-    bcc transmit_frame_a_pair_loop                                    ; e54a: 90 d7       ..             ; Still on a lower page than the end -> more to send
+    bcc transmit_frame_a_pair_loop                                    ; e54a: 90 d7       ..             ; Still on a lower page than the end → more to send
     txa                                                               ; e54c: 8a          .              ; Recover X (trailing-byte flag) from before the loop
     ror a                                                             ; e54d: 6a          j              ; Rotate bit 0 into carry
-    bcc transmit_frame_a_finish                                       ; e54e: 90 0d       ..             ; X was even -> no trailing byte, skip ahead
-    jsr wait_adlc_a_irq                                               ; e550: 20 e4 e3     ..            ; X was odd -> wait for TDRA once more
+    bcc transmit_frame_a_finish                                       ; e54e: 90 0d       ..             ; X was even → no trailing byte, skip ahead
+    jsr wait_adlc_a_irq                                               ; e550: 20 e4 e3     ..            ; X was odd → wait for TDRA once more
     bit adlc_a_cr1                                                    ; e553: 2c 00 c8    ,..            ; BIT SR1 to test TDRA again
-    bvc transmit_frame_a_escape                                       ; e556: 50 d3       P.             ; TDRA clear -> escape (mirror of &E52B)
+    bvc transmit_frame_a_escape                                       ; e556: 50 d3       P.             ; TDRA clear → escape (mirror of &E52B)
     lda (mem_ptr_lo),y                                                ; e558: b1 80       ..             ; Load the extra trailing byte (tx_data0 in announce frames)
     sta adlc_a_tx                                                     ; e55a: 8d 02 c8    ...            ; Push trailing byte to TX FIFO
 ; &e55d referenced 1 time by &e54e
 .transmit_frame_a_finish
     lda #&3f ; '?'                                                    ; e55d: a9 3f       .?             ; A = &3F: signal end-of-burst via CR2
-    sta adlc_a_cr2                                                    ; e55f: 8d 01 c8    ...            ; Commit CR2 -- ADLC flushes and flags frame-complete
+    sta adlc_a_cr2                                                    ; e55f: 8d 01 c8    ...            ; Commit CR2 – ADLC flushes and flags frame-complete
     jsr wait_adlc_a_irq                                               ; e562: 20 e4 e3     ..            ; Wait for the frame-complete IRQ
     lda #&5a ; 'Z'                                                    ; e565: a9 5a       .Z             ; A = &5A: reset mem_ptr_lo to &045A base
     sta mem_ptr_lo                                                    ; e567: 85 80       ..             ; Store mem_ptr_lo
     lda #4                                                            ; e569: a9 04       ..             ; A = 4: reset mem_ptr_hi to page &04
-    sta mem_ptr_hi                                                    ; e56b: 85 81       ..             ; Store mem_ptr_hi -- pointer ready for next builder
+    sta mem_ptr_hi                                                    ; e56b: 85 81       ..             ; Store mem_ptr_hi – pointer ready for next builder
     rts                                                               ; e56d: 60          `              ; Return; the frame has left ADLC A
 
 ; ***************************************************************************************
@@ -1321,7 +1320,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;   explicit before forwarding.
 ; - Reject the frame if tx_dst_net is zero (no destination network declared) or if
 ;   reachable_via_b has no entry for that network (we don't know a route).
-; - If tx_dst_net equals net_num_b (our own B-side network), normalise it to zero --
+; - If tx_dst_net equals net_num_b (our own B-side network), normalise it to zero –
 ;   from side B's perspective the frame is now "local".
 ;
 ; On any of the "reject" paths above, and on any sub-step that fails (no AP/RDA, no
@@ -1351,12 +1350,12 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta adlc_a_cr1                                                    ; e570: 8d 00 c8    ...            ; Re-arm ADLC A for the incoming handshake frame
     lda #1                                                            ; e573: a9 01       ..             ; A = &01: SR2 mask for AP (Address Present)
     jsr wait_adlc_a_irq                                               ; e575: 20 e4 e3     ..            ; Block until ADLC A raises its first IRQ
-    bit adlc_a_cr2                                                    ; e578: 2c 01 c8    ,..            ; BIT SR2 -- test AP bit against mask in A
+    bit adlc_a_cr2                                                    ; e578: 2c 01 c8    ,..            ; BIT SR2 – test AP bit against mask in A
     beq handshake_rx_a_escape                                         ; e57b: f0 34       .4             ; No AP: nothing arrived, escape to main
     lda adlc_a_tx                                                     ; e57d: ad 02 c8    ...            ; Read byte 0 of the handshake frame (dst_stn)
     sta tx_dst_stn                                                    ; e580: 8d 5a 04    .Z.            ; Stage into tx buffer for onward transmission
     jsr wait_adlc_a_irq                                               ; e583: 20 e4 e3     ..            ; Wait for the second RX IRQ (next byte ready)
-    bit adlc_a_cr2                                                    ; e586: 2c 01 c8    ,..            ; BIT SR2 -- RDA (bit 7) still set?
+    bit adlc_a_cr2                                                    ; e586: 2c 01 c8    ,..            ; BIT SR2 – RDA (bit 7) still set?
     bpl handshake_rx_a_escape                                         ; e589: 10 26       .&             ; RDA cleared mid-frame: truncated, escape
     lda adlc_a_tx                                                     ; e58b: ad 02 c8    ...            ; Read byte 1: destination network
     sta tx_dst_net                                                    ; e58e: 8d 5b 04    .[.            ; Stage dst_net into the forward buffer
@@ -1364,19 +1363,19 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e593 referenced 2 times by &e5a7, &e5af
 .handshake_rx_a_pair_loop
     jsr wait_adlc_a_irq                                               ; e593: 20 e4 e3     ..            ; Wait for the next RX byte
-    bit adlc_a_cr2                                                    ; e596: 2c 01 c8    ,..            ; BIT SR2 -- RDA still asserted?
-    bpl handshake_rx_a_drained                                        ; e599: 10 1b       ..             ; End-of-frame detected mid-pair -- jump to FV check
+    bit adlc_a_cr2                                                    ; e596: 2c 01 c8    ,..            ; BIT SR2 – RDA still asserted?
+    bpl handshake_rx_a_drained                                        ; e599: 10 1b       ..             ; End-of-frame detected mid-pair – jump to FV check
     lda adlc_a_tx                                                     ; e59b: ad 02 c8    ...            ; Read even-indexed payload byte
     sta (mem_ptr_lo),y                                                ; e59e: 91 80       ..             ; Store into (mem_ptr_lo)+Y in the staging buffer
     iny                                                               ; e5a0: c8          .              ; Advance Y to odd slot
     lda adlc_a_tx                                                     ; e5a1: ad 02 c8    ...            ; Read odd-indexed payload byte (no IRQ wait: paired)
     sta (mem_ptr_lo),y                                                ; e5a4: 91 80       ..             ; Store into (mem_ptr_lo)+Y
     iny                                                               ; e5a6: c8          .              ; Advance Y; wraps to 0 after 256 bytes
-    bne handshake_rx_a_pair_loop                                      ; e5a7: d0 ea       ..             ; Y didn't wrap -- stay in this page
+    bne handshake_rx_a_pair_loop                                      ; e5a7: d0 ea       ..             ; Y didn't wrap – stay in this page
     inc mem_ptr_hi                                                    ; e5a9: e6 81       ..             ; Y wrapped: advance mem_ptr_hi to next page
     lda mem_ptr_hi                                                    ; e5ab: a5 81       ..             ; Reload new page number for bounds test
     cmp top_ram_page                                                  ; e5ad: c5 82       ..             ; Compare against top_ram_page (set by boot RAM test)
-    bcc handshake_rx_a_pair_loop                                      ; e5af: 90 e2       ..             ; Still room -- keep draining into the next page
+    bcc handshake_rx_a_pair_loop                                      ; e5af: 90 e2       ..             ; Still room – keep draining into the next page
 ; &e5b1 referenced 5 times by &e57b, &e589, &e5c5, &e5e4, &e5e9
 .handshake_rx_a_escape
     pla                                                               ; e5b1: 68          h              ; Drop caller's return address (lo)
@@ -1390,9 +1389,9 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     lda #&84                                                          ; e5bb: a9 84       ..             ; A = &84: clear-RX-status + FV-clear bits
     sta adlc_a_cr2                                                    ; e5bd: 8d 01 c8    ...            ; Commit CR2: acknowledge the end-of-frame
     lda #2                                                            ; e5c0: a9 02       ..             ; A = &02: mask SR2 bit 1 (Frame Valid)
-    bit adlc_a_cr2                                                    ; e5c2: 2c 01 c8    ,..            ; BIT SR2 -- test FV and RDA bits together
-    beq handshake_rx_a_escape                                         ; e5c5: f0 ea       ..             ; FV clear -> frame was corrupt/short, escape
-    bpl handshake_rx_a_finalise_len                                   ; e5c7: 10 06       ..             ; FV set but no RDA -> clean end, finalise length
+    bit adlc_a_cr2                                                    ; e5c2: 2c 01 c8    ,..            ; BIT SR2 – test FV and RDA bits together
+    beq handshake_rx_a_escape                                         ; e5c5: f0 ea       ..             ; FV clear → frame was corrupt/short, escape
+    bpl handshake_rx_a_finalise_len                                   ; e5c7: 10 06       ..             ; FV set but no RDA → clean end, finalise length
     lda adlc_a_tx                                                     ; e5c9: ad 02 c8    ...            ; FV+RDA both set: one trailing byte still pending
     sta (mem_ptr_lo),y                                                ; e5cc: 91 80       ..             ; Store the odd trailing byte into the staging buffer
     iny                                                               ; e5ce: c8          .              ; Advance Y to cover that final byte
@@ -1403,25 +1402,25 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     and #&fe                                                          ; e5d1: 29 fe       ).             ; Mask low bit: round length DOWN to even
     sta tx_end_lo                                                     ; e5d3: 8d 00 02    ...            ; Store rounded tx_end_lo
     lda tx_src_net                                                    ; e5d6: ad 5d 04    .].            ; Load src_net from the just-drained frame
-    bne handshake_rx_a_route_check                                    ; e5d9: d0 06       ..             ; Non-zero -> sender supplied src_net, keep it
+    bne handshake_rx_a_route_check                                    ; e5d9: d0 06       ..             ; Non-zero → sender supplied src_net, keep it
     lda net_num_a                                                     ; e5db: ad 00 c0    ...            ; Sender left src_net as 0 ('my local net')
     sta tx_src_net                                                    ; e5de: 8d 5d 04    .].            ; Substitute our own A-side network number
 ; &e5e1 referenced 1 time by &e5d9
 .handshake_rx_a_route_check
     ldy tx_dst_net                                                    ; e5e1: ac 5b 04    .[.            ; Load dst_net into Y for routing lookup
-    beq handshake_rx_a_escape                                         ; e5e4: f0 cb       ..             ; dst_net = 0 (unspecified) -> reject, escape
+    beq handshake_rx_a_escape                                         ; e5e4: f0 cb       ..             ; dst_net = 0 (unspecified) → reject, escape
     lda reachable_via_b,y                                             ; e5e6: b9 5a 02    .Z.            ; Probe reachable_via_b[dst_net]
-    beq handshake_rx_a_escape                                         ; e5e9: f0 c6       ..             ; No route via side B -> reject, escape
+    beq handshake_rx_a_escape                                         ; e5e9: f0 c6       ..             ; No route via side B → reject, escape
     cpy net_num_b                                                     ; e5eb: cc 00 d0    ...            ; Compare dst_net with our B-side net number
-    bne handshake_rx_a_end                                            ; e5ee: d0 05       ..             ; Not us -> leave dst_net as-is, skip the rewrite
-    lda #0                                                            ; e5f0: a9 00       ..             ; Frame is for the B-side's local network...
-    sta tx_dst_net                                                    ; e5f2: 8d 5b 04    .[.            ; ...normalise dst_net to 0 for the outbound header
+    bne handshake_rx_a_end                                            ; e5ee: d0 05       ..             ; Not us → leave dst_net as-is, skip the rewrite
+    lda #0                                                            ; e5f0: a9 00       ..             ; Frame is for the B-side's local network…
+    sta tx_dst_net                                                    ; e5f2: 8d 5b 04    .[.            ; …normalise dst_net to 0 for the outbound header
 ; &e5f5 referenced 1 time by &e5ee
 .handshake_rx_a_end
     lda mem_ptr_hi                                                    ; e5f5: a5 81       ..             ; Read final mem_ptr_hi (last page written)
     sta tx_end_hi                                                     ; e5f7: 8d 01 02    ...            ; Record as tx_end_hi (multi-page frames need this)
-    lda #4                                                            ; e5fa: a9 04       ..             ; A = &04: reset mem_ptr_hi back to &045A page...
-    sta mem_ptr_hi                                                    ; e5fc: 85 81       ..             ; ...so the transmit path walks the buffer from byte 0
+    lda #4                                                            ; e5fa: a9 04       ..             ; A = &04: reset mem_ptr_hi back to &045A page…
+    sta mem_ptr_hi                                                    ; e5fc: 85 81       ..             ; …so the transmit path walks the buffer from byte 0
     rts                                                               ; e5fe: 60          `              ; Return: frame staged, transmitter can send it verbatim
 
 ; ***************************************************************************************
@@ -1442,7 +1441,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;   explicit before forwarding.
 ; - Reject the frame if tx_dst_net is zero (no destination network declared) or if
 ;   reachable_via_a has no entry for that network (no route).
-; - If tx_dst_net equals net_num_a (our own A-side network), normalise it to zero --
+; - If tx_dst_net equals net_num_a (our own A-side network), normalise it to zero –
 ;   from side A's perspective the frame is now "local".
 ;
 ; On any of the "reject" paths above, and on any sub-step that fails (no AP/RDA, no
@@ -1472,12 +1471,12 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta adlc_b_cr1                                                    ; e601: 8d 00 d8    ...            ; Re-arm ADLC B for the incoming handshake frame
     lda #1                                                            ; e604: a9 01       ..             ; A = &01: SR2 mask for AP (Address Present)
     jsr wait_adlc_b_irq                                               ; e606: 20 ea e3     ..            ; Block until ADLC B raises its first IRQ
-    bit adlc_b_cr2                                                    ; e609: 2c 01 d8    ,..            ; BIT SR2 -- test AP bit against mask in A
+    bit adlc_b_cr2                                                    ; e609: 2c 01 d8    ,..            ; BIT SR2 – test AP bit against mask in A
     beq handshake_rx_b_escape                                         ; e60c: f0 34       .4             ; No AP: nothing arrived, escape to main
     lda adlc_b_tx                                                     ; e60e: ad 02 d8    ...            ; Read byte 0 of the handshake frame (dst_stn)
     sta tx_dst_stn                                                    ; e611: 8d 5a 04    .Z.            ; Stage into tx buffer for onward transmission
     jsr wait_adlc_b_irq                                               ; e614: 20 ea e3     ..            ; Wait for the second RX IRQ (next byte ready)
-    bit adlc_b_cr2                                                    ; e617: 2c 01 d8    ,..            ; BIT SR2 -- RDA (bit 7) still set?
+    bit adlc_b_cr2                                                    ; e617: 2c 01 d8    ,..            ; BIT SR2 – RDA (bit 7) still set?
     bpl handshake_rx_b_escape                                         ; e61a: 10 26       .&             ; RDA cleared mid-frame: truncated, escape
     lda adlc_b_tx                                                     ; e61c: ad 02 d8    ...            ; Read byte 1: destination network
     sta tx_dst_net                                                    ; e61f: 8d 5b 04    .[.            ; Stage dst_net into the forward buffer
@@ -1485,19 +1484,19 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e624 referenced 2 times by &e638, &e640
 .handshake_rx_b_pair_loop
     jsr wait_adlc_b_irq                                               ; e624: 20 ea e3     ..            ; Wait for the next RX byte
-    bit adlc_b_cr2                                                    ; e627: 2c 01 d8    ,..            ; BIT SR2 -- RDA still asserted?
-    bpl handshake_rx_b_drained                                        ; e62a: 10 1b       ..             ; End-of-frame detected mid-pair -- jump to FV check
+    bit adlc_b_cr2                                                    ; e627: 2c 01 d8    ,..            ; BIT SR2 – RDA still asserted?
+    bpl handshake_rx_b_drained                                        ; e62a: 10 1b       ..             ; End-of-frame detected mid-pair – jump to FV check
     lda adlc_b_tx                                                     ; e62c: ad 02 d8    ...            ; Read even-indexed payload byte
     sta (mem_ptr_lo),y                                                ; e62f: 91 80       ..             ; Store into (mem_ptr_lo)+Y in the staging buffer
     iny                                                               ; e631: c8          .              ; Advance Y to odd slot
     lda adlc_b_tx                                                     ; e632: ad 02 d8    ...            ; Read odd-indexed payload byte (no IRQ wait: paired)
     sta (mem_ptr_lo),y                                                ; e635: 91 80       ..             ; Store into (mem_ptr_lo)+Y
     iny                                                               ; e637: c8          .              ; Advance Y; wraps to 0 after 256 bytes
-    bne handshake_rx_b_pair_loop                                      ; e638: d0 ea       ..             ; Y didn't wrap -- stay in this page
+    bne handshake_rx_b_pair_loop                                      ; e638: d0 ea       ..             ; Y didn't wrap – stay in this page
     inc mem_ptr_hi                                                    ; e63a: e6 81       ..             ; Y wrapped: advance mem_ptr_hi to next page
     lda mem_ptr_hi                                                    ; e63c: a5 81       ..             ; Reload new page number for bounds test
     cmp top_ram_page                                                  ; e63e: c5 82       ..             ; Compare against top_ram_page (set by boot RAM test)
-    bcc handshake_rx_b_pair_loop                                      ; e640: 90 e2       ..             ; Still room -- keep draining into the next page
+    bcc handshake_rx_b_pair_loop                                      ; e640: 90 e2       ..             ; Still room – keep draining into the next page
 ; &e642 referenced 5 times by &e60c, &e61a, &e656, &e675, &e67a
 .handshake_rx_b_escape
     pla                                                               ; e642: 68          h              ; Drop caller's return address (lo)
@@ -1511,9 +1510,9 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     lda #&84                                                          ; e64c: a9 84       ..             ; A = &84: clear-RX-status + FV-clear bits
     sta adlc_b_cr2                                                    ; e64e: 8d 01 d8    ...            ; Commit CR2: acknowledge the end-of-frame
     lda #2                                                            ; e651: a9 02       ..             ; A = &02: mask SR2 bit 1 (Frame Valid)
-    bit adlc_b_cr2                                                    ; e653: 2c 01 d8    ,..            ; BIT SR2 -- test FV and RDA bits together
-    beq handshake_rx_b_escape                                         ; e656: f0 ea       ..             ; FV clear -> frame was corrupt/short, escape
-    bpl handshake_rx_b_finalise_len                                   ; e658: 10 06       ..             ; FV set but no RDA -> clean end, finalise length
+    bit adlc_b_cr2                                                    ; e653: 2c 01 d8    ,..            ; BIT SR2 – test FV and RDA bits together
+    beq handshake_rx_b_escape                                         ; e656: f0 ea       ..             ; FV clear → frame was corrupt/short, escape
+    bpl handshake_rx_b_finalise_len                                   ; e658: 10 06       ..             ; FV set but no RDA → clean end, finalise length
     lda adlc_b_tx                                                     ; e65a: ad 02 d8    ...            ; FV+RDA both set: one trailing byte still pending
     sta (mem_ptr_lo),y                                                ; e65d: 91 80       ..             ; Store the odd trailing byte into the staging buffer
     iny                                                               ; e65f: c8          .              ; Advance Y to cover that final byte
@@ -1524,25 +1523,25 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     and #&fe                                                          ; e662: 29 fe       ).             ; Mask low bit: round length DOWN to even
     sta tx_end_lo                                                     ; e664: 8d 00 02    ...            ; Store rounded tx_end_lo
     lda tx_src_net                                                    ; e667: ad 5d 04    .].            ; Load src_net from the just-drained frame
-    bne handshake_rx_b_route_check                                    ; e66a: d0 06       ..             ; Non-zero -> sender supplied src_net, keep it
+    bne handshake_rx_b_route_check                                    ; e66a: d0 06       ..             ; Non-zero → sender supplied src_net, keep it
     lda net_num_b                                                     ; e66c: ad 00 d0    ...            ; Sender left src_net as 0 ('my local net')
     sta tx_src_net                                                    ; e66f: 8d 5d 04    .].            ; Substitute our own B-side network number
 ; &e672 referenced 1 time by &e66a
 .handshake_rx_b_route_check
     ldy tx_dst_net                                                    ; e672: ac 5b 04    .[.            ; Load dst_net into Y for routing lookup
-    beq handshake_rx_b_escape                                         ; e675: f0 cb       ..             ; dst_net = 0 (unspecified) -> reject, escape
+    beq handshake_rx_b_escape                                         ; e675: f0 cb       ..             ; dst_net = 0 (unspecified) → reject, escape
     lda reachable_via_a,y                                             ; e677: b9 5a 03    .Z.            ; Probe reachable_via_a[dst_net]
-    beq handshake_rx_b_escape                                         ; e67a: f0 c6       ..             ; No route via side A -> reject, escape
+    beq handshake_rx_b_escape                                         ; e67a: f0 c6       ..             ; No route via side A → reject, escape
     cpy net_num_a                                                     ; e67c: cc 00 c0    ...            ; Compare dst_net with our A-side net number
-    bne handshake_rx_b_end                                            ; e67f: d0 05       ..             ; Not us -> leave dst_net as-is, skip the rewrite
-    lda #0                                                            ; e681: a9 00       ..             ; Frame is for the A-side's local network...
-    sta tx_dst_net                                                    ; e683: 8d 5b 04    .[.            ; ...normalise dst_net to 0 for the outbound header
+    bne handshake_rx_b_end                                            ; e67f: d0 05       ..             ; Not us → leave dst_net as-is, skip the rewrite
+    lda #0                                                            ; e681: a9 00       ..             ; Frame is for the A-side's local network…
+    sta tx_dst_net                                                    ; e683: 8d 5b 04    .[.            ; …normalise dst_net to 0 for the outbound header
 ; &e686 referenced 1 time by &e67f
 .handshake_rx_b_end
     lda mem_ptr_hi                                                    ; e686: a5 81       ..             ; Read final mem_ptr_hi (last page written)
     sta tx_end_hi                                                     ; e688: 8d 01 02    ...            ; Record as tx_end_hi (multi-page frames need this)
-    lda #4                                                            ; e68b: a9 04       ..             ; A = &04: reset mem_ptr_hi back to &045A page...
-    sta mem_ptr_hi                                                    ; e68d: 85 81       ..             ; ...so the transmit path walks the buffer from byte 0
+    lda #4                                                            ; e68b: a9 04       ..             ; A = &04: reset mem_ptr_hi back to &045A page…
+    sta mem_ptr_hi                                                    ; e68d: 85 81       ..             ; …so the transmit path walks the buffer from byte 0
     rts                                                               ; e68f: 60          `              ; Return: frame staged, transmitter can send it verbatim
 
 ; ***************************************************************************************
@@ -1565,13 +1564,13 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e6a2 referenced 3 times by &e6c2, &e6c7, &e6cc
 .wait_adlc_b_idle_loop
     lda #&67 ; 'g'                                                    ; e6a2: a9 67       .g             ; A = &67: standard listen-mode CR2 value
-    sta adlc_b_cr2                                                    ; e6a4: 8d 01 d8    ...            ; Re-prime CR2 -- clears any stale status bits
+    sta adlc_b_cr2                                                    ; e6a4: 8d 01 d8    ...            ; Re-prime CR2 – clears any stale status bits
     lda #4                                                            ; e6a7: a9 04       ..             ; A = &04: mask for SR2 bit 2 (Rx Idle / line quiet)
     bit adlc_b_cr2                                                    ; e6a9: 2c 01 d8    ,..            ; Test SR2 bit 2 via BIT
-    bne wait_adlc_b_idle_ready                                        ; e6ac: d0 25       .%             ; Bit set -> line idle; we can transmit (exit)
+    bne wait_adlc_b_idle_ready                                        ; e6ac: d0 25       .%             ; Bit set → line idle; we can transmit (exit)
     lda adlc_b_cr2                                                    ; e6ae: ad 01 d8    ...            ; Read SR2 into A for the mask test below
-    and #&81                                                          ; e6b1: 29 81       ).             ; Mask AP (bit 0) + RDA (bit 7) -- someone else talking?
-    beq wait_adlc_b_idle_tick                                         ; e6b3: f0 0a       ..             ; Neither set -> still quiet-ish, just increment counter
+    and #&81                                                          ; e6b1: 29 81       ).             ; Mask AP (bit 0) + RDA (bit 7) – someone else talking?
+    beq wait_adlc_b_idle_tick                                         ; e6b3: f0 0a       ..             ; Neither set → still quiet-ish, just increment counter
     lda #&c2                                                          ; e6b5: a9 c2       ..             ; Mask: reset TX, RX active
     sta adlc_b_cr1                                                    ; e6b7: 8d 00 d8    ...            ; Abort our pending TX on ADLC B (yield to other station)
     lda #&82                                                          ; e6ba: a9 82       ..             ; Mask: TX still reset, RX IRQ enabled
@@ -1579,18 +1578,18 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e6bf referenced 1 time by &e6b3
 .wait_adlc_b_idle_tick
     inc ctr24_lo                                                      ; e6bf: ee 14 02    ...            ; Bump timeout counter (LSB first)
-    bne wait_adlc_b_idle_loop                                         ; e6c2: d0 de       ..             ; Low byte didn't wrap -> keep polling
+    bne wait_adlc_b_idle_loop                                         ; e6c2: d0 de       ..             ; Low byte didn't wrap → keep polling
     inc ctr24_mid                                                     ; e6c4: ee 15 02    ...            ; Bump mid byte
-    bne wait_adlc_b_idle_loop                                         ; e6c7: d0 d9       ..             ; Mid byte didn't wrap -> keep polling
+    bne wait_adlc_b_idle_loop                                         ; e6c7: d0 d9       ..             ; Mid byte didn't wrap → keep polling
     inc ctr24_hi                                                      ; e6c9: ee 16 02    ...            ; Bump high byte
-    bne wait_adlc_b_idle_loop                                         ; e6cc: d0 d4       ..             ; High byte didn't wrap -> keep polling
-    pla                                                               ; e6ce: 68          h              ; Counter overflowed -- drop caller's return address...
-    pla                                                               ; e6cf: 68          h              ; ...(second PLA completes the return-address drop)
-    jmp main_loop                                                     ; e6d0: 4c 51 e0    LQ.            ; ...and escape to main_loop without returning
+    bne wait_adlc_b_idle_loop                                         ; e6cc: d0 d4       ..             ; High byte didn't wrap → keep polling
+    pla                                                               ; e6ce: 68          h              ; Counter overflowed – drop caller's return address…
+    pla                                                               ; e6cf: 68          h              ; …(second PLA completes the return-address drop)
+    jmp main_loop                                                     ; e6d0: 4c 51 e0    LQ.            ; …and escape to main_loop without returning
 
 ; &e6d3 referenced 1 time by &e6ac
 .wait_adlc_b_idle_ready
-    sty adlc_b_cr2                                                    ; e6d3: 8c 01 d8    ...            ; STY: arm CR2 with &E7 (from Y) -- TX-ready listen state
+    sty adlc_b_cr2                                                    ; e6d3: 8c 01 d8    ...            ; STY: arm CR2 with &E7 (from Y) – TX-ready listen state
     lda #&44 ; 'D'                                                    ; e6d6: a9 44       .D             ; Mask: arm CR1 for transmit (TX on, IRQ off)
     sta adlc_b_cr1                                                    ; e6d8: 8d 00 d8    ...            ; Commit CR1; ADLC B ready to send
     rts                                                               ; e6db: 60          `              ; Normal return: caller transmits the frame
@@ -1607,7 +1606,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; Each iteration re-primes CR2 with &67 (clear TX/RX status, FC_TDRA, 2/1-byte, PSE)
 ; then reads SR2. Three outcomes:
 ;
-; - SR2 bit 2 set (Rx Idle): line is quiet. Arm CR2=&E7 and CR1=&44, RTS -- caller
+; - SR2 bit 2 set (Rx Idle): line is quiet. Arm CR2=&E7 and CR1=&44, RTS – caller
 ;   proceeds to transmit.
 ; - SR2 bit 0 or bit 7 set (AP or RDA): another station is sending into this ADLC. Back
 ;   off by cycling CR1 through &C2 → &82 (reset TX without touching RX) and keep
@@ -1631,13 +1630,13 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e6ee referenced 3 times by &e70e, &e713, &e718
 .wait_adlc_a_idle_loop
     lda #&67 ; 'g'                                                    ; e6ee: a9 67       .g             ; A = &67: standard listen-mode CR2 value
-    sta adlc_a_cr2                                                    ; e6f0: 8d 01 c8    ...            ; Re-prime CR2 -- clears any stale status bits
+    sta adlc_a_cr2                                                    ; e6f0: 8d 01 c8    ...            ; Re-prime CR2 – clears any stale status bits
     lda #4                                                            ; e6f3: a9 04       ..             ; A = &04: mask for SR2 bit 2 (Rx Idle / line quiet)
     bit adlc_a_cr2                                                    ; e6f5: 2c 01 c8    ,..            ; Test SR2 bit 2 via BIT
-    bne wait_adlc_a_idle_ready                                        ; e6f8: d0 25       .%             ; Bit set -> line idle; we can transmit (exit)
+    bne wait_adlc_a_idle_ready                                        ; e6f8: d0 25       .%             ; Bit set → line idle; we can transmit (exit)
     lda adlc_a_cr2                                                    ; e6fa: ad 01 c8    ...            ; Read SR2 into A for the mask test below
-    and #&81                                                          ; e6fd: 29 81       ).             ; Mask AP (bit 0) + RDA (bit 7) -- someone else talking?
-    beq wait_adlc_a_idle_tick                                         ; e6ff: f0 0a       ..             ; Neither set -> still quiet-ish, just increment counter
+    and #&81                                                          ; e6fd: 29 81       ).             ; Mask AP (bit 0) + RDA (bit 7) – someone else talking?
+    beq wait_adlc_a_idle_tick                                         ; e6ff: f0 0a       ..             ; Neither set → still quiet-ish, just increment counter
     lda #&c2                                                          ; e701: a9 c2       ..             ; Mask: reset TX, RX active
     sta adlc_a_cr1                                                    ; e703: 8d 00 c8    ...            ; Abort our pending TX on ADLC A (yield to the other station)
     lda #&82                                                          ; e706: a9 82       ..             ; Mask: TX still reset, RX IRQ enabled
@@ -1645,24 +1644,24 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &e70b referenced 1 time by &e6ff
 .wait_adlc_a_idle_tick
     inc ctr24_lo                                                      ; e70b: ee 14 02    ...            ; Bump timeout counter (LSB first)
-    bne wait_adlc_a_idle_loop                                         ; e70e: d0 de       ..             ; Low byte didn't wrap -> keep polling
+    bne wait_adlc_a_idle_loop                                         ; e70e: d0 de       ..             ; Low byte didn't wrap → keep polling
     inc ctr24_mid                                                     ; e710: ee 15 02    ...            ; Bump mid byte
-    bne wait_adlc_a_idle_loop                                         ; e713: d0 d9       ..             ; Mid byte didn't wrap -> keep polling
+    bne wait_adlc_a_idle_loop                                         ; e713: d0 d9       ..             ; Mid byte didn't wrap → keep polling
     inc ctr24_hi                                                      ; e715: ee 16 02    ...            ; Bump high byte
-    bne wait_adlc_a_idle_loop                                         ; e718: d0 d4       ..             ; High byte didn't wrap -> keep polling
-    pla                                                               ; e71a: 68          h              ; Counter overflowed -- drop caller's return address...
-    pla                                                               ; e71b: 68          h              ; ...(second PLA completes the return-address drop)
-    jmp main_loop                                                     ; e71c: 4c 51 e0    LQ.            ; ...and escape to main_loop without returning
+    bne wait_adlc_a_idle_loop                                         ; e718: d0 d4       ..             ; High byte didn't wrap → keep polling
+    pla                                                               ; e71a: 68          h              ; Counter overflowed – drop caller's return address…
+    pla                                                               ; e71b: 68          h              ; …(second PLA completes the return-address drop)
+    jmp main_loop                                                     ; e71c: 4c 51 e0    LQ.            ; …and escape to main_loop without returning
 
 ; &e71f referenced 1 time by &e6f8
 .wait_adlc_a_idle_ready
-    sty adlc_a_cr2                                                    ; e71f: 8c 01 c8    ...            ; STY: arm CR2 with &E7 (from Y) -- TX-ready listen state
+    sty adlc_a_cr2                                                    ; e71f: 8c 01 c8    ...            ; STY: arm CR2 with &E7 (from Y) – TX-ready listen state
     lda #&44 ; 'D'                                                    ; e722: a9 44       .D             ; Mask: arm CR1 for transmit (TX on, IRQ off)
     sta adlc_a_cr1                                                    ; e724: 8d 00 c8    ...            ; Commit CR1; ADLC A ready to send
     rts                                                               ; e727: 60          `              ; Normal return: caller transmits the frame
 
 ; ***************************************************************************************
-; ROM body gap — unused space before the self-test
+; ROM body gap – unused space before the self-test
 ;
 ; 2264 bytes of &FF padding between the end of the main code at wait_adlc_a_idle_ready
 ; and the start of the self-test entry at self_test (&F000).
@@ -1684,7 +1683,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; any in-flight frames. Typical usage is with a loopback cable between the two Econet
 ; ports.
 .self_test
-    sei                                                               ; f000: 78          x              ; Mask IRQs -- this routine polls and must not re-enter
+    sei                                                               ; f000: 78          x              ; Mask IRQs – this routine polls and must not re-enter
     lda #0                                                            ; f001: a9 00       ..             ; A = 0: initial value for the scratch pass-phase flag
     sta st_pass_phase                                                 ; f003: 85 03       ..             ; &03 = pass-phase; toggled by self_test_pass_done
 ; ***************************************************************************************
@@ -1692,7 +1691,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;
 ; Byte-for-byte identical to the adlc_*_full_reset pair except for one crucial detail:
 ; CR3 is programmed to &80 (bit 7 set) instead of &00. CR3 bit 7 is the MC6854's
-; LOC/DTR control bit — but the pin it drives is inverted: when the control bit is
+; LOC/DTR control bit – but the pin it drives is inverted: when the control bit is
 ; HIGH, the pin output goes LOW. On ADLC B (IC18) that pin sinks the low side of the
 ; front-panel status LED (which has its high side tied through a resistor to Vcc), so
 ; CR3 bit 7 = 1 pulls current through the LED and lights it. ADLC A's LOC/DTR pin is
@@ -1711,7 +1710,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     lda #&80                                                          ; f015: a9 80       ..             ; Mask &80: CR3 bit 7 = light the LED via LOC/DTR
     sta adlc_a_cr2                                                    ; f017: 8d 01 c8    ...            ; Program ADLC A's CR3 (pin not wired; no effect)
     lda #&80                                                          ; f01a: a9 80       ..             ; Mask &80 again (separate load for symmetry)
-    sta adlc_b_cr2                                                    ; f01c: 8d 01 d8    ...            ; Program ADLC B's CR3 -- lights the status LED
+    sta adlc_b_cr2                                                    ; f01c: 8d 01 d8    ...            ; Program ADLC B's CR3 – lights the status LED
     lda #&82                                                          ; f01f: a9 82       ..             ; Mask: TX in reset, RX IRQ enabled, AC=0
     sta adlc_a_cr1                                                    ; f021: 8d 00 c8    ...            ; Release CR1 AC bit on ADLC A (CR3 value sticks)
     sta adlc_b_cr1                                                    ; f024: 8d 00 d8    ...            ; Release CR1 AC bit on ADLC B (CR3 value sticks)
@@ -1726,7 +1725,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; enough at this point to use a countable blink).
 ;
 ; Tests only the three ZP bytes that are used as scratch by the later self-test stages
-; (ROM checksum, RAM scan). A full ZP test isn't needed -- the main reset handler has
+; (ROM checksum, RAM scan). A full ZP test isn't needed – the main reset handler has
 ; already exercised ZP indirectly via ram_test.
 ; &f02f referenced 1 time by &f289
 .self_test_zp
@@ -1737,13 +1736,13 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta st_ptr_hi                                                     ; f033: 85 01       ..             ; Write pattern to scratch byte &01
     sta st_page_count                                                 ; f035: 85 02       ..             ; Write pattern to scratch byte &02
     cmp st_ptr_lo                                                     ; f037: c5 00       ..             ; Check &00 still reads as pattern
-    bne self_test_ram_fail_jump                                       ; f039: d0 62       .b             ; Mismatch -> ram_test_fail (distinct blink pattern)
+    bne self_test_ram_fail_jump                                       ; f039: d0 62       .b             ; Mismatch → ram_test_fail (distinct blink pattern)
     cmp st_ptr_hi                                                     ; f03b: c5 01       ..             ; Check &01 still reads as pattern
-    bne self_test_ram_fail_jump                                       ; f03d: d0 5e       .^             ; Mismatch -> ram_test_fail
+    bne self_test_ram_fail_jump                                       ; f03d: d0 5e       .^             ; Mismatch → ram_test_fail
     cmp st_page_count                                                 ; f03f: c5 02       ..             ; Check &02 still reads as pattern
-    bne self_test_ram_fail_jump                                       ; f041: d0 5a       .Z             ; Mismatch -> ram_test_fail
+    bne self_test_ram_fail_jump                                       ; f041: d0 5a       .Z             ; Mismatch → ram_test_fail
     cmp #&aa                                                          ; f043: c9 aa       ..             ; Was the pattern &AA? then both halves passed
-    beq self_test_rom_checksum                                        ; f045: f0 05       ..             ; Yes -> continue to ROM checksum
+    beq self_test_rom_checksum                                        ; f045: f0 05       ..             ; Yes → continue to ROM checksum
     lda #&aa                                                          ; f047: a9 aa       ..             ; Second test pattern = &AA (1010_1010)
     jmp self_test_zp_write_read                                       ; f049: 4c 31 f0    L1.            ; Loop back to rerun the three-byte check
 
@@ -1777,7 +1776,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     dec st_page_count                                                 ; f063: c6 02       ..             ; One page done; decrement the page counter
     bne self_test_rom_checksum_loop                                   ; f065: d0 f4       ..             ; Loop until all 32 ROM pages have been summed
     cmp #&55 ; 'U'                                                    ; f067: c9 55       .U             ; Compare running sum with the expected &55
-    beq self_test_ram_pattern                                         ; f069: f0 05       ..             ; Match -> ROM is intact, proceed to RAM test
+    beq self_test_ram_pattern                                         ; f069: f0 05       ..             ; Match → ROM is intact, proceed to RAM test
     lda #2                                                            ; f06b: a9 02       ..             ; Mismatch: load error code 2 (ROM checksum fail)
     jmp self_test_fail                                                ; f06d: 4c c7 f2    L..            ; Jump to the countable-blink failure handler
 
@@ -1789,14 +1788,14 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; checks that each byte can store both &55 and &AA. Pointer in (&00,&01) = &0000, Y
 ; starts at 4 and wraps, page count in &02 = &20 (32 pages = 8 KiB).
 ;
-; On mismatch, jumps to ram_test_fail (&F28C) -- a different failure handler from
+; On mismatch, jumps to ram_test_fail (&F28C) – a different failure handler from
 ; self_test_fail, because a broken RAM cannot use the normal blink-code loop which
 ; needs RAM workspace.
 ; &f070 referenced 1 time by &f069
 .self_test_ram_pattern
     lda #0                                                            ; f070: a9 00       ..             ; A = 0: low byte of the RAM-test indirect pointer
     sta st_ptr_lo                                                     ; f072: 85 00       ..             ; Store pointer_lo
-    lda #0                                                            ; f074: a9 00       ..             ; A = 0: high byte -- start scanning at RAM base
+    lda #0                                                            ; f074: a9 00       ..             ; A = 0: high byte – start scanning at RAM base
     sta st_ptr_hi                                                     ; f076: 85 01       ..             ; Store pointer_hi
     lda #&20 ; ' '                                                    ; f078: a9 20       .              ; A = &20: 32 pages to cover (the full 8 KiB)
     sta st_page_count                                                 ; f07a: 85 02       ..             ; Store page counter
@@ -1807,18 +1806,18 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     sta (st_ptr_lo),y                                                 ; f080: 91 00       ..             ; Write pattern to the current RAM byte
     lda (st_ptr_lo),y                                                 ; f082: b1 00       ..             ; Read the same byte back
     cmp #&55 ; 'U'                                                    ; f084: c9 55       .U             ; Verify the cell held the written pattern
-    bne self_test_ram_fail_jump                                       ; f086: d0 15       ..             ; Mismatch -> ram_test_fail (unreliable storage)
+    bne self_test_ram_fail_jump                                       ; f086: d0 15       ..             ; Mismatch → ram_test_fail (unreliable storage)
     lda #&aa                                                          ; f088: a9 aa       ..             ; Second pattern = &AA (the bitwise complement)
     sta (st_ptr_lo),y                                                 ; f08a: 91 00       ..             ; Write complement to catch stuck-bit faults
     lda (st_ptr_lo),y                                                 ; f08c: b1 00       ..             ; Read it back
     cmp #&aa                                                          ; f08e: c9 aa       ..             ; Verify
-    bne self_test_ram_fail_jump                                       ; f090: d0 0b       ..             ; Mismatch -> ram_test_fail
+    bne self_test_ram_fail_jump                                       ; f090: d0 0b       ..             ; Mismatch → ram_test_fail
     iny                                                               ; f092: c8          .              ; Advance to next byte within the page
     bne self_test_ram_pattern_loop                                    ; f093: d0 e9       ..             ; Loop 256 times through the current page
     inc st_ptr_hi                                                     ; f095: e6 01       ..             ; Advance to the next page
     dec st_page_count                                                 ; f097: c6 02       ..             ; One page done; decrement the remaining-page count
     bne self_test_ram_pattern_loop                                    ; f099: d0 e3       ..             ; Continue until all 32 pages verified
-    beq self_test_ram_incr                                            ; f09b: f0 03       ..             ; All 8 KiB good -- fall through to the incrementing test
+    beq self_test_ram_incr                                            ; f09b: f0 03       ..             ; All 8 KiB good – fall through to the incrementing test
 
 ; &f09d referenced 6 times by &f039, &f03d, &f041, &f086, &f090, &f0c9
 .self_test_ram_fail_jump
@@ -1853,7 +1852,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     iny                                                               ; f0b0: c8          .              ; Advance to next byte in the page
     bne self_test_ram_incr_fill                                       ; f0b1: d0 f9       ..             ; Loop 256 times through the page
     inc st_ptr_hi                                                     ; f0b3: e6 01       ..             ; Advance to next page
-    inx                                                               ; f0b5: e8          .              ; Bump fill value by one extra per page -- different offset
+    inx                                                               ; f0b5: e8          .              ; Bump fill value by one extra per page – different offset
     dec st_page_count                                                 ; f0b6: c6 02       ..             ; Decrement page counter
     bne self_test_ram_incr_fill                                       ; f0b8: d0 f2       ..             ; Continue filling all 32 pages
     lda #0                                                            ; f0ba: a9 00       ..             ; Fill done; now reset state for the verify phase
@@ -1866,7 +1865,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 .self_test_ram_incr_verify
     txa                                                               ; f0c6: 8a          .              ; A = X: expected byte value
     cmp (st_ptr_lo),y                                                 ; f0c7: d1 00       ..             ; Compare with what we actually wrote and read back
-    bne self_test_ram_fail_jump                                       ; f0c9: d0 d2       ..             ; Mismatch -> ram_test_fail (via &F09D)
+    bne self_test_ram_fail_jump                                       ; f0c9: d0 d2       ..             ; Mismatch → ram_test_fail (via &F09D)
     inx                                                               ; f0cb: e8          .              ; Step expected value
     iny                                                               ; f0cc: c8          .              ; Step byte offset
     bne self_test_ram_incr_verify                                     ; f0cd: d0 f7       ..             ; Loop through the page
@@ -1888,22 +1887,22 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 .self_test_adlc_state
     lda #&10                                                          ; f0d6: a9 10       ..             ; Mask bit 4 (CTS bit of SR1): expect 1 after reset
     bit adlc_a_cr1                                                    ; f0d8: 2c 00 c8    ,..            ; Test on ADLC A
-    beq self_test_fail_adlc_a                                         ; f0db: f0 28       .(             ; CTS clear -> ADLC A misconfigured (fail code 3)
+    beq self_test_fail_adlc_a                                         ; f0db: f0 28       .(             ; CTS clear → ADLC A misconfigured (fail code 3)
     lda #4                                                            ; f0dd: a9 04       ..             ; Mask bit 2 (OVRN bit of SR2): expect 1 (idle, no OVRN)
     bit adlc_a_cr2                                                    ; f0df: 2c 01 c8    ,..            ; Test on ADLC A
-    beq self_test_fail_adlc_a                                         ; f0e2: f0 21       .!             ; Bit clear -> unexpected state, fail
+    beq self_test_fail_adlc_a                                         ; f0e2: f0 21       .!             ; Bit clear → unexpected state, fail
     lda #&20 ; ' '                                                    ; f0e4: a9 20       .              ; Mask bit 5 (DCD of SR2): expect 0 (no carrier)
     bit adlc_a_cr2                                                    ; f0e6: 2c 01 c8    ,..            ; Test on ADLC A
-    bne self_test_fail_adlc_a                                         ; f0e9: d0 1a       ..             ; Bit set -> unexpected carrier; fail code 3
+    bne self_test_fail_adlc_a                                         ; f0e9: d0 1a       ..             ; Bit set → unexpected carrier; fail code 3
     lda #&10                                                          ; f0eb: a9 10       ..             ; Same CTS check for ADLC B
     bit adlc_b_cr1                                                    ; f0ed: 2c 00 d8    ,..            ; Test on ADLC B
-    beq self_test_fail_adlc_b                                         ; f0f0: f0 0e       ..             ; Clear -> fail code 4
+    beq self_test_fail_adlc_b                                         ; f0f0: f0 0e       ..             ; Clear → fail code 4
     lda #4                                                            ; f0f2: a9 04       ..             ; Same OVRN check for ADLC B
     bit adlc_b_cr2                                                    ; f0f4: 2c 01 d8    ,..            ; Test on ADLC B
-    beq self_test_fail_adlc_b                                         ; f0f7: f0 07       ..             ; Clear -> fail code 4
+    beq self_test_fail_adlc_b                                         ; f0f7: f0 07       ..             ; Clear → fail code 4
     lda #&20 ; ' '                                                    ; f0f9: a9 20       .              ; Same DCD check for ADLC B
     bit adlc_b_cr2                                                    ; f0fb: 2c 01 d8    ,..            ; Test on ADLC B
-    beq self_test_loopback_a_to_b                                     ; f0fe: f0 0a       ..             ; Clear -> all checks passed, proceed to loopback test
+    beq self_test_loopback_a_to_b                                     ; f0fe: f0 0a       ..             ; Clear → all checks passed, proceed to loopback test
 ; &f100 referenced 2 times by &f0f0, &f0f7
 .self_test_fail_adlc_b
     lda #4                                                            ; f100: a9 04       ..             ; Fail code 4: ADLC B register state wrong
@@ -1919,13 +1918,13 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ;
 ; Assumes a loopback cable is connected between the two Econet ports. Reconfigures ADLC
 ; A for transmit (CR1=&44) and ADLC B for receive (CR1=&82), then sends a 256-byte
-; sequence (0,1,2,...,255) out of A and verifies each byte is received on B in order by
+; sequence (0,1,2,…,255) out of A and verifies each byte is received on B in order by
 ; incrementing X alongside the sender's Y.
 ;
 ; Four phases:
 ;
-; 1. Pre-fill the A TX FIFO with bytes 0-7 (Y=0..7) while B is still settling --
-;    priming the pipeline before any RX checks begin.
+; 1. Pre-fill the A TX FIFO with bytes 0-7 (Y=0..7) while B is still settling – priming
+;    the pipeline before any RX checks begin.
 ; 2. Handshake opening: wait for B's first RX IRQ, verify AP, read and match bytes 0
 ;    and 1. This is the special "opening" case because the AP/RDA transitions happen on
 ;    the first two bytes only.
@@ -1955,8 +1954,8 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &f125 referenced 1 time by &f137
 .loopback_a_to_b_prefill
     jsr wait_adlc_a_irq                                               ; f125: 20 e4 e3     ..            ; Wait for A's TDRA IRQ
-    bit adlc_a_cr1                                                    ; f128: 2c 00 c8    ,..            ; BIT SR1 (read CR1 addr) -- test V = TDRA (bit 6)
-    bvc loopback_a_to_b_fail                                          ; f12b: 50 24       P$             ; Not TDRA -> A's TX stalled; fail
+    bit adlc_a_cr1                                                    ; f128: 2c 00 c8    ,..            ; BIT SR1 (read CR1 addr) – test V = TDRA (bit 6)
+    bvc loopback_a_to_b_fail                                          ; f12b: 50 24       P$             ; Not TDRA → A's TX stalled; fail
     sty adlc_a_tx                                                     ; f12d: 8c 02 c8    ...            ; Push Y into A's TX FIFO (even byte of pair)
     iny                                                               ; f130: c8          .              ; Advance Y
     sty adlc_a_tx                                                     ; f131: 8c 02 c8    ...            ; Push Y into A's TX FIFO (odd byte of pair)
@@ -1965,14 +1964,14 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     bne loopback_a_to_b_prefill                                       ; f137: d0 ec       ..             ; Keep prefilling
     jsr wait_adlc_b_irq                                               ; f139: 20 ea e3     ..            ; Wait for B's first RX IRQ
     lda #1                                                            ; f13c: a9 01       ..             ; A = &01: SR2 mask for AP (Address Present)
-    bit adlc_b_cr2                                                    ; f13e: 2c 01 d8    ,..            ; BIT SR2 -- first byte should assert AP
-    beq loopback_a_to_b_fail                                          ; f141: f0 0e       ..             ; No AP on first byte -> fail
+    bit adlc_b_cr2                                                    ; f13e: 2c 01 d8    ,..            ; BIT SR2 – first byte should assert AP
+    beq loopback_a_to_b_fail                                          ; f141: f0 0e       ..             ; No AP on first byte → fail
     cpx adlc_b_tx                                                     ; f143: ec 02 d8    ...            ; Compare B's FIFO byte against X (expect 0)
-    bne loopback_a_to_b_fail                                          ; f146: d0 09       ..             ; Mismatch -> fail
+    bne loopback_a_to_b_fail                                          ; f146: d0 09       ..             ; Mismatch → fail
     inx                                                               ; f148: e8          .              ; Advance X past the first byte
     jsr wait_adlc_b_irq                                               ; f149: 20 ea e3     ..            ; Wait for B's next RX IRQ
-    bit adlc_b_cr2                                                    ; f14c: 2c 01 d8    ,..            ; BIT SR2 -- RDA (bit 7) asserted?
-    bmi loopback_a_to_b_head_ok                                       ; f14f: 30 05       0.             ; RDA set -> good, compare second byte
+    bit adlc_b_cr2                                                    ; f14c: 2c 01 d8    ,..            ; BIT SR2 – RDA (bit 7) asserted?
+    bmi loopback_a_to_b_head_ok                                       ; f14f: 30 05       0.             ; RDA set → good, compare second byte
 ; &f151 referenced 12 times by &f12b, &f141, &f146, &f159, &f162, &f172, &f177, &f17d, &f18f, &f194, &f19a, &f1a9
 .loopback_a_to_b_fail
     lda #5                                                            ; f151: a9 05       ..             ; A = 5: error code for A-to-B loopback failure
@@ -1981,47 +1980,47 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &f156 referenced 1 time by &f14f
 .loopback_a_to_b_head_ok
     cpx adlc_b_tx                                                     ; f156: ec 02 d8    ...            ; Compare B's second FIFO byte against X (expect 1)
-    bne loopback_a_to_b_fail                                          ; f159: d0 f6       ..             ; Mismatch -> fail
+    bne loopback_a_to_b_fail                                          ; f159: d0 f6       ..             ; Mismatch → fail
     inx                                                               ; f15b: e8          .              ; Advance X past the second byte
 ; &f15c referenced 1 time by &f182
 .loopback_a_to_b_stream_loop
     jsr wait_adlc_a_irq                                               ; f15c: 20 e4 e3     ..            ; Wait for A's TDRA IRQ (TX slot ready)
-    bit adlc_a_cr1                                                    ; f15f: 2c 00 c8    ,..            ; BIT SR1 -- test V = TDRA
-    bvc loopback_a_to_b_fail                                          ; f162: 50 ed       P.             ; TX stalled mid-stream -> fail
+    bit adlc_a_cr1                                                    ; f15f: 2c 00 c8    ,..            ; BIT SR1 – test V = TDRA
+    bvc loopback_a_to_b_fail                                          ; f162: 50 ed       P.             ; TX stalled mid-stream → fail
     sty adlc_a_tx                                                     ; f164: 8c 02 c8    ...            ; Push even byte (Y) into A's TX FIFO
     iny                                                               ; f167: c8          .              ; Advance Y
     sty adlc_a_tx                                                     ; f168: 8c 02 c8    ...            ; Push odd byte (Y) into A's TX FIFO
     iny                                                               ; f16b: c8          .              ; Advance Y past the pair
     jsr wait_adlc_b_irq                                               ; f16c: 20 ea e3     ..            ; Wait for B's RX IRQ (pair received)
-    bit adlc_b_cr2                                                    ; f16f: 2c 01 d8    ,..            ; BIT SR2 -- RDA still asserted?
-    bpl loopback_a_to_b_fail                                          ; f172: 10 dd       ..             ; RDA cleared early -> fail
+    bit adlc_b_cr2                                                    ; f16f: 2c 01 d8    ,..            ; BIT SR2 – RDA still asserted?
+    bpl loopback_a_to_b_fail                                          ; f172: 10 dd       ..             ; RDA cleared early → fail
     cpx adlc_b_tx                                                     ; f174: ec 02 d8    ...            ; Compare B's even byte against X
-    bne loopback_a_to_b_fail                                          ; f177: d0 d8       ..             ; Mismatch -> fail
+    bne loopback_a_to_b_fail                                          ; f177: d0 d8       ..             ; Mismatch → fail
     inx                                                               ; f179: e8          .              ; Advance X
     cpx adlc_b_tx                                                     ; f17a: ec 02 d8    ...            ; Compare B's odd byte against X
-    bne loopback_a_to_b_fail                                          ; f17d: d0 d2       ..             ; Mismatch -> fail
+    bne loopback_a_to_b_fail                                          ; f17d: d0 d2       ..             ; Mismatch → fail
     inx                                                               ; f17f: e8          .              ; Advance X past the pair
-    cpy #0                                                            ; f180: c0 00       ..             ; Y wrapped back to 0 -> all 256 bytes sent
-    bne loopback_a_to_b_stream_loop                                   ; f182: d0 d8       ..             ; Not done -> keep streaming
+    cpy #0                                                            ; f180: c0 00       ..             ; Y wrapped back to 0 → all 256 bytes sent
+    bne loopback_a_to_b_stream_loop                                   ; f182: d0 d8       ..             ; Not done → keep streaming
     lda #&3f ; '?'                                                    ; f184: a9 3f       .?             ; A = &3F: CR2 end-of-frame-with-flush
     sta adlc_a_cr2                                                    ; f186: 8d 01 c8    ...            ; Commit: A pushes the final byte and closes the frame
 ; &f189 referenced 1 time by &f19f
 .loopback_a_to_b_flush_loop
     jsr wait_adlc_b_irq                                               ; f189: 20 ea e3     ..            ; Wait for B's remaining RX IRQ
-    bit adlc_b_cr2                                                    ; f18c: 2c 01 d8    ,..            ; BIT SR2 -- RDA still asserted?
-    bpl loopback_a_to_b_fail                                          ; f18f: 10 c0       ..             ; Drain interrupted -> fail
+    bit adlc_b_cr2                                                    ; f18c: 2c 01 d8    ,..            ; BIT SR2 – RDA still asserted?
+    bpl loopback_a_to_b_fail                                          ; f18f: 10 c0       ..             ; Drain interrupted → fail
     cpx adlc_b_tx                                                     ; f191: ec 02 d8    ...            ; Compare B's residual byte against X
-    bne loopback_a_to_b_fail                                          ; f194: d0 bb       ..             ; Mismatch -> fail
+    bne loopback_a_to_b_fail                                          ; f194: d0 bb       ..             ; Mismatch → fail
     inx                                                               ; f196: e8          .              ; Advance X
     cpx adlc_b_tx                                                     ; f197: ec 02 d8    ...            ; Compare B's next residual byte against X
-    bne loopback_a_to_b_fail                                          ; f19a: d0 b5       ..             ; Mismatch -> fail
+    bne loopback_a_to_b_fail                                          ; f19a: d0 b5       ..             ; Mismatch → fail
     inx                                                               ; f19c: e8          .              ; Advance X past the pair
-    cpx #0                                                            ; f19d: e0 00       ..             ; X wrapped to 0 -> B has drained all 256 bytes
-    bne loopback_a_to_b_flush_loop                                    ; f19f: d0 e8       ..             ; Not done -> keep draining
+    cpx #0                                                            ; f19d: e0 00       ..             ; X wrapped to 0 → B has drained all 256 bytes
+    bne loopback_a_to_b_flush_loop                                    ; f19f: d0 e8       ..             ; Not done → keep draining
     jsr wait_adlc_b_irq                                               ; f1a1: 20 ea e3     ..            ; Wait for the trailing end-of-frame IRQ on B
     lda #2                                                            ; f1a4: a9 02       ..             ; A = &02: SR2 mask for FV (Frame Valid)
-    bit adlc_b_cr2                                                    ; f1a6: 2c 01 d8    ,..            ; BIT SR2 -- confirm FV is set
-    beq loopback_a_to_b_fail                                          ; f1a9: f0 a6       ..             ; FV missing -> malformed frame, fail
+    bit adlc_b_cr2                                                    ; f1a6: 2c 01 d8    ,..            ; BIT SR2 – confirm FV is set
+    beq loopback_a_to_b_fail                                          ; f1a9: f0 a6       ..             ; FV missing → malformed frame, fail
 ; ***************************************************************************************
 ; Loopback test: transmit on ADLC B, receive on ADLC A
 ;
@@ -2044,8 +2043,8 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &f1c6 referenced 1 time by &f1d8
 .loopback_b_to_a_prefill
     jsr wait_adlc_b_irq                                               ; f1c6: 20 ea e3     ..            ; Wait for B's TDRA IRQ
-    bit adlc_b_cr1                                                    ; f1c9: 2c 00 d8    ,..            ; BIT SR1 (read CR1 addr) -- test V = TDRA (bit 6)
-    bvc loopback_b_to_a_fail                                          ; f1cc: 50 24       P$             ; Not TDRA -> B's TX stalled; fail
+    bit adlc_b_cr1                                                    ; f1c9: 2c 00 d8    ,..            ; BIT SR1 (read CR1 addr) – test V = TDRA (bit 6)
+    bvc loopback_b_to_a_fail                                          ; f1cc: 50 24       P$             ; Not TDRA → B's TX stalled; fail
     sty adlc_b_tx                                                     ; f1ce: 8c 02 d8    ...            ; Push Y into B's TX FIFO (even byte of pair)
     iny                                                               ; f1d1: c8          .              ; Advance Y
     sty adlc_b_tx                                                     ; f1d2: 8c 02 d8    ...            ; Push Y into B's TX FIFO (odd byte of pair)
@@ -2054,14 +2053,14 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     bne loopback_b_to_a_prefill                                       ; f1d8: d0 ec       ..             ; Keep prefilling
     jsr wait_adlc_a_irq                                               ; f1da: 20 e4 e3     ..            ; Wait for A's first RX IRQ
     lda #1                                                            ; f1dd: a9 01       ..             ; A = &01: SR2 mask for AP (Address Present)
-    bit adlc_a_cr2                                                    ; f1df: 2c 01 c8    ,..            ; BIT SR2 -- first byte should assert AP
-    beq loopback_b_to_a_fail                                          ; f1e2: f0 0e       ..             ; No AP on first byte -> fail
+    bit adlc_a_cr2                                                    ; f1df: 2c 01 c8    ,..            ; BIT SR2 – first byte should assert AP
+    beq loopback_b_to_a_fail                                          ; f1e2: f0 0e       ..             ; No AP on first byte → fail
     cpx adlc_a_tx                                                     ; f1e4: ec 02 c8    ...            ; Compare A's FIFO byte against X (expect 0)
-    bne loopback_b_to_a_fail                                          ; f1e7: d0 09       ..             ; Mismatch -> fail
+    bne loopback_b_to_a_fail                                          ; f1e7: d0 09       ..             ; Mismatch → fail
     inx                                                               ; f1e9: e8          .              ; Advance X past the first byte
     jsr wait_adlc_a_irq                                               ; f1ea: 20 e4 e3     ..            ; Wait for A's next RX IRQ
-    bit adlc_a_cr2                                                    ; f1ed: 2c 01 c8    ,..            ; BIT SR2 -- RDA (bit 7) asserted?
-    bmi loopback_b_to_a_head_ok                                       ; f1f0: 30 05       0.             ; RDA set -> good, compare second byte
+    bit adlc_a_cr2                                                    ; f1ed: 2c 01 c8    ,..            ; BIT SR2 – RDA (bit 7) asserted?
+    bmi loopback_b_to_a_head_ok                                       ; f1f0: 30 05       0.             ; RDA set → good, compare second byte
 ; &f1f2 referenced 12 times by &f1cc, &f1e2, &f1e7, &f1fa, &f203, &f213, &f218, &f21e, &f230, &f235, &f23b, &f24a
 .loopback_b_to_a_fail
     lda #6                                                            ; f1f2: a9 06       ..             ; A = 6: error code for B-to-A loopback failure
@@ -2070,47 +2069,47 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &f1f7 referenced 1 time by &f1f0
 .loopback_b_to_a_head_ok
     cpx adlc_a_tx                                                     ; f1f7: ec 02 c8    ...            ; Compare A's second FIFO byte against X (expect 1)
-    bne loopback_b_to_a_fail                                          ; f1fa: d0 f6       ..             ; Mismatch -> fail
+    bne loopback_b_to_a_fail                                          ; f1fa: d0 f6       ..             ; Mismatch → fail
     inx                                                               ; f1fc: e8          .              ; Advance X past the second byte
 ; &f1fd referenced 1 time by &f223
 .loopback_b_to_a_stream_loop
     jsr wait_adlc_b_irq                                               ; f1fd: 20 ea e3     ..            ; Wait for B's TDRA IRQ (TX slot ready)
-    bit adlc_b_cr1                                                    ; f200: 2c 00 d8    ,..            ; BIT SR1 -- test V = TDRA
-    bvc loopback_b_to_a_fail                                          ; f203: 50 ed       P.             ; TX stalled mid-stream -> fail
+    bit adlc_b_cr1                                                    ; f200: 2c 00 d8    ,..            ; BIT SR1 – test V = TDRA
+    bvc loopback_b_to_a_fail                                          ; f203: 50 ed       P.             ; TX stalled mid-stream → fail
     sty adlc_b_tx                                                     ; f205: 8c 02 d8    ...            ; Push even byte (Y) into B's TX FIFO
     iny                                                               ; f208: c8          .              ; Advance Y
     sty adlc_b_tx                                                     ; f209: 8c 02 d8    ...            ; Push odd byte (Y) into B's TX FIFO
     iny                                                               ; f20c: c8          .              ; Advance Y past the pair
     jsr wait_adlc_a_irq                                               ; f20d: 20 e4 e3     ..            ; Wait for A's RX IRQ (pair received)
-    bit adlc_a_cr2                                                    ; f210: 2c 01 c8    ,..            ; BIT SR2 -- RDA still asserted?
-    bpl loopback_b_to_a_fail                                          ; f213: 10 dd       ..             ; RDA cleared early -> fail
+    bit adlc_a_cr2                                                    ; f210: 2c 01 c8    ,..            ; BIT SR2 – RDA still asserted?
+    bpl loopback_b_to_a_fail                                          ; f213: 10 dd       ..             ; RDA cleared early → fail
     cpx adlc_a_tx                                                     ; f215: ec 02 c8    ...            ; Compare A's even byte against X
-    bne loopback_b_to_a_fail                                          ; f218: d0 d8       ..             ; Mismatch -> fail
+    bne loopback_b_to_a_fail                                          ; f218: d0 d8       ..             ; Mismatch → fail
     inx                                                               ; f21a: e8          .              ; Advance X
     cpx adlc_a_tx                                                     ; f21b: ec 02 c8    ...            ; Compare A's odd byte against X
-    bne loopback_b_to_a_fail                                          ; f21e: d0 d2       ..             ; Mismatch -> fail
+    bne loopback_b_to_a_fail                                          ; f21e: d0 d2       ..             ; Mismatch → fail
     inx                                                               ; f220: e8          .              ; Advance X past the pair
-    cpy #0                                                            ; f221: c0 00       ..             ; Y wrapped back to 0 -> all 256 bytes sent
-    bne loopback_b_to_a_stream_loop                                   ; f223: d0 d8       ..             ; Not done -> keep streaming
+    cpy #0                                                            ; f221: c0 00       ..             ; Y wrapped back to 0 → all 256 bytes sent
+    bne loopback_b_to_a_stream_loop                                   ; f223: d0 d8       ..             ; Not done → keep streaming
     lda #&3f ; '?'                                                    ; f225: a9 3f       .?             ; A = &3F: CR2 end-of-frame-with-flush
     sta adlc_b_cr2                                                    ; f227: 8d 01 d8    ...            ; Commit: B pushes the final byte and closes the frame
 ; &f22a referenced 1 time by &f240
 .loopback_b_to_a_flush_loop
     jsr wait_adlc_a_irq                                               ; f22a: 20 e4 e3     ..            ; Wait for A's remaining RX IRQ
-    bit adlc_a_cr2                                                    ; f22d: 2c 01 c8    ,..            ; BIT SR2 -- RDA still asserted?
-    bpl loopback_b_to_a_fail                                          ; f230: 10 c0       ..             ; Drain interrupted -> fail
+    bit adlc_a_cr2                                                    ; f22d: 2c 01 c8    ,..            ; BIT SR2 – RDA still asserted?
+    bpl loopback_b_to_a_fail                                          ; f230: 10 c0       ..             ; Drain interrupted → fail
     cpx adlc_a_tx                                                     ; f232: ec 02 c8    ...            ; Compare A's residual byte against X
-    bne loopback_b_to_a_fail                                          ; f235: d0 bb       ..             ; Mismatch -> fail
+    bne loopback_b_to_a_fail                                          ; f235: d0 bb       ..             ; Mismatch → fail
     inx                                                               ; f237: e8          .              ; Advance X
     cpx adlc_a_tx                                                     ; f238: ec 02 c8    ...            ; Compare A's next residual byte against X
-    bne loopback_b_to_a_fail                                          ; f23b: d0 b5       ..             ; Mismatch -> fail
+    bne loopback_b_to_a_fail                                          ; f23b: d0 b5       ..             ; Mismatch → fail
     inx                                                               ; f23d: e8          .              ; Advance X past the pair
-    cpx #0                                                            ; f23e: e0 00       ..             ; X wrapped to 0 -> A has drained all 256 bytes
-    bne loopback_b_to_a_flush_loop                                    ; f240: d0 e8       ..             ; Not done -> keep draining
+    cpx #0                                                            ; f23e: e0 00       ..             ; X wrapped to 0 → A has drained all 256 bytes
+    bne loopback_b_to_a_flush_loop                                    ; f240: d0 e8       ..             ; Not done → keep draining
     jsr wait_adlc_a_irq                                               ; f242: 20 e4 e3     ..            ; Wait for the trailing end-of-frame IRQ on A
     lda #2                                                            ; f245: a9 02       ..             ; A = &02: SR2 mask for FV (Frame Valid)
-    bit adlc_a_cr2                                                    ; f247: 2c 01 c8    ,..            ; BIT SR2 -- confirm FV is set
-    beq loopback_b_to_a_fail                                          ; f24a: f0 a6       ..             ; FV missing -> malformed frame, fail
+    bit adlc_a_cr2                                                    ; f247: 2c 01 c8    ,..            ; BIT SR2 – confirm FV is set
+    beq loopback_b_to_a_fail                                          ; f24a: f0 a6       ..             ; FV missing → malformed frame, fail
 ; ***************************************************************************************
 ; Verify jumper-set network numbers match self-test expectations
 ;
@@ -2127,7 +2126,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 .self_test_check_netnums
     lda net_num_a                                                     ; f24c: ad 00 c0    ...            ; Fetch the side-A jumper setting
     cmp #1                                                            ; f24f: c9 01       ..             ; Expected self-test value = 1
-    beq self_test_check_netnum_b                                      ; f251: f0 05       ..             ; Match -> move on to check side B
+    beq self_test_check_netnum_b                                      ; f251: f0 05       ..             ; Match → move on to check side B
     lda #7                                                            ; f253: a9 07       ..             ; Mismatch: load error code 7
     jmp self_test_fail                                                ; f255: 4c c7 f2    L..            ; Jump to countable-blink failure handler
 
@@ -2135,14 +2134,14 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 .self_test_check_netnum_b
     lda net_num_b                                                     ; f258: ad 00 d0    ...            ; Fetch the side-B jumper setting
     cmp #2                                                            ; f25b: c9 02       ..             ; Expected self-test value = 2
-    beq self_test_pass_done                                           ; f25d: f0 05       ..             ; Match -> end-of-pass bookkeeping
+    beq self_test_pass_done                                           ; f25d: f0 05       ..             ; Match → end-of-pass bookkeeping
     lda #8                                                            ; f25f: a9 08       ..             ; Mismatch: load error code 8
     jmp self_test_fail                                                ; f261: 4c c7 f2    L..            ; Jump to countable-blink failure handler
 
 ; ***************************************************************************************
 ; End-of-pass: toggle scratch flag and loop for another pass
 ;
-; Reached when every test in a pass has succeeded. The self-test doesn't stop -- it
+; Reached when every test in a pass has succeeded. The self-test doesn't stop – it
 ; loops indefinitely until reset. Toggles bit 7 of &0003 (the self-test scratch byte)
 ; via EOR #&FF; if bit 7 is set after the toggle, JMPs to self_test_reset_adlcs for
 ; another full pass. Otherwise falls through to a slower test variant that resets ADLCs
@@ -2176,7 +2175,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; ***************************************************************************************
 ; RAM-failure blink pattern (does not use RAM)
 ;
-; Reached from any of the three RAM tests on failure -- ZP test, pattern RAM test,
+; Reached from any of the three RAM tests on failure – ZP test, pattern RAM test,
 ; incrementing RAM test. This handler can't use RAM for counting blinks (if RAM is
 ; broken, reading/writing RAM is exactly what's untrustworthy), so it generates its
 ; blink pattern from ROM-based DEC abs,X instructions that exercise the CPU for timing
@@ -2188,7 +2187,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; ignored) bytes in the ROM starting at the reset vector.
 ;
 ; Continues forever; the operator infers "the RAM is bad" from the fact that the LED is
-; blinking but no specific error code can be counted out -- distinct from the more
+; blinking but no specific error code can be counted out – distinct from the more
 ; structured blink patterns produced by self_test_fail with codes 2-8.
 ; &f28c referenced 1 time by &f09d
 .ram_test_fail
@@ -2196,7 +2195,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     stx adlc_a_cr1                                                    ; f28e: 8e 00 c8    ...            ; Commit CR1 on ADLC A
 ; &f291 referenced 1 time by &f2c4
 .ram_test_fail_loop
-    ldx #0                                                            ; f291: a2 00       ..             ; CR3 = 0 -> LED off on ADLC B (LOC/DTR pin high)
+    ldx #0                                                            ; f291: a2 00       ..             ; CR3 = 0 → LED off on ADLC B (LOC/DTR pin high)
     stx adlc_a_cr2                                                    ; f293: 8e 01 c8    ...            ; Commit CR3
     ldx #0                                                            ; f296: a2 00       ..             ; X = 0: inner delay counter
     ldy #0                                                            ; f298: a0 00       ..             ; Y = 0: outer delay counter
@@ -2206,18 +2205,18 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     bne ram_test_fail_short_delay                                     ; f29b: d0 fd       ..             ; Spin through X's 256 values
     dey                                                               ; f29d: 88          .              ; Bump Y
     bne ram_test_fail_short_delay                                     ; f29e: d0 fa       ..             ; Spin through Y's 256 values
-    ldx #&80                                                          ; f2a0: a2 80       ..             ; CR3 = &80 -> LED on (LOC/DTR pin driven low)
+    ldx #&80                                                          ; f2a0: a2 80       ..             ; CR3 = &80 → LED on (LOC/DTR pin driven low)
     stx adlc_a_cr2                                                    ; f2a2: 8e 01 c8    ...            ; Commit CR3
     ldy #0                                                            ; f2a5: a0 00       ..             ; Y = 0 for the longer delay phase
     ldx #0                                                            ; f2a7: a2 00       ..             ; X = 0
 ; &f2a9 referenced 2 times by &f2bf, &f2c2
 .ram_test_fail_long_delay
-    dec reset,x                                                       ; f2a9: de 00 e0    ...            ; DEC of ROM (writes ignored); seven of them in a row...
-    dec reset,x                                                       ; f2ac: de 00 e0    ...            ; ...pace the LED-on interval without RAM writes
+    dec reset,x                                                       ; f2a9: de 00 e0    ...            ; DEC of ROM (writes ignored); seven of them in a row…
+    dec reset,x                                                       ; f2ac: de 00 e0    ...            ; …pace the LED-on interval without RAM writes
     dec reset,x                                                       ; f2af: de 00 e0    ...            ; (all seven DECs hit the same RO address)
-    dec reset,x                                                       ; f2b2: de 00 e0    ...            ; DEC reset,X again -- 4 cycles, no side effect
-    dec reset,x                                                       ; f2b5: de 00 e0    ...            ; DEC reset,X again -- 4 cycles, no side effect
-    dec reset,x                                                       ; f2b8: de 00 e0    ...            ; DEC reset,X again -- 4 cycles, no side effect
+    dec reset,x                                                       ; f2b2: de 00 e0    ...            ; DEC reset,X again – 4 cycles, no side effect
+    dec reset,x                                                       ; f2b5: de 00 e0    ...            ; DEC reset,X again – 4 cycles, no side effect
+    dec reset,x                                                       ; f2b8: de 00 e0    ...            ; DEC reset,X again – 4 cycles, no side effect
     dec reset,x                                                       ; f2bb: de 00 e0    ...            ; Last of the seven; together they lengthen the inner tick
     dex                                                               ; f2be: ca          .              ; Step X
     bne ram_test_fail_long_delay                                      ; f2bf: d0 e8       ..             ; Spin through X's 256 values
@@ -2226,7 +2225,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     jmp ram_test_fail_loop                                            ; f2c4: 4c 91 f2    L..            ; Loop forever; LED alternates at an uncountable pace
 
 ; ***************************************************************************************
-; Self-test failure — signal error code via the LED
+; Self-test failure – signal error code via the LED
 ;
 ; Common failure exit for every non-RAM self-test stage. Called with the error code in
 ; A. Saves two copies of the code in &00/&01 then enters an infinite loop that blinks
@@ -2258,28 +2257,28 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; &f2c7 referenced 7 times by &f06d, &f102, &f107, &f153, &f1f4, &f255, &f261
 .self_test_fail
     sta st_ptr_lo                                                     ; f2c7: 85 00       ..             ; Save error code to &00 (the restart value)
-    sta st_ptr_hi                                                     ; f2c9: 85 01       ..             ; ...and to &01 (the per-burst countdown)
+    sta st_ptr_hi                                                     ; f2c9: 85 01       ..             ; …and to &01 (the per-burst countdown)
     ldx #1                                                            ; f2cb: a2 01       ..             ; X = 1: enable AC on ADLC A
     stx adlc_a_cr1                                                    ; f2cd: 8e 00 c8    ...            ; Commit CR1 so cr2 writes hit CR3 from here on
 ; &f2d0 referenced 2 times by &f2f0, &f308
 .self_test_fail_pulse
-    ldx #0                                                            ; f2d0: a2 00       ..             ; X = 0: CR3 off -> LED dark
+    ldx #0                                                            ; f2d0: a2 00       ..             ; X = 0: CR3 off → LED dark
     stx adlc_a_cr2                                                    ; f2d2: 8e 01 c8    ...            ; Commit CR3 = 0
     ldy #0                                                            ; f2d5: a0 00       ..             ; Y = 0: outer loop counter for the dark phase
     ldx #0                                                            ; f2d7: a2 00       ..             ; X = 0: inner loop counter
 ; &f2d9 referenced 2 times by &f2da, &f2dd
 .self_test_fail_dark_delay
-    dex                                                               ; f2d9: ca          .              ; DEX -- tick the inner counter
+    dex                                                               ; f2d9: ca          .              ; DEX – tick the inner counter
     bne self_test_fail_dark_delay                                     ; f2da: d0 fd       ..             ; Inner spin through X's 256 values
     dey                                                               ; f2dc: 88          .              ; Step Y
     bne self_test_fail_dark_delay                                     ; f2dd: d0 fa       ..             ; Outer spin: Y cycles give ~65K iterations of dark
-    ldx #&80                                                          ; f2df: a2 80       ..             ; X = &80: CR3 bit 7 set -> LED lit
+    ldx #&80                                                          ; f2df: a2 80       ..             ; X = &80: CR3 bit 7 set → LED lit
     stx adlc_a_cr2                                                    ; f2e1: 8e 01 c8    ...            ; Commit CR3 = &80
     ldy #0                                                            ; f2e4: a0 00       ..             ; Y = 0
     ldx #0                                                            ; f2e6: a2 00       ..             ; X = 0
 ; &f2e8 referenced 2 times by &f2e9, &f2ec
 .self_test_fail_lit_delay
-    dex                                                               ; f2e8: ca          .              ; DEX -- tick the inner counter
+    dex                                                               ; f2e8: ca          .              ; DEX – tick the inner counter
     bne self_test_fail_lit_delay                                      ; f2e9: d0 fd       ..             ; Inner spin through X's 256 values (LED lit)
     dey                                                               ; f2eb: 88          .              ; Step Y
     bne self_test_fail_lit_delay                                      ; f2ec: d0 fa       ..             ; Outer spin: Y cycles give the same length as the dark phase
@@ -2291,7 +2290,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
     ldx #0                                                            ; f2f8: a2 00       ..             ; X = 0
 ; &f2fa referenced 3 times by &f2fb, &f2fe, &f302
 .self_test_fail_spacer_delay
-    dex                                                               ; f2fa: ca          .              ; DEX -- tick the inner spacer counter
+    dex                                                               ; f2fa: ca          .              ; DEX – tick the inner spacer counter
     bne self_test_fail_spacer_delay                                   ; f2fb: d0 fd       ..             ; Inner spin through X's 256 values (LED off)
     dey                                                               ; f2fd: 88          .              ; Step Y
     bne self_test_fail_spacer_delay                                   ; f2fe: d0 fa       ..             ; Outer spin: 8x this pair keeps the gap audibly long
@@ -2306,7 +2305,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 .rom_checksum_adjust
     equb &46                                                          ; fff0: 46          F
 ; ***************************************************************************************
-; ROM vector gap — unused bytes before the hardware vectors
+; ROM vector gap – unused bytes before the hardware vectors
 ;
 ; 9 bytes of &FF padding between rom_checksum_adjust (&FFF0) at &FFF0 and the 6502
 ; hardware vector table at &FFFA (&FFFA).
@@ -2327,8 +2326,8 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port.
 ; | &FFFE-&FFFF | IRQ/BRK vector | self_test (&F000) |
 ;
 ; NMI isn't wired to anything on the Bridge board, so the slot is filled with &FFFF
-; rather than a real handler. RESET enters the main firmware at &E000. IRQ/BRK -- the
-; line the self-test push-button pulls low -- enters at &F000; pressing the button
+; rather than a real handler. RESET enters the main firmware at &E000. IRQ/BRK – the
+; line the self-test push-button pulls low – enters at &F000; pressing the button
 ; therefore runs the self-test, and any BRK instruction anywhere in the ROM would do
 ; the same thing.
 .hardware_vectors

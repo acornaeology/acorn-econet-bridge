@@ -68,7 +68,7 @@ if 0xE000 <= _irq_addr <= 0xFFF9:
     label(_irq_addr, "self_test")
     # Hardware hint: the Bridge has a push-button pulling the 6502
     # ~IRQ line low (it's believed to be the only thing wired to that
-    # pin). Pressing it enters the firmware's self-test routine — not
+    # pin). Pressing it enters the firmware's self-test routine – not
     # to be pressed while connected to a live network. So the IRQ
     # handler is effectively the self-test entry point, with BRK
     # sharing the same vector. The ADLC-generated interrupts that
@@ -106,11 +106,11 @@ fill(0xF30B, 3301)
 fill(0xFFF1, 9)
 
 # Subroutine-style banner for the first (and largest) padding region.
-# Not a subroutine -- py8dis's banner rendering is the cleanest way
+# Not a subroutine – py8dis's banner rendering is the cleanest way
 # to put a visible section break into the listing between the main
 # code body and the self-test ROM.
 subroutine(0xE728, "rom_body_gap", hook=None,
-    title="ROM body gap — unused space before the self-test",
+    title="ROM body gap – unused space before the self-test",
     description="""\
 2264 bytes of `&FF` padding between the end of the main code at
 [`wait_adlc_a_idle_ready`](address:E71F) and the start of the
@@ -120,7 +120,7 @@ The region is simply the unused tail of the main-code half of the
 ROM, before the self-test at the page-aligned `&F000`.""")
 
 subroutine(0xFFF1, "rom_vector_gap", hook=None,
-    title="ROM vector gap — unused bytes before the hardware vectors",
+    title="ROM vector gap – unused bytes before the hardware vectors",
     description="""\
 9 bytes of `&FF` padding between
 [`rom_checksum_adjust`](address:FFF0?hex) at `&FFF0` and the 6502
@@ -158,8 +158,8 @@ The three addresses the 6502 fetches when an interrupt fires:
 
 NMI isn't wired to anything on the Bridge board, so the slot is
 filled with `&FFFF` rather than a real handler. RESET enters the
-main firmware at `&E000`. IRQ/BRK -- the line the self-test
-push-button pulls low -- enters at `&F000`; pressing the button
+main firmware at `&E000`. IRQ/BRK – the line the self-test
+push-button pulls low – enters at `&F000`; pressing the button
 therefore runs the self-test, and any `BRK` instruction anywhere
 in the ROM would do the same thing.""")
 
@@ -173,10 +173,10 @@ in the ROM would do the same thing.""")
 #
 # - &C000 / &D000 are only ever read, consistent with the two
 #   74LS244 buffers that expose the network-number selection links
-#   (one per Econet port — each side of the Bridge has its own
+#   (one per Econet port – each side of the Bridge has its own
 #   network number, configured by jumpers/links on the board).
 # - &C800-&C803 and &D800-&D803 are accessed with the exact pattern
-#   of an MC6854 ADLC — CR1/SR1 at offset 0, CR2/SR2 at 1, TX/RX
+#   of an MC6854 ADLC – CR1/SR1 at offset 0, CR2/SR2 at 1, TX/RX
 #   FIFO at 2 and 3, with BIT reads of SR1 used to poll IRQ status
 #   (the chip IRQ outputs are not wired to the 6502).
 #
@@ -264,7 +264,7 @@ label(0xC000, "net_num_a",
                 "Sourced from a bank of jumpered links buffered by a "
                 "74LS244. 7-bit (range 1-127); the top link is always "
                 "made, so bit 7 reads 0.\n\n"
-                "The Bridge has no station number of its own — it "
+                "The Bridge has no station number of its own – it "
                 "sits on each Econet segment as a promiscuous receiver "
                 "and broadcaster.",
     length=1, group="io_a", access="r")
@@ -366,7 +366,7 @@ comment(0xE3EF, "Event pending; return to caller to handle it", inline=True)
 # =====================================================================
 # ADLC full reset + enter listen
 # =====================================================================
-# Each pair (full_reset -> listen) is called in sequence by the main
+# Each pair (full_reset → listen) is called in sequence by the main
 # reset handler at &E000 and from a few other paths that need to re-
 # synchronise the chip. The two pairs are byte-for-byte mirrors --
 # only the register addresses differ.
@@ -411,13 +411,13 @@ Byte-for-byte mirror of [`adlc_a_full_reset`](address:E3F0), targeting ADLC B's
 register set at `&D800-&D803`. Falls through to
 [`adlc_b_listen`](address:E419). `CR3=&00`
 also puts the LOC/DTR pin high, so the front-panel LED is dark after
-this runs -- the distinguishing feature from [`self_test_reset_adlcs`](address:F005).""")
+this runs – the distinguishing feature from [`self_test_reset_adlcs`](address:F005).""")
 
 comment(0xE40A, "Mask: reset TX and RX, unlock CR3/CR4 via AC=1", inline=True)
 comment(0xE40C, "Drop ADLC B into full reset", inline=True)
 comment(0xE40F, "Mask: 8-bit RX word length, abort-extend, NRZ", inline=True)
 comment(0xE411, "Program CR4 (reached via tx2 slot while AC=1)", inline=True)
-comment(0xE414, "Mask: CR3 bit 7 clear -> LOC/DTR high -> status LED OFF", inline=True)
+comment(0xE414, "Mask: CR3 bit 7 clear → LOC/DTR high → status LED OFF", inline=True)
 comment(0xE416, "Program CR3; fall through into listen mode", inline=True)
 
 label(0xE419, "adlc_b_listen")
@@ -503,29 +503,29 @@ label(0x0216, "ctr24_hi",
 # bytes 6 onward are payload (max 14 bytes captured, enough for the
 # Bridge-protocol message formats).
 label(0x023C, "rx_dst_stn",
-    description="RX frame buffer byte 0 — destination station number.\n"
+    description="RX frame buffer byte 0 – destination station number.\n"
                 "First byte of the 20-byte RX staging area at "
                 "`&023C-&024F` filled by "
                 "[`rx_frame_a`](address:E0E2) / "
                 "[`rx_frame_b`](address:E263).",
     length=1, group="ram_buffers", access="rw")
 label(0x023D, "rx_dst_net",
-    description="RX frame buffer byte 1 — destination network "
+    description="RX frame buffer byte 1 – destination network "
                 "number.",
     length=1, group="ram_buffers", access="rw")
 label(0x023E, "rx_src_stn",
-    description="RX frame buffer byte 2 — source station number.",
+    description="RX frame buffer byte 2 – source station number.",
     length=1, group="ram_buffers", access="rw")
 label(0x023F, "rx_src_net",
-    description="RX frame buffer byte 3 — source network number.",
+    description="RX frame buffer byte 3 – source network number.",
     length=1, group="ram_buffers", access="rw")
 label(0x0240, "rx_ctrl",
-    description="RX frame buffer byte 4 — control byte.\n"
+    description="RX frame buffer byte 4 – control byte.\n"
                 "Bridge protocol uses `&80`..`&83`; see "
                 "[`rx_frame_a_dispatch`](address:E14A).",
     length=1, group="ram_buffers", access="rw")
 label(0x0241, "rx_port",
-    description="RX frame buffer byte 5 — port number.\n"
+    description="RX frame buffer byte 5 – port number.\n"
                 "The bridge-protocol port is `&9C`.",
     length=1, group="ram_buffers", access="rw")
 # Payload bytes at &0242-&024F; named as they become understood.
@@ -534,11 +534,11 @@ label(0x0241, "rx_port",
 # ask about (the &83 path consults it against reachable_via_b, which
 # is network-keyed).
 label(0x0248, "rx_query_port",
-    description="RX frame buffer byte 12 — port on which the querier "
+    description="RX frame buffer byte 12 – port on which the querier "
                 "wants the bridge to send its response.",
     length=1, group="ram_buffers", access="rw")
 label(0x0249, "rx_query_net",
-    description="RX frame buffer byte 13 — network number that a "
+    description="RX frame buffer byte 13 – network number that a "
                 "`ctrl=&83` (IsNet) query is asking about.\n"
                 "Checked against [`reachable_via_b`](address:025A) / "
                 "[`reachable_via_a`](address:035A) in the query "
@@ -552,7 +552,7 @@ label(0x0228, "rx_len",
     length=1, group="ram_workspace", access="rw")
 
 # Event-driven re-announcement state. The Bridge does NOT re-
-# announce on a periodic self-triggered timer — it only advertises
+# announce on a periodic self-triggered timer – it only advertises
 # itself (BridgeReply/ctrl=&81 frames) in response to hearing a
 # BridgeReset (ctrl=&80) from another bridge. The entire state
 # machine is therefore quiescent unless a peer has just reset.
@@ -577,7 +577,7 @@ label(0x0228, "rx_len",
 #                    until another BridgeReset arrives.
 #
 # A solo bridge with no peers is silent after its boot-time pair
-# of BridgeReset scouts — there's nothing to trigger the flag.
+# of BridgeReset scouts – there's nothing to trigger the flag.
 # See docs/analysis/event-driven-reannouncement.md.
 label(0x0229, "announce_flag",
     description="Event-driven re-announcement selector.\n\n"
@@ -613,7 +613,7 @@ label(0x022C, "announce_count",
 # Outbound-frame control block at &045A-&0460. Populated by the
 # frame-builder subroutines, then consumed by transmit_frame_a (via
 # mem_ptr at &80/&81 = &045A). Names follow the Acorn Econet scout-
-# frame convention -- but Econet has both scout and data frames,
+# frame convention – but Econet has both scout and data frames,
 # and the two share a header layout only for the first four bytes
 # (dst_stn, dst_net, src_stn, src_net). In a scout frame, bytes 4
 # and 5 are ctrl and port; in a data frame, bytes 4 onward are
@@ -623,7 +623,7 @@ label(0x022C, "announce_count",
 # "tx_ctrl" and "tx_port" slots are populated with data bytes for
 # the data half of the 4-way handshake.
 label(0x045A, "tx_dst_stn",
-    description="TX frame buffer byte 0 — destination station number.\n"
+    description="TX frame buffer byte 0 – destination station number.\n"
                 "First byte of the outbound frame staging area at "
                 "`&045A-&0460+`, populated by the frame-builder "
                 "subroutines and consumed by "
@@ -631,28 +631,28 @@ label(0x045A, "tx_dst_stn",
                 "[`transmit_frame_b`](address:E4C0).",
     length=1, group="ram_buffers", access="rw")
 label(0x045B, "tx_dst_net",
-    description="TX frame buffer byte 1 — destination network "
+    description="TX frame buffer byte 1 – destination network "
                 "number.",
     length=1, group="ram_buffers", access="rw")
 label(0x045C, "tx_src_stn",
-    description="TX frame buffer byte 2 — source station number.",
+    description="TX frame buffer byte 2 – source station number.",
     length=1, group="ram_buffers", access="rw")
 label(0x045D, "tx_src_net",
-    description="TX frame buffer byte 3 — source network number.",
+    description="TX frame buffer byte 3 – source network number.",
     length=1, group="ram_buffers", access="rw")
 label(0x045E, "tx_ctrl",
-    description="TX frame buffer byte 4 — control byte in a scout "
+    description="TX frame buffer byte 4 – control byte in a scout "
                 "frame, or the first data byte in a data frame.\n"
                 "The same buffer serves both frame types; the caller "
                 "chooses the semantics.",
     length=1, group="ram_buffers", access="rw")
 label(0x045F, "tx_port",
-    description="TX frame buffer byte 5 — port in a scout frame, or "
+    description="TX frame buffer byte 5 – port in a scout frame, or "
                 "the second data byte in a data frame.\n"
                 "Pair with [`tx_ctrl`](address:045E).",
     length=1, group="ram_buffers", access="rw")
 label(0x0460, "tx_data0",
-    description="TX frame buffer byte 6 — first optional scout "
+    description="TX frame buffer byte 6 – first optional scout "
                 "payload byte.\n"
                 "For example, a queried network number in a "
                 "`WhatNet` response.",
@@ -702,7 +702,7 @@ bridge-protocol announcements learned in the rx handlers (see
 [`rx_a_handle_80`](address:E1D6) / [`rx_b_handle_80`](address:E357)).
 
 Called from the reset handler and also re-invoked from the two
-`rx_?_handle_80` paths -- receiving an initial bridge announcement
+`rx_?_handle_80` paths – receiving an initial bridge announcement
 indicates a topology change that invalidates the learned state, so
 the Bridge forgets everything and starts accumulating again.""")
 
@@ -734,7 +734,7 @@ comment(0xE447, "Tables primed; return to caller", inline=True)
 # (&82) as the top-of-RAM marker used later by workspace init.
 #
 # The INC on zero-page &00 between each write and read disturbs zero
-# page — a non-existent or aliased target page then cannot pass the
+# page – a non-existent or aliased target page then cannot pass the
 # test on data-bus residue from the last write. This is a deliberate
 # anti-aliasing defence rather than a counter.
 
@@ -765,7 +765,7 @@ RAM where none exists:
    residue of `&AA` or `&55`.
 2. The choice of `&00` specifically is an **alias tripwire**. If the
    address decoder is miswired and the target address aliases into
-   zero page, the obvious alias landing point is `&00` -- so
+   zero page, the obvious alias landing point is `&00` – so
    disturbing `&00` between write and read forces any alias-based
    false-positive to fail the `CMP`.
 3. The two patterns `&AA` and `&55` are **bitwise complements**: a
@@ -782,18 +782,18 @@ comment(0xE011, "Commit mem_ptr_hi; first INC at loop head advances to &18", inl
 
 label(0xE013, "ram_test_loop")
 comment(0xE013, "Step up to the next candidate page", inline=True)
-comment(0xE015, "Pattern 1: &AA (1010_1010) -- half the bits set", inline=True)
+comment(0xE015, "Pattern 1: &AA (1010_1010) – half the bits set", inline=True)
 comment(0xE017, "Write &AA to (mem_ptr_lo) indirect", inline=True)
-comment(0xE019, "INC $00: read-modify-write disturbs the data bus...", inline=True)
-comment(0xE01B, "...then read the probe byte back", inline=True)
+comment(0xE019, "INC $00: read-modify-write disturbs the data bus…", inline=True)
+comment(0xE01B, "…then read the probe byte back", inline=True)
 comment(0xE01D, "Did &AA survive the disturbance?", inline=True)
-comment(0xE01F, "Mismatch -> this page isn't real RAM; back off", inline=True)
-comment(0xE021, "Pattern 2: &55 (0101_0101) -- exact complement of &AA", inline=True)
+comment(0xE01F, "Mismatch → this page isn't real RAM; back off", inline=True)
+comment(0xE021, "Pattern 2: &55 (0101_0101) – exact complement of &AA", inline=True)
 comment(0xE023, "Write &55 to (mem_ptr_lo) indirect", inline=True)
-comment(0xE025, "INC $00 again -- anti-aliasing tripwire", inline=True)
+comment(0xE025, "INC $00 again – anti-aliasing tripwire", inline=True)
 comment(0xE027, "Read pattern 2 back", inline=True)
 comment(0xE029, "Did &55 survive?", inline=True)
-comment(0xE02B, "Both patterns held -- real RAM, try next page", inline=True)
+comment(0xE02B, "Both patterns held – real RAM, try next page", inline=True)
 
 label(0xE02D, "ram_test_done")
 comment(0xE02D, "Step back one: last-probed page failed, prior page was OK", inline=True)
@@ -808,7 +808,7 @@ comment(0xE031, "Save as top_ram_page; workspace init caps buffers here", inline
 # loop's idle path stays dormant until a peer triggers it, builds the
 # BridgeReset template once, transmits it on side A (carrying
 # net_num_b), then patches the single payload byte and retransmits on
-# side B (carrying net_num_a). Falls through into main_loop -- no RTS
+# side B (carrying net_num_a). Falls through into main_loop – no RTS
 # because this is still the reset path, not a callable routine.
 #
 # See docs/analysis/two-broadcasts-one-template.md and
@@ -840,10 +840,10 @@ comment(0xE035, "Commit announce_flag = 0 to workspace", inline=True)
 comment(0xE038, "Build the BridgeReset scout template into &045A-&0460", inline=True)
 comment(0xE03B, "CSMA: wait for side A's line to go idle", inline=True)
 comment(0xE03E, "Transmit first broadcast (announcing net_num_b to side A)", inline=True)
-comment(0xE041, "Load net_num_a -- the payload byte for the B-side broadcast", inline=True)
+comment(0xE041, "Load net_num_a – the payload byte for the B-side broadcast", inline=True)
 comment(0xE044, "Patch payload byte 0 of the template in-place", inline=True)
-comment(0xE047, "A = &04: reset mem_ptr_hi to the template's base page...", inline=True)
-comment(0xE049, "...so [`transmit_frame_b`](address:E4C0) re-reads from &045A", inline=True)
+comment(0xE047, "A = &04: reset mem_ptr_hi to the template's base page…", inline=True)
+comment(0xE049, "…so [`transmit_frame_b`](address:E4C0) re-reads from &045A", inline=True)
 comment(0xE04B, "CSMA: wait for side B's line to go idle", inline=True)
 comment(0xE04E, "Transmit second broadcast (announcing net_num_a to side B)", inline=True)
 
@@ -857,7 +857,7 @@ subroutine(0xE458, "build_announce_b", hook=None,
     title="Build a BridgeReset scout carrying net_num_b as payload",
     description="""\
 Populates the outbound frame control block at `&045A-&0460` with an
-all-broadcast BridgeReset scout -- `ctrl=&80`, `port=&9C`,
+all-broadcast BridgeReset scout – `ctrl=&80`, `port=&9C`,
 `payload=net_num_b`. At reset time this is transmitted via ADLC A
 first (announcing "network `net_num_b` is reachable through me" to
 side A's stations), then `tx_data0` is patched to `net_num_a` and
@@ -884,7 +884,7 @@ is defensive redundancy: together with `dst=(&FF,&FF)`,
 confirm that a received frame is a well-formed bridge announcement.
 
 Also writes `&06` to `tx_end_lo` and `&04` to `tx_end_hi` (so the
-transmit routine sends bytes `&045A..&0460` inclusive -- 7 bytes
+transmit routine sends bytes `&045A..&0460` inclusive – 7 bytes
 when X=1), loads X=1 (trailing-byte flag for
 [`transmit_frame_a`](address:E517)), and points `mem_ptr` at the
 frame block (`&045A`).
@@ -930,7 +930,7 @@ subroutine(0xE051, "main_loop", hook=None, is_entry_point=False,
     description="""\
 The Bridge's continuous-operation entry point. Reached by fall-
 through from the reset handler once startup completes, and by JMP
-from fourteen other sites — every routine that takes an "escape to
+from fourteen other sites – every routine that takes an "escape to
 main" path ([`wait_adlc_a_idle`](address:E6DC), [`transmit_frame_a`](address:E517)/[`transmit_frame_b`](address:E4C0), etc.)
 lands here, so main_loop is the anchor of every packet-processing cycle.
 
@@ -938,7 +938,7 @@ The header (&E051-&E078) forces each ADLC into a known RX-listening
 state: if SR2 bit 0 or 7 (AP or RDA) is already set from a partial
 or aborted previous operation, CR1 is cycled through &C2 (reset TX,
 leave RX running) before setting it to &82 (TX in reset, RX IRQs
-enabled). CR2 is set to &67 — the standard listen-mode value used
+enabled). CR2 is set to &67 – the standard listen-mode value used
 throughout the firmware.
 
 The inner poll loop at [`main_loop_poll`](address:E079?hex) tests SR1 bit 7 (IRQ
@@ -965,7 +965,7 @@ other traffic.""")
 
 comment(0xE051, "Read ADLC A's SR2", inline=True)
 comment(0xE054, "Mask AP/RDA bits to test for any stale RX state", inline=True)
-comment(0xE056, "Clean -> skip the TX reset", inline=True)
+comment(0xE056, "Clean → skip the TX reset", inline=True)
 comment(0xE058, "Mask: reset TX, leave RX running", inline=True)
 comment(0xE05A, "Clear any stale TX state on ADLC A", inline=True)
 label(0xE05D, "main_loop_arm_a")
@@ -975,7 +975,7 @@ comment(0xE062, "Y = &67: listen-mode CR2 (status-clear pattern)", inline=True)
 comment(0xE064, "Commit CR2 on ADLC A", inline=True)
 comment(0xE067, "Read ADLC B's SR2", inline=True)
 comment(0xE06A, "Mask AP/RDA to test for any stale RX state", inline=True)
-comment(0xE06C, "Clean -> skip the TX reset on B", inline=True)
+comment(0xE06C, "Clean → skip the TX reset on B", inline=True)
 comment(0xE06E, "Mask: reset TX, leave RX running", inline=True)
 comment(0xE070, "Clear any stale TX state on ADLC B", inline=True)
 label(0xE073, "main_loop_arm_b")
@@ -992,7 +992,7 @@ incoming scout frame from the RX FIFO into the `rx_*` buffer at
 `&023C-&024F`, runs two levels of filtering, and then dispatches on the
 control byte to per-message handlers.
 
-1. **Addressing filter.** Expect SR2 bit 0 (AP: Address Present) -- if
+1. **Addressing filter.** Expect SR2 bit 0 (AP: Address Present) – if
    missing, bail to [`main_loop`](address:E051) (spurious IRQ). Read byte 0
    (`rx_dst_stn`) and byte 1 (`rx_dst_net`). If `rx_dst_net` is zero
    (local net) or `reachable_via_b[rx_dst_net]` is zero (unknown
@@ -1004,7 +1004,7 @@ control byte to per-message handlers.
    `&023C+Y` up to `Y=20` (the Bridge only keeps the first 20
    bytes). After the drain, force `CR1=0` and `CR2=&84` to halt the
    chip and test SR2 bit 1 (FV, Frame Valid). If FV is clear, the
-   frame was corrupt or short -- bail to `main_loop`. If SR2 bit 7
+   frame was corrupt or short – bail to `main_loop`. If SR2 bit 7
    (RDA) is also set, read one trailing byte.
 
 3. **Broadcast check.** Only frames with `dst_stn == dst_net == &FF`
@@ -1027,24 +1027,24 @@ The side-B handler [`rx_frame_b`](address:E263?hex) is the mirror of this
 routine.""")
 
 comment(0xE0E2, "A = &01: mask SR2 bit 0 (AP = Address Present)", inline=True)
-comment(0xE0E4, "BIT SR2 -- confirm the IRQ was a frame start", inline=True)
-comment(0xE0E7, "AP not set -> spurious IRQ, return to [`main_loop`](address:E051)", inline=True)
+comment(0xE0E4, "BIT SR2 – confirm the IRQ was a frame start", inline=True)
+comment(0xE0E7, "AP not set → spurious IRQ, return to [`main_loop`](address:E051)", inline=True)
 comment(0xE0E9, "Read FIFO byte 0: destination station", inline=True)
 comment(0xE0EC, "Stage dst_stn into the rx header buffer", inline=True)
 comment(0xE0EF, "Block until ADLC A IRQs again (byte 1 ready)", inline=True)
-comment(0xE0F2, "BIT SR2 -- RDA still set for the next byte?", inline=True)
+comment(0xE0F2, "BIT SR2 – RDA still set for the next byte?", inline=True)
 comment(0xE0F5, "RDA cleared: frame truncated before dst_net, bail", inline=True)
 comment(0xE0F7, "Read byte 1 into Y: destination network", inline=True)
-comment(0xE0FA, "dst_net == 0 means 'local net of sender' -- not for us", inline=True)
+comment(0xE0FA, "dst_net == 0 means 'local net of sender' – not for us", inline=True)
 comment(0xE0FC, "Probe reachable_via_b[dst_net] for a route via side B", inline=True)
-comment(0xE0FF, "No route -> frame isn't ours to drain, re-listen", inline=True)
+comment(0xE0FF, "No route → frame isn't ours to drain, re-listen", inline=True)
 comment(0xE101, "Commit dst_net now that it has passed filtering", inline=True)
 comment(0xE104, "Y = 2: resume drain at offset 2 (after header)", inline=True)
 
 label(0xE106, "rx_frame_a_drain")
 comment(0xE106, "Wait for the next FIFO byte IRQ", inline=True)
-comment(0xE109, "BIT SR2 -- RDA still asserted?", inline=True)
-comment(0xE10C, "RDA cleared mid-body -> go to FV check", inline=True)
+comment(0xE109, "BIT SR2 – RDA still asserted?", inline=True)
+comment(0xE10C, "RDA cleared mid-body → go to FV check", inline=True)
 comment(0xE10E, "Read byte Y of payload from TX/RX FIFO", inline=True)
 comment(0xE111, "Store into rx_dst_stn+Y (buffer grows into rx_*)", inline=True)
 comment(0xE114, "Advance Y to the next slot", inline=True)
@@ -1052,7 +1052,7 @@ comment(0xE115, "Read byte Y+1 (pair-read without an IRQ wait)", inline=True)
 comment(0xE118, "Store the second byte of the pair", inline=True)
 comment(0xE11B, "Advance Y past the pair", inline=True)
 comment(0xE11C, "Cap at 20 bytes (6-byte header + up to 14 payload)", inline=True)
-comment(0xE11E, "Under cap -> keep draining", inline=True)
+comment(0xE11E, "Under cap → keep draining", inline=True)
 
 label(0xE120, "rx_frame_a_end")
 comment(0xE120, "A = &00: halt ADLC A", inline=True)
@@ -1060,9 +1060,9 @@ comment(0xE122, "CR1 = 0: disable TX and RX IRQs", inline=True)
 comment(0xE125, "A = &84: clear-RX-status + FV-clear bits", inline=True)
 comment(0xE127, "Commit CR2: acknowledge end-of-frame", inline=True)
 comment(0xE12A, "A = &02: mask SR2 bit 1 (FV: Frame Valid)", inline=True)
-comment(0xE12C, "BIT SR2 -- test FV and RDA", inline=True)
-comment(0xE12F, "FV clear -> frame corrupt or short, bail", inline=True)
-comment(0xE131, "FV set + no RDA -> clean end; go to dispatch", inline=True)
+comment(0xE12C, "BIT SR2 – test FV and RDA", inline=True)
+comment(0xE12F, "FV clear → frame corrupt or short, bail", inline=True)
+comment(0xE131, "FV set + no RDA → clean end; go to dispatch", inline=True)
 comment(0xE133, "FV + RDA: one trailing byte still in FIFO", inline=True)
 comment(0xE136, "Store the odd trailing byte", inline=True)
 comment(0xE139, "Advance Y to count that final byte", inline=True)
@@ -1081,38 +1081,38 @@ comment(0xE147, "Out-of-range JMP to [`rx_a_forward`](address:E208) (JSR can't r
 
 label(0xE14A, "rx_frame_a_dispatch")
 comment(0xE14A, "Save final byte count (even if 0 bytes of payload)", inline=True)
-comment(0xE14D, "Compare to 6 -- minimum valid scout header", inline=True)
-comment(0xE14F, "Shorter than header -> bail", inline=True)
+comment(0xE14D, "Compare to 6 – minimum valid scout header", inline=True)
+comment(0xE14F, "Shorter than header → bail", inline=True)
 comment(0xE151, "Load src_net from the drained frame", inline=True)
-comment(0xE154, "Non-zero -> sender supplied src_net, keep it", inline=True)
+comment(0xE154, "Non-zero → sender supplied src_net, keep it", inline=True)
 comment(0xE156, "Sender left src_net = 0 ('my local net')", inline=True)
-comment(0xE159, "...substitute our own A-side network number", inline=True)
+comment(0xE159, "…substitute our own A-side network number", inline=True)
 label(0xE15C, "rx_a_src_net_resolved")
 comment(0xE15C, "Load our B-side network number for comparison", inline=True)
 comment(0xE15F, "Compare against the incoming dst_net", inline=True)
-comment(0xE162, "Not for side B -> skip the local rewrite", inline=True)
-comment(0xE164, "dst_net names our B-side network...", inline=True)
-comment(0xE166, "...normalise dst_net to 0 (local on B)", inline=True)
+comment(0xE162, "Not for side B → skip the local rewrite", inline=True)
+comment(0xE164, "dst_net names our B-side network…", inline=True)
+comment(0xE166, "…normalise dst_net to 0 (local on B)", inline=True)
 label(0xE169, "rx_a_broadcast_check")
 comment(0xE169, "Load dst_stn for the broadcast test", inline=True)
 comment(0xE16C, "AND with dst_net (both &FF only if full broadcast)", inline=True)
 comment(0xE16F, "Compare result to &FF", inline=True)
-comment(0xE171, "Not a full broadcast -> forward path", inline=True)
+comment(0xE171, "Not a full broadcast → forward path", inline=True)
 comment(0xE173, "Broadcast: re-arm A's listen mode for any follow-up", inline=True)
 comment(0xE176, "A = &C2: reset TX, enable RX", inline=True)
 comment(0xE178, "Commit CR1 while we process the bridge-protocol frame", inline=True)
 comment(0xE17B, "Load the port byte from the drained frame", inline=True)
 comment(0xE17E, "Compare with &9C (bridge-protocol port)", inline=True)
-comment(0xE180, "Not our port -> drop into forward path", inline=True)
+comment(0xE180, "Not our port → drop into forward path", inline=True)
 comment(0xE182, "Load ctrl byte for the per-type dispatch", inline=True)
 comment(0xE185, "Test &81 (BridgeReply: re-announcement)", inline=True)
-comment(0xE187, "Match -> [`rx_a_handle_81`](address:E1EE)", inline=True)
+comment(0xE187, "Match → [`rx_a_handle_81`](address:E1EE)", inline=True)
 comment(0xE189, "Test &80 (BridgeReset: initial announcement)", inline=True)
-comment(0xE18B, "Match -> [`rx_a_handle_80`](address:E1D6)", inline=True)
+comment(0xE18B, "Match → [`rx_a_handle_80`](address:E1D6)", inline=True)
 comment(0xE18D, "Test &82 (WhatNet: general query)", inline=True)
-comment(0xE18F, "Match -> [`rx_a_handle_82`](address:E19D)", inline=True)
+comment(0xE18F, "Match → [`rx_a_handle_82`](address:E19D)", inline=True)
 comment(0xE191, "Test &83 (IsNet: targeted query)", inline=True)
-comment(0xE193, "Unknown ctrl -> forward path (fall through to [`rx_a_handle_83`](address:E195) on match)", inline=True)
+comment(0xE193, "Unknown ctrl → forward path (fall through to [`rx_a_handle_83`](address:E195) on match)", inline=True)
 
 
 label(0xE316, "rx_b_handle_83")
@@ -1126,7 +1126,7 @@ known.""")
 
 comment(0xE316, "Y = the queried network number", inline=True)
 comment(0xE319, "Check if we have a route via the other side", inline=True)
-comment(0xE31C, "Unknown -> silently drop this IsNet query", inline=True)
+comment(0xE31C, "Unknown → silently drop this IsNet query", inline=True)
 
 label(0xE31E, "rx_b_handle_82")
 subroutine(0xE31E, "rx_b_handle_82", hook=None, is_entry_point=False,
@@ -1147,7 +1147,7 @@ comment(0xE32D, "Busy-wait for (net_num_a * ~50us) + 160us", inline=True)
 comment(0xE330, "CSMA wait on B", inline=True)
 comment(0xE333, "Transmit the reply scout", inline=True)
 comment(0xE336, "Wait for the querier's scout-ACK on B", inline=True)
-comment(0xE339, "Rebuild template -- next frame is the data response", inline=True)
+comment(0xE339, "Rebuild template – next frame is the data response", inline=True)
 comment(0xE33C, "Fetch net_num_a", inline=True)
 comment(0xE33F, "Re-patch src_net", inline=True)
 comment(0xE342, "Fetch net_num_b", inline=True)
@@ -1157,7 +1157,7 @@ comment(0xE34B, "Write as data-frame payload byte 1", inline=True)
 comment(0xE34E, "Transmit the data frame", inline=True)
 comment(0xE351, "Wait for final data-ACK", inline=True)
 label(0xE354, "rx_b_query_done")
-comment(0xE354, "Transaction complete -> back to [`main_loop`](address:E051)", inline=True)
+comment(0xE354, "Transaction complete → back to [`main_loop`](address:E051)", inline=True)
 
 
 label(0xE357, "rx_b_handle_80")
@@ -1202,7 +1202,7 @@ comment(0xE375, "A = &FF: 'route known' marker", inline=True)
 comment(0xE377, "Remember that network X is reachable via side B", inline=True)
 comment(0xE37A, "Advance to next payload byte", inline=True)
 comment(0xE37B, "Have we reached the end of the payload?", inline=True)
-comment(0xE37E, "No -- keep learning", inline=True)
+comment(0xE37E, "No – keep learning", inline=True)
 comment(0xE380, "Load our own side-B network number", inline=True)
 comment(0xE383, "Append it to the payload for the onward broadcast", inline=True)
 comment(0xE386, "Payload grew by one byte; record the new length", inline=True)
@@ -1233,24 +1233,24 @@ See [`rx_frame_a`](address:E0E2) for the full per-instruction
 explanation.""")
 
 comment(0xE263, "A = &01: mask SR2 bit 0 (AP = Address Present)", inline=True)
-comment(0xE265, "BIT SR2 -- confirm the IRQ was a frame start", inline=True)
-comment(0xE268, "AP not set -> spurious IRQ, return to [`main_loop`](address:E051)", inline=True)
+comment(0xE265, "BIT SR2 – confirm the IRQ was a frame start", inline=True)
+comment(0xE268, "AP not set → spurious IRQ, return to [`main_loop`](address:E051)", inline=True)
 comment(0xE26A, "Read FIFO byte 0: destination station", inline=True)
 comment(0xE26D, "Stage dst_stn into the rx header buffer", inline=True)
 comment(0xE270, "Block until ADLC B IRQs again (byte 1 ready)", inline=True)
-comment(0xE273, "BIT SR2 -- RDA still set for the next byte?", inline=True)
+comment(0xE273, "BIT SR2 – RDA still set for the next byte?", inline=True)
 comment(0xE276, "RDA cleared: frame truncated before dst_net, bail", inline=True)
 comment(0xE278, "Read byte 1 into Y: destination network", inline=True)
-comment(0xE27B, "dst_net == 0 means 'local net of sender' -- not for us", inline=True)
+comment(0xE27B, "dst_net == 0 means 'local net of sender' – not for us", inline=True)
 comment(0xE27D, "Probe reachable_via_a[dst_net] for a route via side A", inline=True)
-comment(0xE280, "No route -> frame isn't ours to drain, re-listen", inline=True)
+comment(0xE280, "No route → frame isn't ours to drain, re-listen", inline=True)
 comment(0xE282, "Commit dst_net now that it has passed filtering", inline=True)
 comment(0xE285, "Y = 2: resume drain at offset 2 (after header)", inline=True)
 
 label(0xE287, "rx_frame_b_drain")
 comment(0xE287, "Wait for the next FIFO byte IRQ", inline=True)
-comment(0xE28A, "BIT SR2 -- RDA still asserted?", inline=True)
-comment(0xE28D, "RDA cleared mid-body -> go to FV check", inline=True)
+comment(0xE28A, "BIT SR2 – RDA still asserted?", inline=True)
+comment(0xE28D, "RDA cleared mid-body → go to FV check", inline=True)
 comment(0xE28F, "Read byte Y of payload from TX/RX FIFO", inline=True)
 comment(0xE292, "Store into rx_dst_stn+Y (buffer grows into rx_*)", inline=True)
 comment(0xE295, "Advance Y to the next slot", inline=True)
@@ -1258,7 +1258,7 @@ comment(0xE296, "Read byte Y+1 (pair-read without an IRQ wait)", inline=True)
 comment(0xE299, "Store the second byte of the pair", inline=True)
 comment(0xE29C, "Advance Y past the pair", inline=True)
 comment(0xE29D, "Cap at 20 bytes (6-byte header + up to 14 payload)", inline=True)
-comment(0xE29F, "Under cap -> keep draining", inline=True)
+comment(0xE29F, "Under cap → keep draining", inline=True)
 
 label(0xE2A1, "rx_frame_b_end")
 comment(0xE2A1, "A = &00: halt ADLC B", inline=True)
@@ -1266,9 +1266,9 @@ comment(0xE2A3, "CR1 = 0: disable TX and RX IRQs", inline=True)
 comment(0xE2A6, "A = &84: clear-RX-status + FV-clear bits", inline=True)
 comment(0xE2A8, "Commit CR2: acknowledge end-of-frame", inline=True)
 comment(0xE2AB, "A = &02: mask SR2 bit 1 (FV: Frame Valid)", inline=True)
-comment(0xE2AD, "BIT SR2 -- test FV and RDA", inline=True)
-comment(0xE2B0, "FV clear -> frame corrupt or short, bail", inline=True)
-comment(0xE2B2, "FV set + no RDA -> clean end; go to dispatch", inline=True)
+comment(0xE2AD, "BIT SR2 – test FV and RDA", inline=True)
+comment(0xE2B0, "FV clear → frame corrupt or short, bail", inline=True)
+comment(0xE2B2, "FV set + no RDA → clean end; go to dispatch", inline=True)
 comment(0xE2B4, "FV + RDA: one trailing byte still in FIFO", inline=True)
 comment(0xE2B7, "Store the odd trailing byte", inline=True)
 comment(0xE2BA, "Advance Y to count that final byte", inline=True)
@@ -1287,38 +1287,38 @@ comment(0xE2C8, "Out-of-range JMP to [`rx_b_forward`](address:E389) (JSR can't r
 
 label(0xE2CB, "rx_frame_b_dispatch")
 comment(0xE2CB, "Save final byte count (even if 0 bytes of payload)", inline=True)
-comment(0xE2CE, "Compare to 6 -- minimum valid scout header", inline=True)
-comment(0xE2D0, "Shorter than header -> bail", inline=True)
+comment(0xE2CE, "Compare to 6 – minimum valid scout header", inline=True)
+comment(0xE2D0, "Shorter than header → bail", inline=True)
 comment(0xE2D2, "Load src_net from the drained frame", inline=True)
-comment(0xE2D5, "Non-zero -> sender supplied src_net, keep it", inline=True)
+comment(0xE2D5, "Non-zero → sender supplied src_net, keep it", inline=True)
 comment(0xE2D7, "Sender left src_net = 0 ('my local net')", inline=True)
-comment(0xE2DA, "...substitute our own B-side network number", inline=True)
+comment(0xE2DA, "…substitute our own B-side network number", inline=True)
 label(0xE2DD, "rx_b_src_net_resolved")
 comment(0xE2DD, "Load our A-side network number for comparison", inline=True)
 comment(0xE2E0, "Compare against the incoming dst_net", inline=True)
-comment(0xE2E3, "Not for side A -> skip the local rewrite", inline=True)
-comment(0xE2E5, "dst_net names our A-side network...", inline=True)
-comment(0xE2E7, "...normalise dst_net to 0 (local on A)", inline=True)
+comment(0xE2E3, "Not for side A → skip the local rewrite", inline=True)
+comment(0xE2E5, "dst_net names our A-side network…", inline=True)
+comment(0xE2E7, "…normalise dst_net to 0 (local on A)", inline=True)
 label(0xE2EA, "rx_b_broadcast_check")
 comment(0xE2EA, "Load dst_stn for the broadcast test", inline=True)
 comment(0xE2ED, "AND with dst_net (both &FF only if full broadcast)", inline=True)
 comment(0xE2F0, "Compare result to &FF", inline=True)
-comment(0xE2F2, "Not a full broadcast -> forward path", inline=True)
+comment(0xE2F2, "Not a full broadcast → forward path", inline=True)
 comment(0xE2F4, "Broadcast: re-arm B's listen mode for any follow-up", inline=True)
 comment(0xE2F7, "A = &C2: reset TX, enable RX", inline=True)
 comment(0xE2F9, "Commit CR1 while we process the bridge-protocol frame", inline=True)
 comment(0xE2FC, "Load the port byte from the drained frame", inline=True)
 comment(0xE2FF, "Compare with &9C (bridge-protocol port)", inline=True)
-comment(0xE301, "Not our port -> drop into forward path", inline=True)
+comment(0xE301, "Not our port → drop into forward path", inline=True)
 comment(0xE303, "Load ctrl byte for the per-type dispatch", inline=True)
 comment(0xE306, "Test &81 (BridgeReply: re-announcement)", inline=True)
-comment(0xE308, "Match -> [`rx_b_handle_81`](address:E36F)", inline=True)
+comment(0xE308, "Match → [`rx_b_handle_81`](address:E36F)", inline=True)
 comment(0xE30A, "Test &80 (BridgeReset: initial announcement)", inline=True)
-comment(0xE30C, "Match -> [`rx_b_handle_80`](address:E357)", inline=True)
+comment(0xE30C, "Match → [`rx_b_handle_80`](address:E357)", inline=True)
 comment(0xE30E, "Test &82 (WhatNet: general query)", inline=True)
-comment(0xE310, "Match -> [`rx_b_handle_82`](address:E31E)", inline=True)
+comment(0xE310, "Match → [`rx_b_handle_82`](address:E31E)", inline=True)
 comment(0xE312, "Test &83 (IsNet: targeted query)", inline=True)
-comment(0xE314, "Unknown ctrl -> forward path (fall through to [`rx_b_handle_83`](address:E316) on match)", inline=True)
+comment(0xE314, "Unknown ctrl → forward path (fall through to [`rx_b_handle_83`](address:E316) on match)", inline=True)
 
 
 label(0xE56E, "handshake_rx_a")
@@ -1346,7 +1346,7 @@ now-staged frame:
   declared) or if `reachable_via_b` has no entry for that network
   (we don't know a route).
 - If `tx_dst_net` equals `net_num_b` (our own B-side network),
-  normalise it to zero -- from side B's perspective the frame is
+  normalise it to zero – from side B's perspective the frame is
   now "local".
 
 On any of the "reject" paths above, and on any sub-step that fails
@@ -1378,31 +1378,31 @@ comment(0xE56E, "A = &82: TX in reset, RX IRQs enabled", inline=True)
 comment(0xE570, "Re-arm ADLC A for the incoming handshake frame", inline=True)
 comment(0xE573, "A = &01: SR2 mask for AP (Address Present)", inline=True)
 comment(0xE575, "Block until ADLC A raises its first IRQ", inline=True)
-comment(0xE578, "BIT SR2 -- test AP bit against mask in A", inline=True)
+comment(0xE578, "BIT SR2 – test AP bit against mask in A", inline=True)
 comment(0xE57B, "No AP: nothing arrived, escape to main", inline=True)
 comment(0xE57D, "Read byte 0 of the handshake frame (dst_stn)", inline=True)
 comment(0xE580, "Stage into tx buffer for onward transmission", inline=True)
 comment(0xE583, "Wait for the second RX IRQ (next byte ready)", inline=True)
-comment(0xE586, "BIT SR2 -- RDA (bit 7) still set?", inline=True)
+comment(0xE586, "BIT SR2 – RDA (bit 7) still set?", inline=True)
 comment(0xE589, "RDA cleared mid-frame: truncated, escape", inline=True)
 comment(0xE58B, "Read byte 1: destination network", inline=True)
 comment(0xE58E, "Stage dst_net into the forward buffer", inline=True)
 comment(0xE591, "Y = 2: start draining pair-payload into (mem_ptr_lo),Y", inline=True)
 label(0xE593, "handshake_rx_a_pair_loop")
 comment(0xE593, "Wait for the next RX byte", inline=True)
-comment(0xE596, "BIT SR2 -- RDA still asserted?", inline=True)
-comment(0xE599, "End-of-frame detected mid-pair -- jump to FV check", inline=True)
+comment(0xE596, "BIT SR2 – RDA still asserted?", inline=True)
+comment(0xE599, "End-of-frame detected mid-pair – jump to FV check", inline=True)
 comment(0xE59B, "Read even-indexed payload byte", inline=True)
 comment(0xE59E, "Store into (mem_ptr_lo)+Y in the staging buffer", inline=True)
 comment(0xE5A0, "Advance Y to odd slot", inline=True)
 comment(0xE5A1, "Read odd-indexed payload byte (no IRQ wait: paired)", inline=True)
 comment(0xE5A4, "Store into (mem_ptr_lo)+Y", inline=True)
 comment(0xE5A6, "Advance Y; wraps to 0 after 256 bytes", inline=True)
-comment(0xE5A7, "Y didn't wrap -- stay in this page", inline=True)
+comment(0xE5A7, "Y didn't wrap – stay in this page", inline=True)
 comment(0xE5A9, "Y wrapped: advance mem_ptr_hi to next page", inline=True)
 comment(0xE5AB, "Reload new page number for bounds test", inline=True)
 comment(0xE5AD, "Compare against top_ram_page (set by boot RAM test)", inline=True)
-comment(0xE5AF, "Still room -- keep draining into the next page", inline=True)
+comment(0xE5AF, "Still room – keep draining into the next page", inline=True)
 label(0xE5B1, "handshake_rx_a_escape")
 comment(0xE5B1, "Drop caller's return address (lo)", inline=True)
 comment(0xE5B2, "Drop caller's return address (hi)", inline=True)
@@ -1414,9 +1414,9 @@ comment(0xE5B8, "CR1 = 0: disable TX and RX IRQs", inline=True)
 comment(0xE5BB, "A = &84: clear-RX-status + FV-clear bits", inline=True)
 comment(0xE5BD, "Commit CR2: acknowledge the end-of-frame", inline=True)
 comment(0xE5C0, "A = &02: mask SR2 bit 1 (Frame Valid)", inline=True)
-comment(0xE5C2, "BIT SR2 -- test FV and RDA bits together", inline=True)
-comment(0xE5C5, "FV clear -> frame was corrupt/short, escape", inline=True)
-comment(0xE5C7, "FV set but no RDA -> clean end, finalise length", inline=True)
+comment(0xE5C2, "BIT SR2 – test FV and RDA bits together", inline=True)
+comment(0xE5C5, "FV clear → frame was corrupt/short, escape", inline=True)
+comment(0xE5C7, "FV set but no RDA → clean end, finalise length", inline=True)
 comment(0xE5C9, "FV+RDA both set: one trailing byte still pending", inline=True)
 comment(0xE5CC, "Store the odd trailing byte into the staging buffer", inline=True)
 comment(0xE5CE, "Advance Y to cover that final byte", inline=True)
@@ -1426,23 +1426,23 @@ comment(0xE5D0, "X = A: preserve raw length for odd-length callers", inline=True
 comment(0xE5D1, "Mask low bit: round length DOWN to even", inline=True)
 comment(0xE5D3, "Store rounded tx_end_lo", inline=True)
 comment(0xE5D6, "Load src_net from the just-drained frame", inline=True)
-comment(0xE5D9, "Non-zero -> sender supplied src_net, keep it", inline=True)
+comment(0xE5D9, "Non-zero → sender supplied src_net, keep it", inline=True)
 comment(0xE5DB, "Sender left src_net as 0 ('my local net')", inline=True)
 comment(0xE5DE, "Substitute our own A-side network number", inline=True)
 label(0xE5E1, "handshake_rx_a_route_check")
 comment(0xE5E1, "Load dst_net into Y for routing lookup", inline=True)
-comment(0xE5E4, "dst_net = 0 (unspecified) -> reject, escape", inline=True)
+comment(0xE5E4, "dst_net = 0 (unspecified) → reject, escape", inline=True)
 comment(0xE5E6, "Probe reachable_via_b[dst_net]", inline=True)
-comment(0xE5E9, "No route via side B -> reject, escape", inline=True)
+comment(0xE5E9, "No route via side B → reject, escape", inline=True)
 comment(0xE5EB, "Compare dst_net with our B-side net number", inline=True)
-comment(0xE5EE, "Not us -> leave dst_net as-is, skip the rewrite", inline=True)
-comment(0xE5F0, "Frame is for the B-side's local network...", inline=True)
-comment(0xE5F2, "...normalise dst_net to 0 for the outbound header", inline=True)
+comment(0xE5EE, "Not us → leave dst_net as-is, skip the rewrite", inline=True)
+comment(0xE5F0, "Frame is for the B-side's local network…", inline=True)
+comment(0xE5F2, "…normalise dst_net to 0 for the outbound header", inline=True)
 label(0xE5F5, "handshake_rx_a_end")
 comment(0xE5F5, "Read final mem_ptr_hi (last page written)", inline=True)
 comment(0xE5F7, "Record as tx_end_hi (multi-page frames need this)", inline=True)
-comment(0xE5FA, "A = &04: reset mem_ptr_hi back to &045A page...", inline=True)
-comment(0xE5FC, "...so the transmit path walks the buffer from byte 0", inline=True)
+comment(0xE5FA, "A = &04: reset mem_ptr_hi back to &045A page…", inline=True)
+comment(0xE5FC, "…so the transmit path walks the buffer from byte 0", inline=True)
 comment(0xE5FE, "Return: frame staged, transmitter can send it verbatim", inline=True)
 
 
@@ -1471,7 +1471,7 @@ now-staged frame:
   declared) or if `reachable_via_a` has no entry for that network
   (no route).
 - If `tx_dst_net` equals `net_num_a` (our own A-side network),
-  normalise it to zero -- from side A's perspective the frame is
+  normalise it to zero – from side A's perspective the frame is
   now "local".
 
 On any of the "reject" paths above, and on any sub-step that fails
@@ -1503,31 +1503,31 @@ comment(0xE5FF, "A = &82: TX in reset, RX IRQs enabled", inline=True)
 comment(0xE601, "Re-arm ADLC B for the incoming handshake frame", inline=True)
 comment(0xE604, "A = &01: SR2 mask for AP (Address Present)", inline=True)
 comment(0xE606, "Block until ADLC B raises its first IRQ", inline=True)
-comment(0xE609, "BIT SR2 -- test AP bit against mask in A", inline=True)
+comment(0xE609, "BIT SR2 – test AP bit against mask in A", inline=True)
 comment(0xE60C, "No AP: nothing arrived, escape to main", inline=True)
 comment(0xE60E, "Read byte 0 of the handshake frame (dst_stn)", inline=True)
 comment(0xE611, "Stage into tx buffer for onward transmission", inline=True)
 comment(0xE614, "Wait for the second RX IRQ (next byte ready)", inline=True)
-comment(0xE617, "BIT SR2 -- RDA (bit 7) still set?", inline=True)
+comment(0xE617, "BIT SR2 – RDA (bit 7) still set?", inline=True)
 comment(0xE61A, "RDA cleared mid-frame: truncated, escape", inline=True)
 comment(0xE61C, "Read byte 1: destination network", inline=True)
 comment(0xE61F, "Stage dst_net into the forward buffer", inline=True)
 comment(0xE622, "Y = 2: start draining pair-payload into (mem_ptr_lo),Y", inline=True)
 label(0xE624, "handshake_rx_b_pair_loop")
 comment(0xE624, "Wait for the next RX byte", inline=True)
-comment(0xE627, "BIT SR2 -- RDA still asserted?", inline=True)
-comment(0xE62A, "End-of-frame detected mid-pair -- jump to FV check", inline=True)
+comment(0xE627, "BIT SR2 – RDA still asserted?", inline=True)
+comment(0xE62A, "End-of-frame detected mid-pair – jump to FV check", inline=True)
 comment(0xE62C, "Read even-indexed payload byte", inline=True)
 comment(0xE62F, "Store into (mem_ptr_lo)+Y in the staging buffer", inline=True)
 comment(0xE631, "Advance Y to odd slot", inline=True)
 comment(0xE632, "Read odd-indexed payload byte (no IRQ wait: paired)", inline=True)
 comment(0xE635, "Store into (mem_ptr_lo)+Y", inline=True)
 comment(0xE637, "Advance Y; wraps to 0 after 256 bytes", inline=True)
-comment(0xE638, "Y didn't wrap -- stay in this page", inline=True)
+comment(0xE638, "Y didn't wrap – stay in this page", inline=True)
 comment(0xE63A, "Y wrapped: advance mem_ptr_hi to next page", inline=True)
 comment(0xE63C, "Reload new page number for bounds test", inline=True)
 comment(0xE63E, "Compare against top_ram_page (set by boot RAM test)", inline=True)
-comment(0xE640, "Still room -- keep draining into the next page", inline=True)
+comment(0xE640, "Still room – keep draining into the next page", inline=True)
 label(0xE642, "handshake_rx_b_escape")
 comment(0xE642, "Drop caller's return address (lo)", inline=True)
 comment(0xE643, "Drop caller's return address (hi)", inline=True)
@@ -1539,9 +1539,9 @@ comment(0xE649, "CR1 = 0: disable TX and RX IRQs", inline=True)
 comment(0xE64C, "A = &84: clear-RX-status + FV-clear bits", inline=True)
 comment(0xE64E, "Commit CR2: acknowledge the end-of-frame", inline=True)
 comment(0xE651, "A = &02: mask SR2 bit 1 (Frame Valid)", inline=True)
-comment(0xE653, "BIT SR2 -- test FV and RDA bits together", inline=True)
-comment(0xE656, "FV clear -> frame was corrupt/short, escape", inline=True)
-comment(0xE658, "FV set but no RDA -> clean end, finalise length", inline=True)
+comment(0xE653, "BIT SR2 – test FV and RDA bits together", inline=True)
+comment(0xE656, "FV clear → frame was corrupt/short, escape", inline=True)
+comment(0xE658, "FV set but no RDA → clean end, finalise length", inline=True)
 comment(0xE65A, "FV+RDA both set: one trailing byte still pending", inline=True)
 comment(0xE65D, "Store the odd trailing byte into the staging buffer", inline=True)
 comment(0xE65F, "Advance Y to cover that final byte", inline=True)
@@ -1551,23 +1551,23 @@ comment(0xE661, "X = A: preserve raw length for odd-length callers", inline=True
 comment(0xE662, "Mask low bit: round length DOWN to even", inline=True)
 comment(0xE664, "Store rounded tx_end_lo", inline=True)
 comment(0xE667, "Load src_net from the just-drained frame", inline=True)
-comment(0xE66A, "Non-zero -> sender supplied src_net, keep it", inline=True)
+comment(0xE66A, "Non-zero → sender supplied src_net, keep it", inline=True)
 comment(0xE66C, "Sender left src_net as 0 ('my local net')", inline=True)
 comment(0xE66F, "Substitute our own B-side network number", inline=True)
 label(0xE672, "handshake_rx_b_route_check")
 comment(0xE672, "Load dst_net into Y for routing lookup", inline=True)
-comment(0xE675, "dst_net = 0 (unspecified) -> reject, escape", inline=True)
+comment(0xE675, "dst_net = 0 (unspecified) → reject, escape", inline=True)
 comment(0xE677, "Probe reachable_via_a[dst_net]", inline=True)
-comment(0xE67A, "No route via side A -> reject, escape", inline=True)
+comment(0xE67A, "No route via side A → reject, escape", inline=True)
 comment(0xE67C, "Compare dst_net with our A-side net number", inline=True)
-comment(0xE67F, "Not us -> leave dst_net as-is, skip the rewrite", inline=True)
-comment(0xE681, "Frame is for the A-side's local network...", inline=True)
-comment(0xE683, "...normalise dst_net to 0 for the outbound header", inline=True)
+comment(0xE67F, "Not us → leave dst_net as-is, skip the rewrite", inline=True)
+comment(0xE681, "Frame is for the A-side's local network…", inline=True)
+comment(0xE683, "…normalise dst_net to 0 for the outbound header", inline=True)
 label(0xE686, "handshake_rx_b_end")
 comment(0xE686, "Read final mem_ptr_hi (last page written)", inline=True)
 comment(0xE688, "Record as tx_end_hi (multi-page frames need this)", inline=True)
-comment(0xE68B, "A = &04: reset mem_ptr_hi back to &045A page...", inline=True)
-comment(0xE68D, "...so the transmit path walks the buffer from byte 0", inline=True)
+comment(0xE68B, "A = &04: reset mem_ptr_hi back to &045A page…", inline=True)
+comment(0xE68D, "…so the transmit path walks the buffer from byte 0", inline=True)
 comment(0xE68F, "Return: frame staged, transmitter can send it verbatim", inline=True)
 
 
@@ -1598,17 +1598,17 @@ runs from ~215 us to ~7 ms. This spread means multiple bridges on
 the same segment responding to a broadcast query (`ctrl=&82`)
 transmit their responses at measurably different times, reducing
 the chance of collisions on the shared medium. Bridges with higher
-network numbers back off longer -- a cheap deterministic priority
+network numbers back off longer – a cheap deterministic priority
 scheme that requires no coordination.""")
 
 comment(0xE448, "Y = &40: seed for the fixed-length settling delay", inline=True)
 label(0xE44A, "stagger_delay_prelude")
-comment(0xE44A, "Tight DEY/BNE loop -- burns ~160 us regardless of caller", inline=True)
+comment(0xE44A, "Tight DEY/BNE loop – burns ~160 us regardless of caller", inline=True)
 comment(0xE44B, "Spin until the prelude counter hits zero", inline=True)
 label(0xE44D, "stagger_delay_outer")
 comment(0xE44D, "Y = &14: seed for one inner-loop iteration", inline=True)
 label(0xE44F, "stagger_delay_inner")
-comment(0xE44F, "Tight DEY/BNE -- ~50 us per outer iteration", inline=True)
+comment(0xE44F, "Tight DEY/BNE – ~50 us per outer iteration", inline=True)
 comment(0xE450, "Spin until the inner counter hits zero", inline=True)
 comment(0xE452, "One tick of the caller's network-number count", inline=True)
 comment(0xE455, "Loop until ctr24_lo reaches zero (net_num_? ticks)", inline=True)
@@ -1623,7 +1623,7 @@ A second frame-builder (sibling of [`build_announce_b`](address:E458))
 used by the bridge-query response path. Called *twice* per response:
 once to build the reply scout (`ctrl=&80` + `reply_port` as the port),
 then after the querier's scout-ACK has been received, called again to
-rebuild the buffer as a data frame -- the caller then patches bytes 4
+rebuild the buffer as a data frame – the caller then patches bytes 4
 and 5 (labelled `tx_ctrl` and `tx_port` but genuinely payload in a
 data frame) with the routing answer. Where `build_announce_b` writes
 a broadcast-addressed template, this one builds a unicast reply:
@@ -1644,7 +1644,7 @@ Also writes `tx_end_lo=&06` / `tx_end_hi=&04` and points `mem_ptr` at
 Called from the two query-response paths ([`&E1A0`](address:E1A0) and
 [`&E1B8`](address:E1B8) on side A; [`&E321`](address:E321) and
 [`&E339`](address:E339) on side B). Each caller then patches a subset
-of the fields before calling `transmit_frame_?` -- the idiomatic
+of the fields before calling `transmit_frame_?` – the idiomatic
 second call in particular overwrites `tx_ctrl` and `tx_port` to
 carry the bridge's routing answer.""")
 
@@ -1676,7 +1676,7 @@ subroutine(0xE195, "rx_a_handle_83", hook=None, is_entry_point=False,
     title="Side-A IsNet query (ctrl=&83): targeted network lookup",
     description="""\
 Called when a received frame on side A is broadcast + `port=&9C` +
-`ctrl=&83` -- the querier is asking "can you reach network X?",
+`ctrl=&83` – the querier is asking "can you reach network X?",
 where X is the byte at offset 13 of the payload (`rx_query_net`).
 
 Consults `reachable_via_b[rx_query_net]`. If the entry is zero,
@@ -1684,12 +1684,12 @@ there is no route to that network so the query is silently dropped
 (`JMP` [`main_loop`](address:E051) via
 [`rx_a_query_done`](address:E1D3)). If non-zero, falls through to
 the shared response body at [`rx_a_handle_82`](address:E19D) to
-transmit the reply -- so the targeted query is effectively the
+transmit the reply – so the targeted query is effectively the
 general query with an up-front routing filter.""")
 
 comment(0xE195, "Y = the queried network number", inline=True)
 comment(0xE198, "Check if we have a route via the other side", inline=True)
-comment(0xE19B, "Unknown -> silently drop this IsNet query", inline=True)
+comment(0xE19B, "Unknown → silently drop this IsNet query", inline=True)
 
 
 label(0xE19D, "rx_a_handle_82")
@@ -1697,8 +1697,8 @@ subroutine(0xE19D, "rx_a_handle_82", hook=None, is_entry_point=False,
     title="Side-A WhatNet query (ctrl=&82); also the IsNet response path",
     description="""\
 Called when a received frame on side A is broadcast + `port=&9C` +
-`ctrl=&82` -- a general bridge query asking "which networks do you
-reach?" -- or when [`rx_a_handle_83`](address:E195) has verified
+`ctrl=&82` – a general bridge query asking "which networks do you
+reach?" – or when [`rx_a_handle_83`](address:E195) has verified
 that a specific IsNet queried network is in fact reachable via
 side B and is re-using this response path.
 
@@ -1719,7 +1719,7 @@ the Bridge drives from the responder side as two transmissions
 3. CSMA, transmit the scout, then
    [`handshake_rx_a`](address:E56E) to receive the scout-ACK.
 4. Rebuild the frame via [`build_query_response`](address:E48D)
-   again -- this time to be a *data* frame following the scout we
+   again – this time to be a *data* frame following the scout we
    just exchanged, not a new scout. The patches that follow
    populate the first two payload bytes of that data frame (at
    the byte positions labelled `tx_ctrl` and `tx_port`, but those
@@ -1751,7 +1751,7 @@ comment(0xE1AC, "Busy-wait for (net_num_b * ~50us) + 160us", inline=True)
 comment(0xE1AF, "CSMA wait on A so we don't collide with live traffic", inline=True)
 comment(0xE1B2, "Transmit the reply scout", inline=True)
 comment(0xE1B5, "Wait for the querier's scout-ACK on A", inline=True)
-comment(0xE1B8, "Rebuild template -- next frame is the data response", inline=True)
+comment(0xE1B8, "Rebuild template – next frame is the data response", inline=True)
 comment(0xE1BB, "Fetch net_num_b", inline=True)
 comment(0xE1BE, "Re-patch src_net (rebuilt block needs it again)", inline=True)
 comment(0xE1C1, "Fetch net_num_a", inline=True)
@@ -1761,7 +1761,7 @@ comment(0xE1CA, "Write it as data-frame payload byte 1 (tx_port slot)", inline=T
 comment(0xE1CD, "Transmit the data frame", inline=True)
 comment(0xE1D0, "Wait for the querier's final data-ACK", inline=True)
 label(0xE1D3, "rx_a_query_done")
-comment(0xE1D3, "Transaction complete -> back to [`main_loop`](address:E051)", inline=True)
+comment(0xE1D3, "Transaction complete → back to [`main_loop`](address:E051)", inline=True)
 
 
 label(0xE208, "rx_a_forward")
@@ -1809,8 +1809,8 @@ comment(0xE211, "CSMA wait on B before transmitting the forwarded scout", inline
 comment(0xE214, "Y = 0: start at byte 0 of the rx_* buffer", inline=True)
 label(0xE216, "rx_a_forward_pair_loop")
 comment(0xE216, "Wait for ADLC B's TDRA", inline=True)
-comment(0xE219, "BIT SR1 -- V <- bit 6 (TDRA)", inline=True)
-comment(0xE21C, "TDRA clear -> chip lost sync, escape to [`main_loop`](address:E051)", inline=True)
+comment(0xE219, "BIT SR1 – V ← bit 6 (TDRA)", inline=True)
+comment(0xE21C, "TDRA clear → chip lost sync, escape to [`main_loop`](address:E051)", inline=True)
 comment(0xE21E, "Load byte Y of the received scout", inline=True)
 comment(0xE221, "Push it to ADLC B's TX FIFO", inline=True)
 comment(0xE224, "Advance Y", inline=True)
@@ -1818,27 +1818,27 @@ comment(0xE225, "Load byte Y+1", inline=True)
 comment(0xE228, "Push the second byte of the pair", inline=True)
 comment(0xE22B, "Advance Y again", inline=True)
 comment(0xE22C, "Have we reached the even-rounded length yet?", inline=True)
-comment(0xE22F, "No -> keep looping", inline=True)
+comment(0xE22F, "No → keep looping", inline=True)
 comment(0xE231, "Recover original length from X for parity check", inline=True)
-comment(0xE232, "ROR: carry <- bit 0 (= original length was odd?)", inline=True)
-comment(0xE233, "Even -> skip the trailing-byte path", inline=True)
+comment(0xE232, "ROR: carry ← bit 0 (= original length was odd?)", inline=True)
+comment(0xE233, "Even → skip the trailing-byte path", inline=True)
 comment(0xE235, "Odd: wait for TDRA once more for the last byte", inline=True)
 comment(0xE238, "Load the trailing byte", inline=True)
 comment(0xE23B, "Push it to the TX FIFO", inline=True)
 label(0xE23E, "rx_a_forward_ack_round")
 comment(0xE23E, "A = &3F: end-of-burst CR2 value", inline=True)
-comment(0xE240, "Commit CR2 -- ADLC B flushes the scout", inline=True)
+comment(0xE240, "Commit CR2 – ADLC B flushes the scout", inline=True)
 comment(0xE243, "Wait for the frame-complete IRQ", inline=True)
 comment(0xE246, "A = &5A: reset mem_ptr_lo for the handshake stages below", inline=True)
 comment(0xE248, "Store mem_ptr_lo", inline=True)
 comment(0xE24A, "A = 4: reset mem_ptr_hi", inline=True)
-comment(0xE24C, "Store mem_ptr_hi -- handshake_rx_? will write here", inline=True)
-comment(0xE24E, "Stage 2: drain ACK1 from B into &045A...", inline=True)
-comment(0xE251, "...and retransmit it on A so the originator hears its ACK", inline=True)
-comment(0xE254, "Stage 3: drain DATA from A into &045A...", inline=True)
-comment(0xE257, "...and retransmit it on B to the destination", inline=True)
-comment(0xE25A, "Stage 4: drain ACK2 from B into &045A...", inline=True)
-comment(0xE25D, "...and retransmit it on A as the final ACK", inline=True)
+comment(0xE24C, "Store mem_ptr_hi – handshake_rx_? will write here", inline=True)
+comment(0xE24E, "Stage 2: drain ACK1 from B into &045A…", inline=True)
+comment(0xE251, "…and retransmit it on A so the originator hears its ACK", inline=True)
+comment(0xE254, "Stage 3: drain DATA from A into &045A…", inline=True)
+comment(0xE257, "…and retransmit it on B to the destination", inline=True)
+comment(0xE25A, "Stage 4: drain ACK2 from B into &045A…", inline=True)
+comment(0xE25D, "…and retransmit it on A as the final ACK", inline=True)
 label(0xE260, "rx_a_forward_done")
 comment(0xE260, "4-way handshake bridged; back to [`main_loop`](address:E051)", inline=True)
 
@@ -1883,8 +1883,8 @@ comment(0xE392, "CSMA wait on A before transmitting the forwarded scout", inline
 comment(0xE395, "Y = 0: start at byte 0 of the rx_* buffer", inline=True)
 label(0xE397, "rx_b_forward_pair_loop")
 comment(0xE397, "Wait for ADLC A's TDRA", inline=True)
-comment(0xE39A, "BIT SR1 -- V <- bit 6 (TDRA)", inline=True)
-comment(0xE39D, "TDRA clear -> chip lost sync, escape to [`main_loop`](address:E051)", inline=True)
+comment(0xE39A, "BIT SR1 – V ← bit 6 (TDRA)", inline=True)
+comment(0xE39D, "TDRA clear → chip lost sync, escape to [`main_loop`](address:E051)", inline=True)
 comment(0xE39F, "Load byte Y of the received scout", inline=True)
 comment(0xE3A2, "Push it to ADLC A's TX FIFO", inline=True)
 comment(0xE3A5, "Advance Y", inline=True)
@@ -1892,27 +1892,27 @@ comment(0xE3A6, "Load byte Y+1", inline=True)
 comment(0xE3A9, "Push the second byte of the pair", inline=True)
 comment(0xE3AC, "Advance Y again", inline=True)
 comment(0xE3AD, "Have we reached the even-rounded length yet?", inline=True)
-comment(0xE3B0, "No -> keep looping", inline=True)
+comment(0xE3B0, "No → keep looping", inline=True)
 comment(0xE3B2, "Recover original length from X for parity check", inline=True)
-comment(0xE3B3, "ROR: carry <- bit 0 (= original length was odd?)", inline=True)
-comment(0xE3B4, "Even -> skip the trailing-byte path", inline=True)
+comment(0xE3B3, "ROR: carry ← bit 0 (= original length was odd?)", inline=True)
+comment(0xE3B4, "Even → skip the trailing-byte path", inline=True)
 comment(0xE3B6, "Odd: wait for TDRA once more for the last byte", inline=True)
 comment(0xE3B9, "Load the trailing byte", inline=True)
 comment(0xE3BC, "Push it to the TX FIFO", inline=True)
 label(0xE3BF, "rx_b_forward_ack_round")
 comment(0xE3BF, "A = &3F: end-of-burst CR2 value", inline=True)
-comment(0xE3C1, "Commit CR2 -- ADLC A flushes the scout", inline=True)
+comment(0xE3C1, "Commit CR2 – ADLC A flushes the scout", inline=True)
 comment(0xE3C4, "Wait for the frame-complete IRQ", inline=True)
 comment(0xE3C7, "A = &5A: reset mem_ptr_lo for the handshake stages below", inline=True)
 comment(0xE3C9, "Store mem_ptr_lo", inline=True)
 comment(0xE3CB, "A = 4: reset mem_ptr_hi", inline=True)
-comment(0xE3CD, "Store mem_ptr_hi -- handshake_rx_? will write here", inline=True)
-comment(0xE3CF, "Stage 2: drain ACK1 from A into &045A...", inline=True)
-comment(0xE3D2, "...and retransmit it on B so the originator hears its ACK", inline=True)
-comment(0xE3D5, "Stage 3: drain DATA from B into &045A...", inline=True)
-comment(0xE3D8, "...and retransmit it on A to the destination", inline=True)
-comment(0xE3DB, "Stage 4: drain ACK2 from A into &045A...", inline=True)
-comment(0xE3DE, "...and retransmit it on B as the final ACK", inline=True)
+comment(0xE3CD, "Store mem_ptr_hi – handshake_rx_? will write here", inline=True)
+comment(0xE3CF, "Stage 2: drain ACK1 from A into &045A…", inline=True)
+comment(0xE3D2, "…and retransmit it on B so the originator hears its ACK", inline=True)
+comment(0xE3D5, "Stage 3: drain DATA from B into &045A…", inline=True)
+comment(0xE3D8, "…and retransmit it on A to the destination", inline=True)
+comment(0xE3DB, "Stage 4: drain ACK2 from A into &045A…", inline=True)
+comment(0xE3DE, "…and retransmit it on B as the final ACK", inline=True)
 label(0xE3E1, "rx_b_forward_done")
 comment(0xE3E1, "4-way handshake bridged; back to [`main_loop`](address:E051)", inline=True)
 
@@ -1922,7 +1922,7 @@ subroutine(0xE1D6, "rx_a_handle_80", hook=None, is_entry_point=False,
     title="Side-A BridgeReset (ctrl=&80): learn topology from scratch",
     description="""\
 Called when a received frame on side A is broadcast + `port=&9C` +
-`ctrl=&80` -- a bridge on the far side is advertising a fresh
+`ctrl=&80` – a bridge on the far side is advertising a fresh
 topology, likely because it has itself just come up. The handler:
 
 1. **Wipe** all learned routing state via
@@ -1971,7 +1971,7 @@ routing state before the learn loop).
 Processes the announcement payload: each byte from offset 6 up to
 `rx_len` is a network number that the announcer says it can reach.
 Since the announcer is on side A, those networks are reachable via
-side A from here too -- mark each in `reachable_via_a`.
+side A from here too – mark each in `reachable_via_a`.
 
 After the learn loop, append our own `net_num_a` to the payload and
 bump `rx_len`. Falling through to [`rx_a_forward`](address:E208)
@@ -1988,28 +1988,28 @@ comment(0xE1F4, "A = &FF: 'route known' marker", inline=True)
 comment(0xE1F6, "Remember that network X is reachable via side A", inline=True)
 comment(0xE1F9, "Advance to next payload byte", inline=True)
 comment(0xE1FA, "Have we reached the end of the payload?", inline=True)
-comment(0xE1FD, "No -- keep learning", inline=True)
+comment(0xE1FD, "No – keep learning", inline=True)
 comment(0xE1FF, "Load our own side-A network number", inline=True)
 comment(0xE202, "Append it to the payload for the onward broadcast", inline=True)
 comment(0xE205, "Payload grew by one byte; record the new length", inline=True)
 
 
 label(0xE079, "main_loop_poll")
-comment(0xE079, "BIT ADLC B's SR1 -- N <- bit 7 (IRQ summary)", inline=True)
-comment(0xE07C, "B quiet -> check A", inline=True)
-comment(0xE07E, "B has an event -> dispatch to [`rx_frame_b`](address:E263)", inline=True)
+comment(0xE079, "BIT ADLC B's SR1 – N ← bit 7 (IRQ summary)", inline=True)
+comment(0xE07C, "B quiet → check A", inline=True)
+comment(0xE07E, "B has an event → dispatch to [`rx_frame_b`](address:E263)", inline=True)
 label(0xE081, "main_loop_poll_a")
-comment(0xE081, "BIT ADLC A's SR1 -- N <- bit 7 (IRQ summary)", inline=True)
-comment(0xE084, "A quiet -> nothing to do; maybe re-announce", inline=True)
-comment(0xE086, "A has an event -> dispatch to [`rx_frame_a`](address:E0E2)", inline=True)
+comment(0xE081, "BIT ADLC A's SR1 – N ← bit 7 (IRQ summary)", inline=True)
+comment(0xE084, "A quiet → nothing to do; maybe re-announce", inline=True)
+comment(0xE086, "A has an event → dispatch to [`rx_frame_a`](address:E0E2)", inline=True)
 
 label(0xE089, "main_loop_idle")
-comment(0xE089, "Read announce_flag -- is a re-announce burst pending?", inline=True)
-comment(0xE08C, "No burst in progress -> straight back to polling", inline=True)
+comment(0xE089, "Read announce_flag – is a re-announce burst pending?", inline=True)
+comment(0xE08C, "No burst in progress → straight back to polling", inline=True)
 comment(0xE08E, "Tick the 16-bit re-announce countdown, low byte", inline=True)
-comment(0xE091, "Low byte didn't wrap -> keep polling", inline=True)
-comment(0xE093, "Low byte wrapped -> tick the high byte too", inline=True)
-comment(0xE096, "Timer hasn't expired yet -> keep polling", inline=True)
+comment(0xE091, "Low byte didn't wrap → keep polling", inline=True)
+comment(0xE093, "Low byte wrapped → tick the high byte too", inline=True)
+comment(0xE096, "Timer hasn't expired yet → keep polling", inline=True)
 
 label(0xE098, "re_announce")
 subroutine(0xE098, "re_announce", hook=None, is_entry_point=False,
@@ -2021,7 +2021,7 @@ non-zero. Both conditions are only met after
 [`rx_a_handle_80`](address:E1D6) or
 [`rx_b_handle_80`](address:E357) has set the flag in response to a
 BridgeReset received from another bridge. This routine is the
-per-tick action of that response burst -- it is *not* a
+per-tick action of that response burst – it is *not* a
 self-scheduled periodic announcement.
 
 Rebuilds the outbound template via
@@ -2050,15 +2050,15 @@ inadvertently transmitting a colliding frame while we're busy.""")
 
 comment(0xE098, "Rebuild the frame template from scratch (ctrl=&80 default)", inline=True)
 comment(0xE09B, "A = &81: the BridgeReply control byte", inline=True)
-comment(0xE09D, "Patch tx_ctrl to &81 -- this announcement is a reply", inline=True)
+comment(0xE09D, "Patch tx_ctrl to &81 – this announcement is a reply", inline=True)
 comment(0xE0A0, "Test announce_flag bit 7 via BIT", inline=True)
-comment(0xE0A3, "Bit 7 set -> send via ADLC B ([`re_announce_side_b`](address:E0CA))", inline=True)
+comment(0xE0A3, "Bit 7 set → send via ADLC B ([`re_announce_side_b`](address:E0CA))", inline=True)
 comment(0xE0A5, "Side-A path: silence B's TX first", inline=True)
 comment(0xE0A7, "Reset ADLC B's TX to avoid a cross-side collision", inline=True)
 comment(0xE0AA, "CSMA wait on A before transmitting", inline=True)
 comment(0xE0AD, "Send the BridgeReply on ADLC A", inline=True)
 comment(0xE0B0, "Decrement burst-remaining count", inline=True)
-comment(0xE0B3, "Count hit zero -> clear announce_flag", inline=True)
+comment(0xE0B3, "Count hit zero → clear announce_flag", inline=True)
 
 label(0xE0B5, "re_announce_rearm")
 comment(0xE0B5, "A = &80: reseed timer high byte", inline=True)
@@ -2080,8 +2080,8 @@ comment(0xE0D2, "Silence ADLC A's TX to avoid collision while we send on B", inl
 comment(0xE0D5, "CSMA wait on B", inline=True)
 comment(0xE0D8, "Send the BridgeReply on ADLC B", inline=True)
 comment(0xE0DB, "Decrement burst-remaining count", inline=True)
-comment(0xE0DE, "Count hit zero -> clear announce_flag", inline=True)
-comment(0xE0E0, "Not exhausted -> re-arm timer and continue (ALWAYS branch)", inline=True)
+comment(0xE0DE, "Count hit zero → clear announce_flag", inline=True)
+comment(0xE0E0, "Not exhausted → re-arm timer and continue (ALWAYS branch)", inline=True)
 
 
 # =====================================================================
@@ -2092,12 +2092,12 @@ label(0xE517, "transmit_frame_a")
 subroutine(0xE517, "transmit_frame_a", hook=None,
     title="Send the frame at mem_ptr out through ADLC A's TX FIFO",
     description="""\
-Sends the frame starting at `mem_ptr` (`&80`/`&81` -- normally
+Sends the frame starting at `mem_ptr` (`&80`/`&81` – normally
 pointing at the outbound control block `&045A`) through ADLC A's
 TX FIFO. Termination is controlled by the 16-bit pointer
 `tx_end_lo`/`tx_end_hi` (`&0200`/`&0201`): the loop sends byte pairs
 until `mem_ptr + Y` reaches or passes `(tx_end_hi:tx_end_lo)`. X is
-a flag -- non-zero means send one extra trailing byte after the
+a flag – non-zero means send one extra trailing byte after the
 terminator (used by builders that append a payload like
 [`build_announce_b`](address:E458)'s `net_num_b` at `&0460`).
 
@@ -2119,7 +2119,7 @@ terminator (used by builders that append a payload like
 [`wait_adlc_a_irq`](address:E3E4) polls returns with SR1's V-bit
 clear instead of set (meaning the ADLC didn't reach the expected
 TDRA state), the routine drops the caller's return address from
-the stack and `JMP`'s into [`main_loop`](address:E051) -- the same
+the stack and `JMP`'s into [`main_loop`](address:E051) – the same
 escape-to-main pattern used by
 [`wait_adlc_a_idle`](address:E6DC).
 
@@ -2135,12 +2135,12 @@ comment(0xE51E, "Commit CR1 on ADLC A", inline=True)
 comment(0xE521, "Y = 0: byte offset into the frame buffer", inline=True)
 label(0xE523, "transmit_frame_a_pair_loop")
 comment(0xE523, "Wait for ADLC A IRQ (TDRA = FIFO ready for bytes)", inline=True)
-comment(0xE526, "BIT SR1 -- V flag <- bit 6 (TDRA)", inline=True)
-comment(0xE529, "TDRA set -> FIFO has room, send the next pair", inline=True)
+comment(0xE526, "BIT SR1 – V flag ← bit 6 (TDRA)", inline=True)
+comment(0xE529, "TDRA set → FIFO has room, send the next pair", inline=True)
 label(0xE52B, "transmit_frame_a_escape")
-comment(0xE52B, "TDRA clear -> ADLC state bad; drop return address...", inline=True)
-comment(0xE52C, "...(second PLA completes the drop)", inline=True)
-comment(0xE52D, "...and escape to [`main_loop`](address:E051)", inline=True)
+comment(0xE52B, "TDRA clear → ADLC state bad; drop return address…", inline=True)
+comment(0xE52C, "…(second PLA completes the drop)", inline=True)
+comment(0xE52D, "…and escape to [`main_loop`](address:E051)", inline=True)
 label(0xE530, "transmit_frame_a_send_pair")
 comment(0xE530, "Load frame byte at (mem_ptr),Y", inline=True)
 comment(0xE532, "Push to ADLC A's TX FIFO", inline=True)
@@ -2148,30 +2148,30 @@ comment(0xE535, "Advance Y within page", inline=True)
 comment(0xE536, "Load the next frame byte", inline=True)
 comment(0xE538, "Push the second byte of the pair", inline=True)
 comment(0xE53B, "Advance Y again", inline=True)
-comment(0xE53C, "Non-zero Y -> stay on current page", inline=True)
-comment(0xE53E, "Y wrapped to zero -> bump mem_ptr to next page", inline=True)
+comment(0xE53C, "Non-zero Y → stay on current page", inline=True)
+comment(0xE53E, "Y wrapped to zero → bump mem_ptr to next page", inline=True)
 label(0xE540, "transmit_frame_a_end_check")
 comment(0xE540, "Compare Y with tx_end_lo", inline=True)
-comment(0xE543, "Still short of end-of-frame low byte -> more to send", inline=True)
+comment(0xE543, "Still short of end-of-frame low byte → more to send", inline=True)
 comment(0xE545, "Load current mem_ptr_hi", inline=True)
 comment(0xE547, "Compare with tx_end_hi", inline=True)
-comment(0xE54A, "Still on a lower page than the end -> more to send", inline=True)
+comment(0xE54A, "Still on a lower page than the end → more to send", inline=True)
 comment(0xE54C, "Recover X (trailing-byte flag) from before the loop", inline=True)
 comment(0xE54D, "Rotate bit 0 into carry", inline=True)
-comment(0xE54E, "X was even -> no trailing byte, skip ahead", inline=True)
-comment(0xE550, "X was odd -> wait for TDRA once more", inline=True)
+comment(0xE54E, "X was even → no trailing byte, skip ahead", inline=True)
+comment(0xE550, "X was odd → wait for TDRA once more", inline=True)
 comment(0xE553, "BIT SR1 to test TDRA again", inline=True)
-comment(0xE556, "TDRA clear -> escape (mirror of [`&E52B`](address:E52B))", inline=True)
+comment(0xE556, "TDRA clear → escape (mirror of [`&E52B`](address:E52B))", inline=True)
 comment(0xE558, "Load the extra trailing byte (tx_data0 in announce frames)", inline=True)
 comment(0xE55A, "Push trailing byte to TX FIFO", inline=True)
 label(0xE55D, "transmit_frame_a_finish")
 comment(0xE55D, "A = &3F: signal end-of-burst via CR2", inline=True)
-comment(0xE55F, "Commit CR2 -- ADLC flushes and flags frame-complete", inline=True)
+comment(0xE55F, "Commit CR2 – ADLC flushes and flags frame-complete", inline=True)
 comment(0xE562, "Wait for the frame-complete IRQ", inline=True)
 comment(0xE565, "A = &5A: reset mem_ptr_lo to &045A base", inline=True)
 comment(0xE567, "Store mem_ptr_lo", inline=True)
 comment(0xE569, "A = 4: reset mem_ptr_hi to page &04", inline=True)
-comment(0xE56B, "Store mem_ptr_hi -- pointer ready for next builder", inline=True)
+comment(0xE56B, "Store mem_ptr_hi – pointer ready for next builder", inline=True)
 comment(0xE56D, "Return; the frame has left ADLC A", inline=True)
 
 
@@ -2202,12 +2202,12 @@ comment(0xE4C7, "Commit CR1 on ADLC B", inline=True)
 comment(0xE4CA, "Y = 0: byte offset into the frame buffer", inline=True)
 label(0xE4CC, "transmit_frame_b_pair_loop")
 comment(0xE4CC, "Wait for ADLC B IRQ (TDRA = FIFO ready for bytes)", inline=True)
-comment(0xE4CF, "BIT SR1 -- V flag <- bit 6 (TDRA)", inline=True)
-comment(0xE4D2, "TDRA set -> FIFO has room, send the next pair", inline=True)
+comment(0xE4CF, "BIT SR1 – V flag ← bit 6 (TDRA)", inline=True)
+comment(0xE4D2, "TDRA set → FIFO has room, send the next pair", inline=True)
 label(0xE4D4, "transmit_frame_b_escape")
-comment(0xE4D4, "TDRA clear -> ADLC state bad; drop return address...", inline=True)
-comment(0xE4D5, "...(second PLA completes the drop)", inline=True)
-comment(0xE4D6, "...and escape to [`main_loop`](address:E051)", inline=True)
+comment(0xE4D4, "TDRA clear → ADLC state bad; drop return address…", inline=True)
+comment(0xE4D5, "…(second PLA completes the drop)", inline=True)
+comment(0xE4D6, "…and escape to [`main_loop`](address:E051)", inline=True)
 label(0xE4D9, "transmit_frame_b_send_pair")
 comment(0xE4D9, "Load frame byte at (mem_ptr),Y", inline=True)
 comment(0xE4DB, "Push to ADLC B's TX FIFO", inline=True)
@@ -2215,30 +2215,30 @@ comment(0xE4DE, "Advance Y within page", inline=True)
 comment(0xE4DF, "Load the next frame byte", inline=True)
 comment(0xE4E1, "Push the second byte of the pair", inline=True)
 comment(0xE4E4, "Advance Y again", inline=True)
-comment(0xE4E5, "Non-zero Y -> stay on current page", inline=True)
-comment(0xE4E7, "Y wrapped to zero -> bump mem_ptr to next page", inline=True)
+comment(0xE4E5, "Non-zero Y → stay on current page", inline=True)
+comment(0xE4E7, "Y wrapped to zero → bump mem_ptr to next page", inline=True)
 label(0xE4E9, "transmit_frame_b_end_check")
 comment(0xE4E9, "Compare Y with tx_end_lo", inline=True)
-comment(0xE4EC, "Still short of end-of-frame low byte -> more to send", inline=True)
+comment(0xE4EC, "Still short of end-of-frame low byte → more to send", inline=True)
 comment(0xE4EE, "Load current mem_ptr_hi", inline=True)
 comment(0xE4F0, "Compare with tx_end_hi", inline=True)
-comment(0xE4F3, "Still on a lower page than the end -> more to send", inline=True)
+comment(0xE4F3, "Still on a lower page than the end → more to send", inline=True)
 comment(0xE4F5, "Recover X (trailing-byte flag) from before the loop", inline=True)
 comment(0xE4F6, "Rotate bit 0 into carry", inline=True)
-comment(0xE4F7, "X was even -> no trailing byte, skip ahead", inline=True)
-comment(0xE4F9, "X was odd -> wait for TDRA once more", inline=True)
+comment(0xE4F7, "X was even → no trailing byte, skip ahead", inline=True)
+comment(0xE4F9, "X was odd → wait for TDRA once more", inline=True)
 comment(0xE4FC, "BIT SR1 to test TDRA again", inline=True)
-comment(0xE4FF, "TDRA clear -> escape (mirror of [`&E4D4`](address:E4D4))", inline=True)
+comment(0xE4FF, "TDRA clear → escape (mirror of [`&E4D4`](address:E4D4))", inline=True)
 comment(0xE501, "Load the extra trailing byte", inline=True)
 comment(0xE503, "Push trailing byte to TX FIFO", inline=True)
 label(0xE506, "transmit_frame_b_finish")
 comment(0xE506, "A = &3F: signal end-of-burst via CR2", inline=True)
-comment(0xE508, "Commit CR2 -- ADLC flushes and flags frame-complete", inline=True)
+comment(0xE508, "Commit CR2 – ADLC flushes and flags frame-complete", inline=True)
 comment(0xE50B, "Wait for the frame-complete IRQ", inline=True)
 comment(0xE50E, "A = &5A: reset mem_ptr_lo to &045A base", inline=True)
 comment(0xE510, "Store mem_ptr_lo", inline=True)
 comment(0xE512, "A = 4: reset mem_ptr_hi to page &04", inline=True)
-comment(0xE514, "Store mem_ptr_hi -- pointer ready for next builder", inline=True)
+comment(0xE514, "Store mem_ptr_hi – pointer ready for next builder", inline=True)
 comment(0xE516, "Return; the frame has left ADLC B", inline=True)
 
 
@@ -2270,30 +2270,30 @@ comment(0xE69D, "Read SR2 (result discarded; flags irrelevant here)", inline=Tru
 comment(0xE6A0, "Y = &E7: CR2 value to arm the chip on Rx-Idle exit", inline=True)
 label(0xE6A2, "wait_adlc_b_idle_loop")
 comment(0xE6A2, "A = &67: standard listen-mode CR2 value", inline=True)
-comment(0xE6A4, "Re-prime CR2 -- clears any stale status bits", inline=True)
+comment(0xE6A4, "Re-prime CR2 – clears any stale status bits", inline=True)
 comment(0xE6A7, "A = &04: mask for SR2 bit 2 (Rx Idle / line quiet)", inline=True)
 comment(0xE6A9, "Test SR2 bit 2 via BIT", inline=True)
-comment(0xE6AC, "Bit set -> line idle; we can transmit (exit)", inline=True)
+comment(0xE6AC, "Bit set → line idle; we can transmit (exit)", inline=True)
 comment(0xE6AE, "Read SR2 into A for the mask test below", inline=True)
-comment(0xE6B1, "Mask AP (bit 0) + RDA (bit 7) -- someone else talking?", inline=True)
-comment(0xE6B3, "Neither set -> still quiet-ish, just increment counter", inline=True)
+comment(0xE6B1, "Mask AP (bit 0) + RDA (bit 7) – someone else talking?", inline=True)
+comment(0xE6B3, "Neither set → still quiet-ish, just increment counter", inline=True)
 comment(0xE6B5, "Mask: reset TX, RX active", inline=True)
 comment(0xE6B7, "Abort our pending TX on ADLC B (yield to other station)", inline=True)
 comment(0xE6BA, "Mask: TX still reset, RX IRQ enabled", inline=True)
 comment(0xE6BC, "Keep CR1 in TX-reset state for another pass", inline=True)
 label(0xE6BF, "wait_adlc_b_idle_tick")
 comment(0xE6BF, "Bump timeout counter (LSB first)", inline=True)
-comment(0xE6C2, "Low byte didn't wrap -> keep polling", inline=True)
+comment(0xE6C2, "Low byte didn't wrap → keep polling", inline=True)
 comment(0xE6C4, "Bump mid byte", inline=True)
-comment(0xE6C7, "Mid byte didn't wrap -> keep polling", inline=True)
+comment(0xE6C7, "Mid byte didn't wrap → keep polling", inline=True)
 comment(0xE6C9, "Bump high byte", inline=True)
-comment(0xE6CC, "High byte didn't wrap -> keep polling", inline=True)
-comment(0xE6CE, "Counter overflowed -- drop caller's return address...", inline=True)
-comment(0xE6CF, "...(second PLA completes the return-address drop)", inline=True)
-comment(0xE6D0, "...and escape to [`main_loop`](address:E051) without returning", inline=True)
+comment(0xE6CC, "High byte didn't wrap → keep polling", inline=True)
+comment(0xE6CE, "Counter overflowed – drop caller's return address…", inline=True)
+comment(0xE6CF, "…(second PLA completes the return-address drop)", inline=True)
+comment(0xE6D0, "…and escape to [`main_loop`](address:E051) without returning", inline=True)
 
 label(0xE6D3, "wait_adlc_b_idle_ready")
-comment(0xE6D3, "STY: arm CR2 with &E7 (from Y) -- TX-ready listen state", inline=True)
+comment(0xE6D3, "STY: arm CR2 with &E7 (from Y) – TX-ready listen state", inline=True)
 comment(0xE6D6, "Mask: arm CR1 for transmit (TX on, IRQ off)", inline=True)
 comment(0xE6D8, "Commit CR1; ADLC B ready to send", inline=True)
 comment(0xE6DB, "Normal return: caller transmits the frame", inline=True)
@@ -2318,7 +2318,7 @@ Each iteration re-primes `CR2` with `&67` (clear TX/RX status,
 FC_TDRA, 2/1-byte, PSE) then reads SR2. Three outcomes:
 
 - **SR2 bit 2 set (Rx Idle)**: line is quiet. Arm `CR2=&E7` and
-  `CR1=&44`, `RTS` -- caller proceeds to transmit.
+  `CR1=&44`, `RTS` – caller proceeds to transmit.
 - **SR2 bit 0 or bit 7 set (AP or RDA)**: another station is
   sending into this ADLC. Back off by cycling `CR1` through
   `&C2` &rarr; `&82` (reset TX without touching RX) and keep
@@ -2345,30 +2345,30 @@ comment(0xE6E9, "Read SR2 (result discarded; flags irrelevant here)", inline=Tru
 comment(0xE6EC, "Y = &E7: CR2 value arm the chip with on Rx-Idle exit", inline=True)
 label(0xE6EE, "wait_adlc_a_idle_loop")
 comment(0xE6EE, "A = &67: standard listen-mode CR2 value", inline=True)
-comment(0xE6F0, "Re-prime CR2 -- clears any stale status bits", inline=True)
+comment(0xE6F0, "Re-prime CR2 – clears any stale status bits", inline=True)
 comment(0xE6F3, "A = &04: mask for SR2 bit 2 (Rx Idle / line quiet)", inline=True)
 comment(0xE6F5, "Test SR2 bit 2 via BIT", inline=True)
-comment(0xE6F8, "Bit set -> line idle; we can transmit (exit)", inline=True)
+comment(0xE6F8, "Bit set → line idle; we can transmit (exit)", inline=True)
 comment(0xE6FA, "Read SR2 into A for the mask test below", inline=True)
-comment(0xE6FD, "Mask AP (bit 0) + RDA (bit 7) -- someone else talking?", inline=True)
-comment(0xE6FF, "Neither set -> still quiet-ish, just increment counter", inline=True)
+comment(0xE6FD, "Mask AP (bit 0) + RDA (bit 7) – someone else talking?", inline=True)
+comment(0xE6FF, "Neither set → still quiet-ish, just increment counter", inline=True)
 comment(0xE701, "Mask: reset TX, RX active", inline=True)
 comment(0xE703, "Abort our pending TX on ADLC A (yield to the other station)", inline=True)
 comment(0xE706, "Mask: TX still reset, RX IRQ enabled", inline=True)
 comment(0xE708, "Keep CR1 in TX-reset state for another pass", inline=True)
 label(0xE70B, "wait_adlc_a_idle_tick")
 comment(0xE70B, "Bump timeout counter (LSB first)", inline=True)
-comment(0xE70E, "Low byte didn't wrap -> keep polling", inline=True)
+comment(0xE70E, "Low byte didn't wrap → keep polling", inline=True)
 comment(0xE710, "Bump mid byte", inline=True)
-comment(0xE713, "Mid byte didn't wrap -> keep polling", inline=True)
+comment(0xE713, "Mid byte didn't wrap → keep polling", inline=True)
 comment(0xE715, "Bump high byte", inline=True)
-comment(0xE718, "High byte didn't wrap -> keep polling", inline=True)
-comment(0xE71A, "Counter overflowed -- drop caller's return address...", inline=True)
-comment(0xE71B, "...(second PLA completes the return-address drop)", inline=True)
-comment(0xE71C, "...and escape to [`main_loop`](address:E051) without returning", inline=True)
+comment(0xE718, "High byte didn't wrap → keep polling", inline=True)
+comment(0xE71A, "Counter overflowed – drop caller's return address…", inline=True)
+comment(0xE71B, "…(second PLA completes the return-address drop)", inline=True)
+comment(0xE71C, "…and escape to [`main_loop`](address:E051) without returning", inline=True)
 
 label(0xE71F, "wait_adlc_a_idle_ready")
-comment(0xE71F, "STY: arm CR2 with &E7 (from Y) -- TX-ready listen state", inline=True)
+comment(0xE71F, "STY: arm CR2 with &E7 (from Y) – TX-ready listen state", inline=True)
 comment(0xE722, "Mask: arm CR1 for transmit (TX on, IRQ off)", inline=True)
 comment(0xE724, "Commit CR1; ADLC A ready to send", inline=True)
 comment(0xE727, "Normal return: caller transmits the frame", inline=True)
@@ -2379,20 +2379,20 @@ comment(0xE727, "Normal return: caller transmits the frame", inline=True)
 # =====================================================================
 # Entered when the push-button on the 6502 ~IRQ line is pressed. The
 # operator's guide warns not to press this while connected to a live
-# network — consistent with a routine that drives the ADLCs for
+# network – consistent with a routine that drives the ADLCs for
 # diagnostic/loopback purposes (the typical use is with a cable
 # looping the two Econet ports back to each other).
 #
 # Structure (first half annotated here; deeper tests to follow):
-#   &F000  entry — disable interrupts, clear &03, fall into...
+#   &F000  entry – disable interrupts, clear &03, fall into…
 #   &F005  forcibly reset and re-init both ADLCs (differs subtly
 #          from the normal adlc_*_full_reset path: CR2 is set to
 #          &80 then reprogrammed, used when the previous state is
 #          unknown)
 #   &F02F  zero-page integrity test (&00, &01, &02 with &55/&AA)
-#   &F04C  ROM checksum — sum all 8192 bytes mod 256; expected &55
+#   &F04C  ROM checksum – sum all 8192 bytes mod 256; expected &55
 #   &F070  deeper RAM test (TBD)
-#   &F2C7  common failure handler — error code in A, signalled via
+#   &F2C7  common failure handler – error code in A, signalled via
 #          ADLC A (probable blink code)
 
 subroutine(0xF000, "self_test", hook=None,
@@ -2409,7 +2409,7 @@ control registers in ways that will disturb any in-flight frames.
 Typical usage is with a loopback cable between the two Econet
 ports.""")
 
-comment(0xF000, "Mask IRQs -- this routine polls and must not re-enter", inline=True)
+comment(0xF000, "Mask IRQs – this routine polls and must not re-enter", inline=True)
 comment(0xF001, "A = 0: initial value for the scratch pass-phase flag", inline=True)
 comment(0xF003, "&03 = pass-phase; toggled by [`self_test_pass_done`](address:F264)", inline=True)
 
@@ -2420,7 +2420,7 @@ subroutine(0xF005, "self_test_reset_adlcs", hook=None,
     description="""\
 Byte-for-byte identical to the adlc_*_full_reset pair except for
 one crucial detail: CR3 is programmed to &80 (bit 7 set) instead
-of &00. CR3 bit 7 is the MC6854's LOC/DTR control bit — but the
+of &00. CR3 bit 7 is the MC6854's LOC/DTR control bit – but the
 pin it drives is inverted: when the control bit is HIGH, the pin
 output goes LOW. On ADLC B (IC18) that pin sinks the low side of
 the front-panel status LED (which has its high side tied through
@@ -2441,7 +2441,7 @@ comment(0xF012, "Program ADLC B's CR4", inline=True)
 comment(0xF015, "Mask &80: CR3 bit 7 = light the LED via LOC/DTR", inline=True)
 comment(0xF017, "Program ADLC A's CR3 (pin not wired; no effect)", inline=True)
 comment(0xF01A, "Mask &80 again (separate load for symmetry)", inline=True)
-comment(0xF01C, "Program ADLC B's CR3 -- lights the status LED", inline=True)
+comment(0xF01C, "Program ADLC B's CR3 – lights the status LED", inline=True)
 comment(0xF01F, "Mask: TX in reset, RX IRQ enabled, AC=0", inline=True)
 comment(0xF021, "Release CR1 AC bit on ADLC A (CR3 value sticks)", inline=True)
 comment(0xF024, "Release CR1 AC bit on ADLC B (CR3 value sticks)", inline=True)
@@ -2461,7 +2461,7 @@ trustworthy enough at this point to use a countable blink).
 
 Tests only the three ZP bytes that are used as scratch by the
 later self-test stages (ROM checksum, RAM scan). A full ZP test
-isn't needed -- the main reset handler has already exercised ZP
+isn't needed – the main reset handler has already exercised ZP
 indirectly via [`ram_test`](address:E00B).""")
 
 comment(0xF02F, "First test pattern = &55 (0101_0101)", inline=True)
@@ -2470,13 +2470,13 @@ comment(0xF031, "Write pattern to scratch byte &00", inline=True)
 comment(0xF033, "Write pattern to scratch byte &01", inline=True)
 comment(0xF035, "Write pattern to scratch byte &02", inline=True)
 comment(0xF037, "Check &00 still reads as pattern", inline=True)
-comment(0xF039, "Mismatch -> [`ram_test_fail`](address:F28C) (distinct blink pattern)", inline=True)
+comment(0xF039, "Mismatch → [`ram_test_fail`](address:F28C) (distinct blink pattern)", inline=True)
 comment(0xF03B, "Check &01 still reads as pattern", inline=True)
-comment(0xF03D, "Mismatch -> [`ram_test_fail`](address:F28C)", inline=True)
+comment(0xF03D, "Mismatch → [`ram_test_fail`](address:F28C)", inline=True)
 comment(0xF03F, "Check &02 still reads as pattern", inline=True)
-comment(0xF041, "Mismatch -> [`ram_test_fail`](address:F28C)", inline=True)
+comment(0xF041, "Mismatch → [`ram_test_fail`](address:F28C)", inline=True)
 comment(0xF043, "Was the pattern &AA? then both halves passed", inline=True)
-comment(0xF045, "Yes -> continue to ROM checksum", inline=True)
+comment(0xF045, "Yes → continue to ROM checksum", inline=True)
 comment(0xF047, "Second test pattern = &AA (1010_1010)", inline=True)
 comment(0xF049, "Loop back to rerun the three-byte check", inline=True)
 
@@ -2513,7 +2513,7 @@ comment(0xF061, "Roll the pointer to the next 256-byte page", inline=True)
 comment(0xF063, "One page done; decrement the page counter", inline=True)
 comment(0xF065, "Loop until all 32 ROM pages have been summed", inline=True)
 comment(0xF067, "Compare running sum with the expected &55", inline=True)
-comment(0xF069, "Match -> ROM is intact, proceed to RAM test", inline=True)
+comment(0xF069, "Match → ROM is intact, proceed to RAM test", inline=True)
 comment(0xF06B, "Mismatch: load error code 2 (ROM checksum fail)", inline=True)
 comment(0xF06D, "Jump to the countable-blink failure handler", inline=True)
 
@@ -2529,14 +2529,14 @@ can store both `&55` and `&AA`. Pointer in `(&00,&01) = &0000`, Y
 starts at 4 and wraps, page count in `&02 = &20` (32 pages =
 8 KiB).
 
-On mismatch, jumps to [`ram_test_fail`](address:F28C?hex) -- a
+On mismatch, jumps to [`ram_test_fail`](address:F28C?hex) – a
 *different* failure handler from
 [`self_test_fail`](address:F2C7), because a broken RAM cannot use
 the normal blink-code loop which needs RAM workspace.""")
 
 comment(0xF070, "A = 0: low byte of the RAM-test indirect pointer", inline=True)
 comment(0xF072, "Store pointer_lo", inline=True)
-comment(0xF074, "A = 0: high byte -- start scanning at RAM base", inline=True)
+comment(0xF074, "A = 0: high byte – start scanning at RAM base", inline=True)
 comment(0xF076, "Store pointer_hi", inline=True)
 comment(0xF078, "A = &20: 32 pages to cover (the full 8 KiB)", inline=True)
 comment(0xF07A, "Store page counter", inline=True)
@@ -2546,18 +2546,18 @@ comment(0xF07E, "First pattern = &55 (alternating 1-0 nibbles)", inline=True)
 comment(0xF080, "Write pattern to the current RAM byte", inline=True)
 comment(0xF082, "Read the same byte back", inline=True)
 comment(0xF084, "Verify the cell held the written pattern", inline=True)
-comment(0xF086, "Mismatch -> [`ram_test_fail`](address:F28C) (unreliable storage)", inline=True)
+comment(0xF086, "Mismatch → [`ram_test_fail`](address:F28C) (unreliable storage)", inline=True)
 comment(0xF088, "Second pattern = &AA (the bitwise complement)", inline=True)
 comment(0xF08A, "Write complement to catch stuck-bit faults", inline=True)
 comment(0xF08C, "Read it back", inline=True)
 comment(0xF08E, "Verify", inline=True)
-comment(0xF090, "Mismatch -> [`ram_test_fail`](address:F28C)", inline=True)
+comment(0xF090, "Mismatch → [`ram_test_fail`](address:F28C)", inline=True)
 comment(0xF092, "Advance to next byte within the page", inline=True)
 comment(0xF093, "Loop 256 times through the current page", inline=True)
 comment(0xF095, "Advance to the next page", inline=True)
 comment(0xF097, "One page done; decrement the remaining-page count", inline=True)
 comment(0xF099, "Continue until all 32 pages verified", inline=True)
-comment(0xF09B, "All 8 KiB good -- fall through to the incrementing test", inline=True)
+comment(0xF09B, "All 8 KiB good – fall through to the incrementing test", inline=True)
 
 label(0xF09D, "self_test_ram_fail_jump")
 comment(0xF09D, "Any RAM check mismatch lands here; forward to blinker", inline=True)
@@ -2593,7 +2593,7 @@ comment(0xF0AF, "Increment fill value (wraps naturally at 256)", inline=True)
 comment(0xF0B0, "Advance to next byte in the page", inline=True)
 comment(0xF0B1, "Loop 256 times through the page", inline=True)
 comment(0xF0B3, "Advance to next page", inline=True)
-comment(0xF0B5, "Bump fill value by one extra per page -- different offset", inline=True)
+comment(0xF0B5, "Bump fill value by one extra per page – different offset", inline=True)
 comment(0xF0B6, "Decrement page counter", inline=True)
 comment(0xF0B8, "Continue filling all 32 pages", inline=True)
 comment(0xF0BA, "Fill done; now reset state for the verify phase", inline=True)
@@ -2605,7 +2605,7 @@ comment(0xF0C4, "X = 0: expected value follows the same sequence", inline=True)
 label(0xF0C6, "self_test_ram_incr_verify")
 comment(0xF0C6, "A = X: expected byte value", inline=True)
 comment(0xF0C7, "Compare with what we actually wrote and read back", inline=True)
-comment(0xF0C9, "Mismatch -> [`ram_test_fail`](address:F28C) (via [`&F09D`](address:F09D))", inline=True)
+comment(0xF0C9, "Mismatch → [`ram_test_fail`](address:F28C) (via [`&F09D`](address:F09D))", inline=True)
 comment(0xF0CB, "Step expected value", inline=True)
 comment(0xF0CC, "Step byte offset", inline=True)
 comment(0xF0CD, "Loop through the page", inline=True)
@@ -2631,22 +2631,22 @@ specific bits of SR1 and SR2 on each chip (ADLC A bits from
 
 comment(0xF0D6, "Mask bit 4 (CTS bit of SR1): expect 1 after reset", inline=True)
 comment(0xF0D8, "Test on ADLC A", inline=True)
-comment(0xF0DB, "CTS clear -> ADLC A misconfigured (fail code 3)", inline=True)
+comment(0xF0DB, "CTS clear → ADLC A misconfigured (fail code 3)", inline=True)
 comment(0xF0DD, "Mask bit 2 (OVRN bit of SR2): expect 1 (idle, no OVRN)", inline=True)
 comment(0xF0DF, "Test on ADLC A", inline=True)
-comment(0xF0E2, "Bit clear -> unexpected state, fail", inline=True)
+comment(0xF0E2, "Bit clear → unexpected state, fail", inline=True)
 comment(0xF0E4, "Mask bit 5 (DCD of SR2): expect 0 (no carrier)", inline=True)
 comment(0xF0E6, "Test on ADLC A", inline=True)
-comment(0xF0E9, "Bit set -> unexpected carrier; fail code 3", inline=True)
+comment(0xF0E9, "Bit set → unexpected carrier; fail code 3", inline=True)
 comment(0xF0EB, "Same CTS check for ADLC B", inline=True)
 comment(0xF0ED, "Test on ADLC B", inline=True)
-comment(0xF0F0, "Clear -> fail code 4", inline=True)
+comment(0xF0F0, "Clear → fail code 4", inline=True)
 comment(0xF0F2, "Same OVRN check for ADLC B", inline=True)
 comment(0xF0F4, "Test on ADLC B", inline=True)
-comment(0xF0F7, "Clear -> fail code 4", inline=True)
+comment(0xF0F7, "Clear → fail code 4", inline=True)
 comment(0xF0F9, "Same DCD check for ADLC B", inline=True)
 comment(0xF0FB, "Test on ADLC B", inline=True)
-comment(0xF0FE, "Clear -> all checks passed, proceed to loopback test", inline=True)
+comment(0xF0FE, "Clear → all checks passed, proceed to loopback test", inline=True)
 label(0xF100, "self_test_fail_adlc_b")
 comment(0xF100, "Fail code 4: ADLC B register state wrong", inline=True)
 comment(0xF102, "Jump to countable-blink failure handler", inline=True)
@@ -2661,14 +2661,14 @@ subroutine(0xF10A, "self_test_loopback_a_to_b", hook=None,
     description="""\
 Assumes a loopback cable is connected between the two Econet
 ports. Reconfigures ADLC A for transmit (`CR1=&44`) and ADLC B for
-receive (`CR1=&82`), then sends a 256-byte sequence (`0,1,2,...,255`)
+receive (`CR1=&82`), then sends a 256-byte sequence (`0,1,2,…,255`)
 out of A and verifies each byte is received on B in order by
 incrementing X alongside the sender's Y.
 
 Four phases:
 
 1. **Pre-fill** the A TX FIFO with bytes 0-7 (`Y=0..7`) while B is
-   still settling -- priming the pipeline before any RX checks
+   still settling – priming the pipeline before any RX checks
    begin.
 2. **Handshake opening**: wait for B's first RX IRQ, verify AP,
    read and match bytes 0 and 1. This is the special "opening"
@@ -2702,8 +2702,8 @@ comment(0xF123, "X = 0: expected RX byte on B", inline=True)
 
 label(0xF125, "loopback_a_to_b_prefill")
 comment(0xF125, "Wait for A's TDRA IRQ", inline=True)
-comment(0xF128, "BIT SR1 (read CR1 addr) -- test V = TDRA (bit 6)", inline=True)
-comment(0xF12B, "Not TDRA -> A's TX stalled; fail", inline=True)
+comment(0xF128, "BIT SR1 (read CR1 addr) – test V = TDRA (bit 6)", inline=True)
+comment(0xF12B, "Not TDRA → A's TX stalled; fail", inline=True)
 comment(0xF12D, "Push Y into A's TX FIFO (even byte of pair)", inline=True)
 comment(0xF130, "Advance Y", inline=True)
 comment(0xF131, "Push Y into A's TX FIFO (odd byte of pair)", inline=True)
@@ -2713,14 +2713,14 @@ comment(0xF137, "Keep prefilling", inline=True)
 
 comment(0xF139, "Wait for B's first RX IRQ", inline=True)
 comment(0xF13C, "A = &01: SR2 mask for AP (Address Present)", inline=True)
-comment(0xF13E, "BIT SR2 -- first byte should assert AP", inline=True)
-comment(0xF141, "No AP on first byte -> fail", inline=True)
+comment(0xF13E, "BIT SR2 – first byte should assert AP", inline=True)
+comment(0xF141, "No AP on first byte → fail", inline=True)
 comment(0xF143, "Compare B's FIFO byte against X (expect 0)", inline=True)
-comment(0xF146, "Mismatch -> fail", inline=True)
+comment(0xF146, "Mismatch → fail", inline=True)
 comment(0xF148, "Advance X past the first byte", inline=True)
 comment(0xF149, "Wait for B's next RX IRQ", inline=True)
-comment(0xF14C, "BIT SR2 -- RDA (bit 7) asserted?", inline=True)
-comment(0xF14F, "RDA set -> good, compare second byte", inline=True)
+comment(0xF14C, "BIT SR2 – RDA (bit 7) asserted?", inline=True)
+comment(0xF14F, "RDA set → good, compare second byte", inline=True)
 
 label(0xF151, "loopback_a_to_b_fail")
 comment(0xF151, "A = 5: error code for A-to-B loopback failure", inline=True)
@@ -2728,47 +2728,47 @@ comment(0xF153, "Hand off to countable-blink failure handler", inline=True)
 
 label(0xF156, "loopback_a_to_b_head_ok")
 comment(0xF156, "Compare B's second FIFO byte against X (expect 1)", inline=True)
-comment(0xF159, "Mismatch -> fail", inline=True)
+comment(0xF159, "Mismatch → fail", inline=True)
 comment(0xF15B, "Advance X past the second byte", inline=True)
 
 label(0xF15C, "loopback_a_to_b_stream_loop")
 comment(0xF15C, "Wait for A's TDRA IRQ (TX slot ready)", inline=True)
-comment(0xF15F, "BIT SR1 -- test V = TDRA", inline=True)
-comment(0xF162, "TX stalled mid-stream -> fail", inline=True)
+comment(0xF15F, "BIT SR1 – test V = TDRA", inline=True)
+comment(0xF162, "TX stalled mid-stream → fail", inline=True)
 comment(0xF164, "Push even byte (Y) into A's TX FIFO", inline=True)
 comment(0xF167, "Advance Y", inline=True)
 comment(0xF168, "Push odd byte (Y) into A's TX FIFO", inline=True)
 comment(0xF16B, "Advance Y past the pair", inline=True)
 comment(0xF16C, "Wait for B's RX IRQ (pair received)", inline=True)
-comment(0xF16F, "BIT SR2 -- RDA still asserted?", inline=True)
-comment(0xF172, "RDA cleared early -> fail", inline=True)
+comment(0xF16F, "BIT SR2 – RDA still asserted?", inline=True)
+comment(0xF172, "RDA cleared early → fail", inline=True)
 comment(0xF174, "Compare B's even byte against X", inline=True)
-comment(0xF177, "Mismatch -> fail", inline=True)
+comment(0xF177, "Mismatch → fail", inline=True)
 comment(0xF179, "Advance X", inline=True)
 comment(0xF17A, "Compare B's odd byte against X", inline=True)
-comment(0xF17D, "Mismatch -> fail", inline=True)
+comment(0xF17D, "Mismatch → fail", inline=True)
 comment(0xF17F, "Advance X past the pair", inline=True)
-comment(0xF180, "Y wrapped back to 0 -> all 256 bytes sent", inline=True)
-comment(0xF182, "Not done -> keep streaming", inline=True)
+comment(0xF180, "Y wrapped back to 0 → all 256 bytes sent", inline=True)
+comment(0xF182, "Not done → keep streaming", inline=True)
 comment(0xF184, "A = &3F: CR2 end-of-frame-with-flush", inline=True)
 comment(0xF186, "Commit: A pushes the final byte and closes the frame", inline=True)
 
 label(0xF189, "loopback_a_to_b_flush_loop")
 comment(0xF189, "Wait for B's remaining RX IRQ", inline=True)
-comment(0xF18C, "BIT SR2 -- RDA still asserted?", inline=True)
-comment(0xF18F, "Drain interrupted -> fail", inline=True)
+comment(0xF18C, "BIT SR2 – RDA still asserted?", inline=True)
+comment(0xF18F, "Drain interrupted → fail", inline=True)
 comment(0xF191, "Compare B's residual byte against X", inline=True)
-comment(0xF194, "Mismatch -> fail", inline=True)
+comment(0xF194, "Mismatch → fail", inline=True)
 comment(0xF196, "Advance X", inline=True)
 comment(0xF197, "Compare B's next residual byte against X", inline=True)
-comment(0xF19A, "Mismatch -> fail", inline=True)
+comment(0xF19A, "Mismatch → fail", inline=True)
 comment(0xF19C, "Advance X past the pair", inline=True)
-comment(0xF19D, "X wrapped to 0 -> B has drained all 256 bytes", inline=True)
-comment(0xF19F, "Not done -> keep draining", inline=True)
+comment(0xF19D, "X wrapped to 0 → B has drained all 256 bytes", inline=True)
+comment(0xF19F, "Not done → keep draining", inline=True)
 comment(0xF1A1, "Wait for the trailing end-of-frame IRQ on B", inline=True)
 comment(0xF1A4, "A = &02: SR2 mask for FV (Frame Valid)", inline=True)
-comment(0xF1A6, "BIT SR2 -- confirm FV is set", inline=True)
-comment(0xF1A9, "FV missing -> malformed frame, fail", inline=True)
+comment(0xF1A6, "BIT SR2 – confirm FV is set", inline=True)
+comment(0xF1A9, "FV missing → malformed frame, fail", inline=True)
 
 label(0xF1AB, "self_test_loopback_b_to_a")
 subroutine(0xF1AB, "self_test_loopback_b_to_a", hook=None,
@@ -2795,8 +2795,8 @@ comment(0xF1C4, "X = 0: expected RX byte on A", inline=True)
 
 label(0xF1C6, "loopback_b_to_a_prefill")
 comment(0xF1C6, "Wait for B's TDRA IRQ", inline=True)
-comment(0xF1C9, "BIT SR1 (read CR1 addr) -- test V = TDRA (bit 6)", inline=True)
-comment(0xF1CC, "Not TDRA -> B's TX stalled; fail", inline=True)
+comment(0xF1C9, "BIT SR1 (read CR1 addr) – test V = TDRA (bit 6)", inline=True)
+comment(0xF1CC, "Not TDRA → B's TX stalled; fail", inline=True)
 comment(0xF1CE, "Push Y into B's TX FIFO (even byte of pair)", inline=True)
 comment(0xF1D1, "Advance Y", inline=True)
 comment(0xF1D2, "Push Y into B's TX FIFO (odd byte of pair)", inline=True)
@@ -2806,14 +2806,14 @@ comment(0xF1D8, "Keep prefilling", inline=True)
 
 comment(0xF1DA, "Wait for A's first RX IRQ", inline=True)
 comment(0xF1DD, "A = &01: SR2 mask for AP (Address Present)", inline=True)
-comment(0xF1DF, "BIT SR2 -- first byte should assert AP", inline=True)
-comment(0xF1E2, "No AP on first byte -> fail", inline=True)
+comment(0xF1DF, "BIT SR2 – first byte should assert AP", inline=True)
+comment(0xF1E2, "No AP on first byte → fail", inline=True)
 comment(0xF1E4, "Compare A's FIFO byte against X (expect 0)", inline=True)
-comment(0xF1E7, "Mismatch -> fail", inline=True)
+comment(0xF1E7, "Mismatch → fail", inline=True)
 comment(0xF1E9, "Advance X past the first byte", inline=True)
 comment(0xF1EA, "Wait for A's next RX IRQ", inline=True)
-comment(0xF1ED, "BIT SR2 -- RDA (bit 7) asserted?", inline=True)
-comment(0xF1F0, "RDA set -> good, compare second byte", inline=True)
+comment(0xF1ED, "BIT SR2 – RDA (bit 7) asserted?", inline=True)
+comment(0xF1F0, "RDA set → good, compare second byte", inline=True)
 
 label(0xF1F2, "loopback_b_to_a_fail")
 comment(0xF1F2, "A = 6: error code for B-to-A loopback failure", inline=True)
@@ -2821,47 +2821,47 @@ comment(0xF1F4, "Hand off to countable-blink failure handler", inline=True)
 
 label(0xF1F7, "loopback_b_to_a_head_ok")
 comment(0xF1F7, "Compare A's second FIFO byte against X (expect 1)", inline=True)
-comment(0xF1FA, "Mismatch -> fail", inline=True)
+comment(0xF1FA, "Mismatch → fail", inline=True)
 comment(0xF1FC, "Advance X past the second byte", inline=True)
 
 label(0xF1FD, "loopback_b_to_a_stream_loop")
 comment(0xF1FD, "Wait for B's TDRA IRQ (TX slot ready)", inline=True)
-comment(0xF200, "BIT SR1 -- test V = TDRA", inline=True)
-comment(0xF203, "TX stalled mid-stream -> fail", inline=True)
+comment(0xF200, "BIT SR1 – test V = TDRA", inline=True)
+comment(0xF203, "TX stalled mid-stream → fail", inline=True)
 comment(0xF205, "Push even byte (Y) into B's TX FIFO", inline=True)
 comment(0xF208, "Advance Y", inline=True)
 comment(0xF209, "Push odd byte (Y) into B's TX FIFO", inline=True)
 comment(0xF20C, "Advance Y past the pair", inline=True)
 comment(0xF20D, "Wait for A's RX IRQ (pair received)", inline=True)
-comment(0xF210, "BIT SR2 -- RDA still asserted?", inline=True)
-comment(0xF213, "RDA cleared early -> fail", inline=True)
+comment(0xF210, "BIT SR2 – RDA still asserted?", inline=True)
+comment(0xF213, "RDA cleared early → fail", inline=True)
 comment(0xF215, "Compare A's even byte against X", inline=True)
-comment(0xF218, "Mismatch -> fail", inline=True)
+comment(0xF218, "Mismatch → fail", inline=True)
 comment(0xF21A, "Advance X", inline=True)
 comment(0xF21B, "Compare A's odd byte against X", inline=True)
-comment(0xF21E, "Mismatch -> fail", inline=True)
+comment(0xF21E, "Mismatch → fail", inline=True)
 comment(0xF220, "Advance X past the pair", inline=True)
-comment(0xF221, "Y wrapped back to 0 -> all 256 bytes sent", inline=True)
-comment(0xF223, "Not done -> keep streaming", inline=True)
+comment(0xF221, "Y wrapped back to 0 → all 256 bytes sent", inline=True)
+comment(0xF223, "Not done → keep streaming", inline=True)
 comment(0xF225, "A = &3F: CR2 end-of-frame-with-flush", inline=True)
 comment(0xF227, "Commit: B pushes the final byte and closes the frame", inline=True)
 
 label(0xF22A, "loopback_b_to_a_flush_loop")
 comment(0xF22A, "Wait for A's remaining RX IRQ", inline=True)
-comment(0xF22D, "BIT SR2 -- RDA still asserted?", inline=True)
-comment(0xF230, "Drain interrupted -> fail", inline=True)
+comment(0xF22D, "BIT SR2 – RDA still asserted?", inline=True)
+comment(0xF230, "Drain interrupted → fail", inline=True)
 comment(0xF232, "Compare A's residual byte against X", inline=True)
-comment(0xF235, "Mismatch -> fail", inline=True)
+comment(0xF235, "Mismatch → fail", inline=True)
 comment(0xF237, "Advance X", inline=True)
 comment(0xF238, "Compare A's next residual byte against X", inline=True)
-comment(0xF23B, "Mismatch -> fail", inline=True)
+comment(0xF23B, "Mismatch → fail", inline=True)
 comment(0xF23D, "Advance X past the pair", inline=True)
-comment(0xF23E, "X wrapped to 0 -> A has drained all 256 bytes", inline=True)
-comment(0xF240, "Not done -> keep draining", inline=True)
+comment(0xF23E, "X wrapped to 0 → A has drained all 256 bytes", inline=True)
+comment(0xF240, "Not done → keep draining", inline=True)
 comment(0xF242, "Wait for the trailing end-of-frame IRQ on A", inline=True)
 comment(0xF245, "A = &02: SR2 mask for FV (Frame Valid)", inline=True)
-comment(0xF247, "BIT SR2 -- confirm FV is set", inline=True)
-comment(0xF24A, "FV missing -> malformed frame, fail", inline=True)
+comment(0xF247, "BIT SR2 – confirm FV is set", inline=True)
+comment(0xF24A, "FV missing → malformed frame, fail", inline=True)
 
 label(0xF24C, "self_test_check_netnums")
 subroutine(0xF24C, "self_test_check_netnums", hook=None,
@@ -2882,13 +2882,13 @@ with anything else a tester might leave plugged in.
 
 comment(0xF24C, "Fetch the side-A jumper setting", inline=True)
 comment(0xF24F, "Expected self-test value = 1", inline=True)
-comment(0xF251, "Match -> move on to check side B", inline=True)
+comment(0xF251, "Match → move on to check side B", inline=True)
 comment(0xF253, "Mismatch: load error code 7", inline=True)
 comment(0xF255, "Jump to countable-blink failure handler", inline=True)
 label(0xF258, "self_test_check_netnum_b")
 comment(0xF258, "Fetch the side-B jumper setting", inline=True)
 comment(0xF25B, "Expected self-test value = 2", inline=True)
-comment(0xF25D, "Match -> end-of-pass bookkeeping", inline=True)
+comment(0xF25D, "Match → end-of-pass bookkeeping", inline=True)
 comment(0xF25F, "Mismatch: load error code 8", inline=True)
 comment(0xF261, "Jump to countable-blink failure handler", inline=True)
 
@@ -2898,7 +2898,7 @@ subroutine(0xF264, "self_test_pass_done", hook=None,
     title="End-of-pass: toggle scratch flag and loop for another pass",
     description="""\
 Reached when every test in a pass has succeeded. The self-test
-doesn't stop -- it loops indefinitely until reset. Toggles bit 7
+doesn't stop – it loops indefinitely until reset. Toggles bit 7
 of `&0003` (the self-test scratch byte) via `EOR #&FF`; if bit 7
 is set after the toggle, JMPs to
 [`self_test_reset_adlcs`](address:F005) for another full pass.
@@ -2932,7 +2932,7 @@ label(0xF28C, "ram_test_fail")
 subroutine(0xF28C, "ram_test_fail", hook=None,
     title="RAM-failure blink pattern (does not use RAM)",
     description="""\
-Reached from any of the three RAM tests on failure -- ZP test,
+Reached from any of the three RAM tests on failure – ZP test,
 pattern RAM test, incrementing RAM test. This handler can't
 use RAM for counting blinks (if RAM is broken, reading/writing
 RAM is exactly what's untrustworthy), so it generates its blink
@@ -2947,13 +2947,13 @@ are ignored) bytes in the ROM starting at the reset vector.
 
 Continues forever; the operator infers "the RAM is bad" from the
 fact that the LED is blinking but no specific error code can be
-counted out -- distinct from the more structured blink patterns
+counted out – distinct from the more structured blink patterns
 produced by [`self_test_fail`](address:F2C7) with codes 2-8.""")
 
 comment(0xF28C, "CR1 = 1: enable AC so cr2 writes hit CR3", inline=True)
 comment(0xF28E, "Commit CR1 on ADLC A", inline=True)
 label(0xF291, "ram_test_fail_loop")
-comment(0xF291, "CR3 = 0 -> LED off on ADLC B (LOC/DTR pin high)", inline=True)
+comment(0xF291, "CR3 = 0 → LED off on ADLC B (LOC/DTR pin high)", inline=True)
 comment(0xF293, "Commit CR3", inline=True)
 comment(0xF296, "X = 0: inner delay counter", inline=True)
 comment(0xF298, "Y = 0: outer delay counter", inline=True)
@@ -2962,17 +2962,17 @@ comment(0xF29A, "Pure-register busy-wait (no RAM access)", inline=True)
 comment(0xF29B, "Spin through X's 256 values", inline=True)
 comment(0xF29D, "Bump Y", inline=True)
 comment(0xF29E, "Spin through Y's 256 values", inline=True)
-comment(0xF2A0, "CR3 = &80 -> LED on (LOC/DTR pin driven low)", inline=True)
+comment(0xF2A0, "CR3 = &80 → LED on (LOC/DTR pin driven low)", inline=True)
 comment(0xF2A2, "Commit CR3", inline=True)
 comment(0xF2A5, "Y = 0 for the longer delay phase", inline=True)
 comment(0xF2A7, "X = 0", inline=True)
 label(0xF2A9, "ram_test_fail_long_delay")
-comment(0xF2A9, "DEC of ROM (writes ignored); seven of them in a row...", inline=True)
-comment(0xF2AC, "...pace the LED-on interval without RAM writes", inline=True)
+comment(0xF2A9, "DEC of ROM (writes ignored); seven of them in a row…", inline=True)
+comment(0xF2AC, "…pace the LED-on interval without RAM writes", inline=True)
 comment(0xF2AF, "(all seven DECs hit the same RO address)", inline=True)
-comment(0xF2B2, "DEC reset,X again -- 4 cycles, no side effect", inline=True)
-comment(0xF2B5, "DEC reset,X again -- 4 cycles, no side effect", inline=True)
-comment(0xF2B8, "DEC reset,X again -- 4 cycles, no side effect", inline=True)
+comment(0xF2B2, "DEC reset,X again – 4 cycles, no side effect", inline=True)
+comment(0xF2B5, "DEC reset,X again – 4 cycles, no side effect", inline=True)
+comment(0xF2B8, "DEC reset,X again – 4 cycles, no side effect", inline=True)
 comment(0xF2BB, "Last of the seven; together they lengthen the inner tick", inline=True)
 comment(0xF2BE, "Step X", inline=True)
 comment(0xF2BF, "Spin through X's 256 values", inline=True)
@@ -2983,7 +2983,7 @@ comment(0xF2C4, "Loop forever; LED alternates at an uncountable pace", inline=Tr
 
 label(0xF2C7, "self_test_fail")
 subroutine(0xF2C7, "self_test_fail", hook=None,
-    title="Self-test failure — signal error code via the LED",
+    title="Self-test failure – signal error code via the LED",
     description="""\
 Common failure exit for every non-RAM self-test stage. Called with
 the error code in A. Saves two copies of the code in `&00`/`&01`
@@ -3018,25 +3018,25 @@ burst, a fixed 8-pulse spacer pattern runs before the outer loop
 repeats. The operator counts pulses to identify the failed test.""")
 
 comment(0xF2C7, "Save error code to &00 (the restart value)", inline=True)
-comment(0xF2C9, "...and to &01 (the per-burst countdown)", inline=True)
+comment(0xF2C9, "…and to &01 (the per-burst countdown)", inline=True)
 comment(0xF2CB, "X = 1: enable AC on ADLC A", inline=True)
 comment(0xF2CD, "Commit CR1 so cr2 writes hit CR3 from here on", inline=True)
 label(0xF2D0, "self_test_fail_pulse")
-comment(0xF2D0, "X = 0: CR3 off -> LED dark", inline=True)
+comment(0xF2D0, "X = 0: CR3 off → LED dark", inline=True)
 comment(0xF2D2, "Commit CR3 = 0", inline=True)
 comment(0xF2D5, "Y = 0: outer loop counter for the dark phase", inline=True)
 comment(0xF2D7, "X = 0: inner loop counter", inline=True)
 label(0xF2D9, "self_test_fail_dark_delay")
-comment(0xF2D9, "DEX -- tick the inner counter", inline=True)
+comment(0xF2D9, "DEX – tick the inner counter", inline=True)
 comment(0xF2DA, "Inner spin through X's 256 values", inline=True)
 comment(0xF2DC, "Step Y", inline=True)
 comment(0xF2DD, "Outer spin: Y cycles give ~65K iterations of dark", inline=True)
-comment(0xF2DF, "X = &80: CR3 bit 7 set -> LED lit", inline=True)
+comment(0xF2DF, "X = &80: CR3 bit 7 set → LED lit", inline=True)
 comment(0xF2E1, "Commit CR3 = &80", inline=True)
 comment(0xF2E4, "Y = 0", inline=True)
 comment(0xF2E6, "X = 0", inline=True)
 label(0xF2E8, "self_test_fail_lit_delay")
-comment(0xF2E8, "DEX -- tick the inner counter", inline=True)
+comment(0xF2E8, "DEX – tick the inner counter", inline=True)
 comment(0xF2E9, "Inner spin through X's 256 values (LED lit)", inline=True)
 comment(0xF2EB, "Step Y", inline=True)
 comment(0xF2EC, "Outer spin: Y cycles give the same length as the dark phase", inline=True)
@@ -3047,7 +3047,7 @@ comment(0xF2F4, "Seed the spacer loop counter", inline=True)
 comment(0xF2F6, "Y = 0", inline=True)
 comment(0xF2F8, "X = 0", inline=True)
 label(0xF2FA, "self_test_fail_spacer_delay")
-comment(0xF2FA, "DEX -- tick the inner spacer counter", inline=True)
+comment(0xF2FA, "DEX – tick the inner spacer counter", inline=True)
 comment(0xF2FB, "Inner spin through X's 256 values (LED off)", inline=True)
 comment(0xF2FD, "Step Y", inline=True)
 comment(0xF2FE, "Outer spin: 8x this pair keeps the gap audibly long", inline=True)
