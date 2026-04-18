@@ -558,12 +558,12 @@ adlc_b_tx2      = &d803
 ; The routine bridges the complete Econet four-way handshake by alternating
 ; direct-forward, receive-on-one-side, and re-transmit:
 ;
-; | stage | direction | drain                                           | retransmit       |
-; |-------|-----------|-------------------------------------------------|------------------|
-; | SCOUT | A → B     | inline from rx_* into adlc_b_tx, pair-at-a-time | (inline above)   |
-; | ACK1  | B → A     | handshake_rx_b into &045A                       | transmit_frame_a |
-; | DATA  | A → B     | handshake_rx_a into &045A                       | transmit_frame_b |
-; | ACK2  | B → A     | handshake_rx_b into &045A                       | transmit_frame_a |
+; | stage | direction | drain                                | retransmit                               |
+; |-------|-----------|--------------------------------------|------------------------------------------|
+; | SCOUT | A → B     | already in rx_* (done by rx_frame_a) | push rx_* into adlc_b_tx, pair-at-a-time |
+; | ACK1  | B → A     | handshake_rx_b into &045A            | transmit_frame_a                         |
+; | DATA  | A → B     | handshake_rx_a into &045A            | transmit_frame_b                         |
+; | ACK2  | B → A     | handshake_rx_b into &045A            | transmit_frame_a                         |
 ;
 ; Each handshake_rx_? call can escape to main_loop (PLA/PLA/JMP) if the expected frame
 ; doesn't arrive, cleanly aborting the bridged conversation without further work on
@@ -831,12 +831,12 @@ adlc_b_tx2      = &d803
 ; - Fall-through from rx_b_handle_81 (at &E387): we've learned from the announcement
 ;   and appended net_num_b to the payload; now propagate it onward.
 ;
-; | stage | direction | drain                                           | retransmit       |
-; |-------|-----------|-------------------------------------------------|------------------|
-; | SCOUT | B → A     | inline from rx_* into adlc_a_tx, pair-at-a-time | (inline above)   |
-; | ACK1  | A → B     | handshake_rx_a into &045A                       | transmit_frame_b |
-; | DATA  | B → A     | handshake_rx_b into &045A                       | transmit_frame_a |
-; | ACK2  | A → B     | handshake_rx_a into &045A                       | transmit_frame_b |
+; | stage | direction | drain                                | retransmit                               |
+; |-------|-----------|--------------------------------------|------------------------------------------|
+; | SCOUT | B → A     | already in rx_* (done by rx_frame_b) | push rx_* into adlc_a_tx, pair-at-a-time |
+; | ACK1  | A → B     | handshake_rx_a into &045A            | transmit_frame_b                         |
+; | DATA  | B → A     | handshake_rx_b into &045A            | transmit_frame_a                         |
+; | ACK2  | A → B     | handshake_rx_a into &045A            | transmit_frame_b                         |
 ;
 ; See rx_a_forward for the full per-stage explanation.
 ; &e389 referenced 2 times by &e2c8, &e314

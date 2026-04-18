@@ -1497,12 +1497,12 @@ Reached from three places:
 The routine bridges the complete Econet four-way handshake by
 alternating direct-forward, receive-on-one-side, and re-transmit:
 
-| stage | direction | drain                                     | retransmit                                |
-|-------|-----------|-------------------------------------------|-------------------------------------------|
-| SCOUT | A &rarr; B | inline from `rx_*` into `adlc_b_tx`, pair-at-a-time | *(inline above)*                          |
-| ACK1  | B &rarr; A | [`handshake_rx_b`](address:E5FF) into `&045A`       | [`transmit_frame_a`](address:E517)                 |
-| DATA  | A &rarr; B | [`handshake_rx_a`](address:E56E) into `&045A`       | [`transmit_frame_b`](address:E4C0)                 |
-| ACK2  | B &rarr; A | [`handshake_rx_b`](address:E5FF) into `&045A`       | [`transmit_frame_a`](address:E517)                 |
+| stage | direction  | drain                                                 | retransmit                                       |
+|-------|------------|-------------------------------------------------------|--------------------------------------------------|
+| SCOUT | A &rarr; B | already in `rx_*` (done by [`rx_frame_a`](address:E0E2)) | push `rx_*` into `adlc_b_tx`, pair-at-a-time     |
+| ACK1  | B &rarr; A | [`handshake_rx_b`](address:E5FF) into `&045A`         | [`transmit_frame_a`](address:E517)               |
+| DATA  | A &rarr; B | [`handshake_rx_a`](address:E56E) into `&045A`         | [`transmit_frame_b`](address:E4C0)               |
+| ACK2  | B &rarr; A | [`handshake_rx_b`](address:E5FF) into `&045A`         | [`transmit_frame_a`](address:E517)               |
 
 Each `handshake_rx_?` call can escape to [`main_loop`](address:E051)
 (PLA/PLA/JMP) if the expected frame doesn't arrive, cleanly aborting
@@ -1577,12 +1577,12 @@ Reached from three places:
   [`&E387`](address:E387)): we've learned from the announcement
   and appended `net_num_b` to the payload; now propagate it onward.
 
-| stage | direction | drain                                             | retransmit                            |
-|-------|-----------|---------------------------------------------------|---------------------------------------|
-| SCOUT | B &rarr; A | inline from `rx_*` into `adlc_a_tx`, pair-at-a-time | *(inline above)*                      |
-| ACK1  | A &rarr; B | [`handshake_rx_a`](address:E56E) into `&045A`      | [`transmit_frame_b`](address:E4C0)    |
-| DATA  | B &rarr; A | [`handshake_rx_b`](address:E5FF) into `&045A`      | [`transmit_frame_a`](address:E517)    |
-| ACK2  | A &rarr; B | [`handshake_rx_a`](address:E56E) into `&045A`      | [`transmit_frame_b`](address:E4C0)    |
+| stage | direction  | drain                                                 | retransmit                                       |
+|-------|------------|-------------------------------------------------------|--------------------------------------------------|
+| SCOUT | B &rarr; A | already in `rx_*` (done by [`rx_frame_b`](address:E263)) | push `rx_*` into `adlc_a_tx`, pair-at-a-time     |
+| ACK1  | A &rarr; B | [`handshake_rx_a`](address:E56E) into `&045A`         | [`transmit_frame_b`](address:E4C0)               |
+| DATA  | B &rarr; A | [`handshake_rx_b`](address:E5FF) into `&045A`         | [`transmit_frame_a`](address:E517)               |
+| ACK2  | A &rarr; B | [`handshake_rx_a`](address:E56E) into `&045A`         | [`transmit_frame_b`](address:E4C0)               |
 
 See [`rx_a_forward`](address:E208) for the full per-stage
 explanation.""")
