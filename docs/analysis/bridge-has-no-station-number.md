@@ -93,7 +93,7 @@ The Bridge lives one level up from the station-address plane — it cares about 
 
 ## Cross-references
 
-- `net_num_a`/`net_num_b` at [`&C000`](../../versions/econet-bridge-1/output/econet-bridge-1.asm)/[`&D000`](../../versions/econet-bridge-1/output/econet-bridge-1.asm) — the only per-port identity the Bridge has.
+- `net_num_a`/`net_num_b` at `&C000`/`&D000` — the only per-port identity the Bridge has.
 - `reachable_via_a`/`reachable_via_b` at `&035A`/`&025A` — routing tables indexed by destination network number.
 - `build_announce_b` at `&E458` — writes `&18` into the otherwise-unused source-address fields of the outbound announcement.
 - `rx_a_handle_81` at `&E1EE` — demonstrates that the receiver ignores the source-address fields.

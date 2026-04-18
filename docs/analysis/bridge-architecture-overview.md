@@ -123,14 +123,7 @@ The writeups in `docs/analysis/` cover specific aspects in depth:
 - [*The self-test LED*](led-self-test-indicator.md) — how one ADLC output pin encodes four distinct functional states.
 
 
-## Cross-references back to the source
-
-The annotated assembly and structured JSON for the disassembled ROM:
-
-- [`versions/econet-bridge-1/output/econet-bridge-1.asm`](../../versions/econet-bridge-1/output/econet-bridge-1.asm)
-- [`versions/econet-bridge-1/output/econet-bridge-1.json`](../../versions/econet-bridge-1/output/econet-bridge-1.json)
-
-External references:
+## External references
 
 - [Econet Installation Guide, chapter 3](../Econet%20Installation%20Guide%200482,009%20Issue%201%2027%20September%201988.pdf) — Acorn's own description of how the Bridge is deployed.
 - [MC68B54 datasheet](../Motorola-MC68B54P-datasheet.pdf) — authoritative reference for the ADLC's register semantics.

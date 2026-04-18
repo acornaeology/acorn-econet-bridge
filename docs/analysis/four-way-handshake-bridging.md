@@ -122,7 +122,7 @@ The misdirection came partly from the naming. A `listen_restore_a` routine would
 
 ## Cross-references
 
-- `rx_a_forward` at [`&E208`](../../versions/econet-bridge-1/output/econet-bridge-1.asm) and its mirror `rx_b_forward` at `&E389`.
+- `rx_a_forward` at `&E208` and its mirror `rx_b_forward` at `&E389`.
 - `handshake_rx_a` at `&E56E` and `handshake_rx_b` at `&E5FF` — the receive-and-stage routines.
 - `transmit_frame_a`/`transmit_frame_b` — the transmit halves they pair with.
 - [Escape-to-main control flow](escape-to-main-control-flow.md) — the error-recovery mechanism that makes mid-handshake failures safe.

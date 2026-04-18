@@ -149,7 +149,7 @@ For a workgroup local-area network with a dozen bridges at most, operating over 
 ## Cross-references
 
 - `announce_flag` / `announce_tmr_lo/hi` / `announce_count` label header at the top of the driver script — documents the whole state machine.
-- `rx_a_handle_80` at [`&E1D6`](../../versions/econet-bridge-1/output/econet-bridge-1.asm) and `rx_b_handle_80` at `&E357` — the only two routines that set the flag.
+- `rx_a_handle_80` at `&E1D6` and `rx_b_handle_80` at `&E357` — the only two routines that set the flag.
 - `re_announce` at `&E098` — the action that runs when the flag is set and the timer fires.
 - `re_announce_done` at `&E0C2` — clears the flag when the burst is complete.
 - [The Bridge architecture overview](bridge-architecture-overview.md) — context.

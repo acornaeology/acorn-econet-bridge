@@ -92,7 +92,7 @@ The same discipline opens the door to reusing the transmit routines for frames w
 
 ## Cross-references
 
-- `build_announce_b` at [`&E458`](../../versions/econet-bridge-1/output/econet-bridge-1.asm) in the disassembly — the template builder.
+- `build_announce_b` at `&E458` — the template builder.
 - `transmit_frame_a` (`&E517`) and `transmit_frame_b` (`&E4C0`) — the mirrored transmit routines.
 - The outbound frame control block at `tx_dst_stn..tx_data0` (`&045A-&0460`).
-- The reset sequence calling the pair at [`&E038`](../../versions/econet-bridge-1/output/econet-bridge-1.asm) onward.
+- The reset sequence calling the pair at `&E038` onward.

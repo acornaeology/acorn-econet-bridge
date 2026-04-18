@@ -85,9 +85,7 @@ Four distinct states, all encoded through a single pin on one ADLC:
 A one-bit output reused four ways — normal operation, diagnostic-active, structured failure, unstructured failure. The fact that each state is unambiguous to an operator standing in front of the box owes something to the circuit designer, who gave the pin an LED, and something to the firmware author, who put the right amount of thought into the failure paths so that "my RAM is broken" looks visibly different from "I failed a check".
 
 
-## Cross-references
+## External references
 
-- `adlc_b_full_reset` at [`&E414`](../../versions/econet-bridge-1/output/econet-bridge-1.asm) in the disassembly.
-- `self_test_reset_adlcs` at [`&F005`](../../versions/econet-bridge-1/output/econet-bridge-1.asm) in the disassembly.
 - MC68B54 datasheet in [`docs/Motorola-MC68B54P-datasheet.pdf`](../Motorola-MC68B54P-datasheet.pdf) — CR3 bit meanings.
 - [Ian Stocks's reverse-engineered schematic](https://stardot.org.uk/forums/download/file.php?id=26508).
