@@ -104,7 +104,7 @@ The self-test is entered via the IRQ/BRK vector when the push-button is pressed.
 3. `&55`/`&AA` pattern test across 8 KiB of RAM
 4. Incrementing-byte pattern test (catches address-line faults)
 5. ADLC register-state checks on both chips
-6. Loopback test A → B (requires the self-test rig: clock box + T-piece + terminator across both ports — not a passive port-to-port cable)
+6. Loopback test A → B (requires the self-test rig: clock box for the bit-clock, T-piece across both ports, and a single terminator on the clock box's other socket providing both line termination and DC bias — not a passive port-to-port cable)
 7. Loopback test B → A
 8. Network-number jumper check (expects `net_num_a=1`, `net_num_b=2`)
 

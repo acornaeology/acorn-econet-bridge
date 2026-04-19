@@ -1683,11 +1683,15 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
 ; reconfigures the ADLCs and drives their control registers in ways that will disturb
 ; any in-flight frames.
 ;
-; The official self-test rig is a complete single-segment Econet network: a clock box
-; (which provides both the bit-clock and the line bias the ADLCs need to frame anything
-; at all), a T-piece joining both Bridge ports to one cable to the clock box, and a
-; terminator on the clock box's other socket. A bare port-to-port patch cable will not
-; work – without clock and bias the loopback tests can never see a frame. See
+; The official self-test rig is a minimal Econet segment, not a full one. It comprises
+; a clock box (which on the original Acorn/SJ design provides only the bit-clock, not
+; biasing), a T-piece joining both Bridge ports to one cable to the clock box, and a
+; single terminator on the clock box's other socket. The terminator does double duty:
+; it terminates the line and provides the DC bias that lets the differential pair carry
+; data at all. One terminator is enough to bias the line for the loopback test to work,
+; which is why the rig has just one – a real two-station Econet segment would have a
+; terminator at each end of the cable run. A bare port-to-port patch cable will not
+; work: without clock and without bias the loopback tests can never see a frame. See
 ; docs/self-test-connections.png for the manual's diagram.
 .self_test
     sei                                                               ; f000: 78          x              ; Mask IRQs – this routine polls and must not re-enter
@@ -1935,9 +1939,10 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
 ; ***************************************************************************************
 ; Loopback test: transmit on ADLC A, receive on ADLC B
 ;
-; Assumes the official self-test rig is wired up – clock box, T-piece across both
-; Bridge ports, terminator on the clock box's other socket (see self_test for the
-; rationale). Reconfigures ADLC A for transmit (CR1=&44) and ADLC B for receive
+; Assumes the official self-test rig is wired up – clock box for the bit-clock, T-piece
+; across both Bridge ports, single terminator on the clock box's other socket (which
+; both terminates the line and provides its DC bias). See self_test for the full
+; rationale. Reconfigures ADLC A for transmit (CR1=&44) and ADLC B for receive
 ; (CR1=&82), then sends a 256-byte sequence (0,1,2,…,255) out of A and verifies each
 ; byte is received on B in order by incrementing X alongside the sender's Y.
 ;
