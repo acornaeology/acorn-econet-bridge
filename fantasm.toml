@@ -15,22 +15,9 @@ prefixes = ["econet-bridge"]
 # but the driver-script identifier replaces it with an underscore.
 driver_filename = "disasm_econet_bridge_{version_id_no_dots}.py"
 
-# Workspace and memory-mapped-I/O regions for the Econet Bridge.
-# Labels and references at these addresses are valid even though
-# they're outside the ROM image; lint and audit treat them as
-# expected destinations rather than dangling references.
-[memory]
-regions = [
-    { start = 0x0000, end = 0x00FF },   # zero page (firmware workspace)
-    { start = 0x0200, end = 0x04FF },   # extended workspace (announce / rx / tx tables)
-]
-external_regions = [
-    { start = 0xC000, end = 0xCFFF },   # ADLC A (memory-mapped I/O) + net_num_a
-    { start = 0xD000, end = 0xDFFF },   # ADLC B (memory-mapped I/O) + net_num_b
-]
-
-# Single-version graph; the [memory] regions above only kick in for
-# versions declared here, so the lone variant needs an entry. Once
-# more variants land, give them parents/reloc_blocks as appropriate.
+# Single-version graph: a [[versions.entry]] is needed for `fantasm
+# audit` and friends to use the version-graph's effective regions
+# (mostly empty here — the driver declares everything via
+# external_label() calls that fantasm lint reads from the JSON).
 [[versions.entry]]
 id = "variant_1"
