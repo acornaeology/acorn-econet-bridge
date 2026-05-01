@@ -15,11 +15,11 @@ For project overview and build instructions, see [README.md](README.md). For arc
 
 ## Quick reference: CLI tools
 
-The disassembly tooling is provided by [fantasm](https://github.com/acornaeology/fantasm), invoked as `uv run fantasm <command>`. The full command surface is documented in fantasm's own README; the most-used commands here are:
+The disassembly tooling is provided by [fantasm](https://acornaeology.github.io/fantasm/), invoked as `uv run fantasm <command>`. The full command-by-command reference is at <https://acornaeology.github.io/fantasm/cli.html> and the workflow guide at <https://acornaeology.github.io/fantasm/workflows.html>; the most-used commands here are:
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| (driver script) | Run py8dis to generate `.asm` and `.json` from ROM | `uv run python versions/econet-bridge-variant_1/disassemble/disasm_econet_bridge_variant_1.py` |
+| `disassemble` | Run the py8dis driver to generate `.asm` and `.json` | `fantasm disassemble variant_1` |
 | `verify` | Reassemble and byte-compare against original ROM | `fantasm verify variant_1` |
 | `lint` | Validate annotation addresses against the disassembly | `fantasm lint variant_1 versions/econet-bridge-variant_1/disassemble/disasm_econet_bridge_variant_1.py` |
 | `compare` | Compare two ROM versions (byte and opcode level) | `fantasm compare a b` |
@@ -233,7 +233,7 @@ uv run fantasm shared \
 
 ## Tools reference
 
-The disassembly toolchain itself lives in [fantasm](https://github.com/acornaeology/fantasm) — see its API/CLI docs for module-level details. The repo-local tools that remain are:
+The disassembly toolchain itself lives in [fantasm](https://acornaeology.github.io/fantasm/) — see [the published docs](https://acornaeology.github.io/fantasm/) for module-level details. The repo-local tools that remain are:
 
 | Tool | Source | Purpose |
 |------|--------|---------|
