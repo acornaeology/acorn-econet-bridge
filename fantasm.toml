@@ -1,0 +1,36 @@
+# fantasm project configuration. See docs/configuration.md for the schema.
+
+[project]
+name = "acorn-econet-bridge"
+
+[rom]
+# Default CPU for opcode decoding: "6502" (NMOS) or "65c02" (CMOS).
+cpu = "6502"
+# The Econet Bridge ROM is mapped at &E000-&FFFF on its own 6502.
+base_address = 0xE000
+
+[versions]
+prefixes = ["econet-bridge"]
+# Project-specific driver-filename template: the prefix has a hyphen
+# but the driver-script identifier replaces it with an underscore.
+driver_filename = "disasm_econet_bridge_{version_id_no_dots}.py"
+
+# Workspace and memory-mapped-I/O regions for the Econet Bridge.
+# Labels and references at these addresses are valid even though
+# they're outside the ROM image; lint and audit treat them as
+# expected destinations rather than dangling references.
+[memory]
+regions = [
+    { start = 0x0000, end = 0x00FF },   # zero page (firmware workspace)
+    { start = 0x0200, end = 0x04FF },   # extended workspace (announce / rx / tx tables)
+]
+external_regions = [
+    { start = 0xC000, end = 0xCFFF },   # ADLC A (memory-mapped I/O) + net_num_a
+    { start = 0xD000, end = 0xDFFF },   # ADLC B (memory-mapped I/O) + net_num_b
+]
+
+# Single-version graph; the [memory] regions above only kick in for
+# versions declared here, so the lone variant needs an entry. Once
+# more variants land, give them parents/reloc_blocks as appropriate.
+[[versions.entry]]
+id = "variant_1"

@@ -15,27 +15,27 @@ For project overview and build instructions, see [README.md](README.md). For arc
 
 ## Quick reference: CLI tools
 
-All tools are invoked via `uv run acorn-econet-bridge-disasm-tool <command>`.
+The disassembly tooling is provided by [fantasm](https://github.com/acornaeology/fantasm), invoked as `uv run fantasm <command>`. The full command surface is documented in fantasm's own README; the most-used commands here are:
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `disassemble` | Generate `.asm` and `.json` from ROM | `... disassemble 1` |
-| `verify` | Reassemble and byte-compare against original ROM | `... verify 1` |
-| `lint` | Validate annotation addresses and check for duplicates | `... lint 1` |
-| `compare` | Compare two ROM versions (byte and opcode level) | `... compare 1 2` |
-| `extract` | Extract assembly section by address range or label | `... extract 1 &E000 &E040` |
-| `audit` | Audit subroutine annotations (summary, detail, flags) | `... audit 1 --summary` |
-| `cfg` | Build inter-procedural call graph with depth ordering | `... cfg 1 --depth` |
-| `context` | Generate per-subroutine context files for commenting | `... context 1 --sub E000` |
-| `labels` | Generate per-label context files for renaming | `... labels 1 --summary` |
-| `rename-labels` | Batch rename auto-generated labels | `... rename-labels 1 --file renames.txt` |
-| `insert-point` | Find insertion point for new subroutine declaration | `... insert-point 1 &E000` |
-| `comment-check` | Check inline comments against instruction data | `... comment-check 1` |
-| `backfill` | Propagate annotations between versions | `... backfill 1 2` |
-| `promote` | Find labels that should be promoted to entry points | `... promote 1` |
-| `find-shared` | Find shared 6502 code fragments vs. reference ROMs | `... find-shared 1 nfs=path@&8000` |
+| (driver script) | Run py8dis to generate `.asm` and `.json` from ROM | `uv run python versions/econet-bridge-variant_1/disassemble/disasm_econet_bridge_variant_1.py` |
+| `verify` | Reassemble and byte-compare against original ROM | `fantasm verify variant_1` |
+| `lint` | Validate annotation addresses against the disassembly | `fantasm lint variant_1 versions/econet-bridge-variant_1/disassemble/disasm_econet_bridge_variant_1.py` |
+| `compare` | Compare two ROM versions (byte and opcode level) | `fantasm compare a b` |
+| `asm extract` | Extract assembly section by address range or label | `fantasm asm extract variant_1 &E000 &E040` |
+| `audit summary/detail/undeclared` | Subroutine annotation audit | `fantasm audit summary variant_1` |
+| `cfg leaves/roots/depth/sub/blocks/sub-context` | Inter-procedural call graph queries | `fantasm cfg depth variant_1` |
+| `context uncommented` | Find subroutines with low comment density | `fantasm context uncommented variant_1` |
+| `labels classify/apply` | Auto-label classification + rename application | `fantasm labels classify variant_1` |
+| `sub insert` | Find insertion point for a new `subroutine()` | `fantasm sub insert <driver> &E000` |
+| `comments suggest/check` | Comment suggestions and consistency checks | `fantasm comments check variant_1` |
+| `backfill` / `annotations diff` | Cross-version annotation propagation and diff | `fantasm backfill a b` |
+| `promote` | Find labels that should be promoted to entry points | `fantasm promote variant_1` |
+| `shared` | Find shared 6502 code fragments vs. reference ROMs | `fantasm shared <primary> nfs=path@&8000` |
+| `addresses map` | Map source addresses to a target ROM | `fantasm addresses map a b --addr 0xE000` |
 
-The `extract` command accepts hex addresses in multiple formats (`&E000`, `$E000`, `0xE000`) as well as label names.
+`fantasm` accepts hex addresses in multiple formats (`&E000`, `$E000`, `0xE000`) as well as label names where appropriate.
 
 
 ## Producing a new version disassembly
@@ -68,8 +68,8 @@ For the first version, start with a minimal driver that loads the ROM at &E000 a
 Run:
 
 ```sh
-uv run acorn-econet-bridge-disasm-tool disassemble <VER>
-uv run acorn-econet-bridge-disasm-tool verify <VER>
+uv run python versions/econet-bridge-<VER>/disassemble/disasm_econet_bridge_<VER>.py
+uv run fantasm verify <VER>
 ```
 
 Fix errors until verification passes, then annotate.
@@ -129,35 +129,34 @@ Assembly comments are formatted to fit within 62 characters (py8dis formatting c
 
 ## Cross-ROM code similarity
 
-The `find-shared` subcommand compares the Econet Bridge ROM against one
-or more reference ROMs using opcode-sequence matching. This is useful
-for detecting utility routines borrowed from (or between) other 6502
-firmware such as Acorn NFS, ANFS, ADFS, the Tube Client, or the BBC
-Micro MOS.
+The `fantasm shared` subcommand compares the Econet Bridge ROM against
+one or more reference ROMs using opcode-sequence matching. This is
+useful for detecting utility routines borrowed from (or between) other
+6502 firmware such as Acorn NFS, ANFS, ADFS, the Tube Client, or the
+BBC Micro MOS.
 
-Invoke it directly with `[label=]path@load-addr` specs:
+Invoke it with `[label=]path@load-addr` specs (the primary spec
+identifies the Bridge ROM, then any number of references):
 
 ```sh
-uv run acorn-econet-bridge-disasm-tool find-shared 1 \
+uv run fantasm shared \
+    "bridge=versions/econet-bridge-variant_1/rom/econet-bridge-variant_1.rom@&E000" \
     "nfs-3.34=../acorn-nfs/versions/nfs-3.34/rom/nfs-3.34.rom@&8000" \
     --min-len 8
 ```
 
-The `tools/find_shared_with_siblings.py` wrapper runs the comparison
-against every ROM it can find in the sibling acornaeology repos
-(acorn-nfs, acorn-adfs, acorn-6502-tube-client) plus, if built, a
-local OS 1.20 binary:
-
-```sh
-uv run tools/find_shared_with_siblings.py --min-len 8 --limit 8
-```
+A multi-sibling sweep (formerly `tools/find_shared_with_siblings.py`)
+is now an ad-hoc invocation of `fantasm shared` against the sibling
+ROMs you want to compare; the curated map at `shared-code.json` plus
+`tools/render_shared_code.py` remain the project's record of what's
+shared and what each match means.
 
 ### How the matcher works
 
 For each ROM the tool does a linear opcode sweep (length-aware, using
-the 6502 opcode table in `src/disasm_tools/mos6502.py`), then runs
-Python's `difflib.SequenceMatcher` on the opcode-only streams. Matches
-of `--min-len` or more consecutive instructions are reported with the
+the 6502 opcode table in `fantasm.api.mos6502`), then runs Python's
+`difflib.SequenceMatcher` on the opcode-only streams. Matches of
+`--min-len` or more consecutive instructions are reported with the
 offset and runtime address in each ROM.
 
 A trivial-span filter rejects matches with fewer than three distinct
@@ -171,29 +170,16 @@ touching different workspace variables.
 
 ### Maintaining the shared-code map
 
-Findings from `find-shared` are persisted in `shared-code.json` at the
-repo root, and rendered as `docs/SHARED-CODE.md` for browsing.
+Findings from `fantasm shared` are persisted in `shared-code.json` at
+the repo root, and rendered as `docs/SHARED-CODE.md` for browsing.
 Curated human notes attach to the JSON.
 
-**Refresh the scan** (run whenever a new sibling ROM appears, or an
-existing sibling is re-annotated — labels moving can shift the
-matcher's view):
-
-```sh
-uv run tools/refresh_shared_code.py
-```
-
-Refresh policy:
-
-- Regions keyed on the Bridge primary address.
-- For each region found by the latest scan: `peers` list is replaced
-  and `primary_instructions`/`primary_bytes` are updated to the
-  maximum observed. The curated `name` and `notes` fields are
-  preserved.
-- Regions not in the latest scan are kept in the JSON with a `stale:
-  true` flag. The notes remain as archive; remove the entry manually
-  if the region is genuinely gone.
-- New regions get `name` and `notes` set to null for curation.
+The previous `tools/refresh_shared_code.py` wrapper has been retired
+along with `disasm_tools/`. To refresh the JSON after a sibling ROM
+changes: run `fantasm shared` against the relevant siblings, capture
+the output as TSV (`--as tsv`), and merge into `shared-code.json` by
+hand (preserving the curated `name`/`notes`). A more polished
+refresh wrapper can return if it earns its keep.
 
 **Render the Markdown view:**
 
@@ -238,7 +224,8 @@ ROM (expected MD5 `0a59a5ba15fe8557b5f7fee32bbd393a`). Once built,
 If you prefer to compare against a single target manually:
 
 ```sh
-uv run acorn-econet-bridge-disasm-tool find-shared 1 \
+uv run fantasm shared \
+    "bridge=versions/econet-bridge-variant_1/rom/econet-bridge-variant_1.rom@&E000" \
     "mos-1.20=/Users/rjs/Code/os120/os120.bin@&C000" \
     --min-len 8
 ```
@@ -246,21 +233,9 @@ uv run acorn-econet-bridge-disasm-tool find-shared 1 \
 
 ## Tools reference
 
+The disassembly toolchain itself lives in [fantasm](https://github.com/acornaeology/fantasm) — see its API/CLI docs for module-level details. The repo-local tools that remain are:
+
 | Tool | Source | Purpose |
 |------|--------|---------|
-| CLI entry point | `src/disasm_tools/cli.py` | Dispatches all subcommands |
-| Verify | `src/disasm_tools/verify.py` | beebasm reassembly and byte comparison |
-| Lint | `src/disasm_tools/lint.py` | Validate annotation addresses and doc links |
-| Compare | `src/disasm_tools/compare.py` | Binary comparison with SequenceMatcher |
-| Extract | `src/disasm_tools/asm_extract.py` | Extract assembly sections by address or label |
-| Audit | `src/disasm_tools/audit.py` | Subroutine annotation audit |
-| CFG | `src/disasm_tools/cfg.py` | Inter-procedural call graph |
-| Context | `src/disasm_tools/context.py` | Per-subroutine commenting workspaces |
-| Labels | `src/disasm_tools/labels.py` | Per-label renaming workspaces |
-| Promote | `src/disasm_tools/promote.py` | Identify candidate entry points/subroutines |
-| Backfill | `src/disasm_tools/backfill.py` | Propagate annotations between versions |
-| Opcode tables | `src/disasm_tools/mos6502.py` | 6502 instruction lengths |
-| Find shared code | `src/disasm_tools/find_shared.py` | Cross-ROM opcode-sequence similarity |
-| Find shared (siblings) | `tools/find_shared_with_siblings.py` | Wrapper that preloads sibling-repo ROMs |
-| Refresh shared-code map | `tools/refresh_shared_code.py` | Scan siblings + merge into `shared-code.json`, preserving curated notes |
 | Render shared-code map | `tools/render_shared_code.py` | Render `shared-code.json` as `docs/SHARED-CODE.md` |
+| README generator | `generate_readme.py` | Render `README.md` from `acornaeology.json` and `README.md.j2` |

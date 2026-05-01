@@ -51,11 +51,18 @@ jobs:
           make -C /tmp/beebasm/build -j$(nproc)
           sudo cp /tmp/beebasm/build/beebasm /usr/local/bin/
 
+      # py8dis is invoked directly via the per-version driver script.
+      # fantasm operates on the .json/.asm artefacts py8dis emits.
+      # `fantasm disassemble VID` is filed as fantasm#2 — once it
+      # lands the driver-script invocation collapses to a fantasm call.
       - name: Disassemble Acorn Econet Bridge ${{ matrix.version }}
-        run: uv run acorn-econet-bridge-disasm-tool disassemble ${{ matrix.version }}
+        run: |
+          uv run python versions/econet-bridge-${{ matrix.version }}/disassemble/disasm_econet_bridge_${{ matrix.version }}.py
 
       - name: Lint Acorn Econet Bridge ${{ matrix.version }}
-        run: uv run acorn-econet-bridge-disasm-tool lint ${{ matrix.version }}
+        run: |
+          uv run fantasm lint ${{ matrix.version }} \
+            versions/econet-bridge-${{ matrix.version }}/disassemble/disasm_econet_bridge_${{ matrix.version }}.py
 
       - name: Verify Acorn Econet Bridge ${{ matrix.version }}
-        run: uv run acorn-econet-bridge-disasm-tool verify ${{ matrix.version }}
+        run: uv run fantasm verify ${{ matrix.version }}

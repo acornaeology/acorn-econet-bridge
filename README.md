@@ -25,8 +25,8 @@ Requires [uv](https://docs.astral.sh/uv/) and [beebasm](https://github.com/stard
 
 ```sh
 uv sync
-uv run acorn-econet-bridge-disasm-tool disassemble variant_1
-uv run acorn-econet-bridge-disasm-tool verify variant_1
+uv run python versions/econet-bridge-variant_1/disassemble/disasm_econet_bridge_variant_1.py
+uv run fantasm verify variant_1
 ```
 
 ## (Re-)Assembling locally

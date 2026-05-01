@@ -3,7 +3,8 @@
 Configures py8dis to produce an annotated disassembly of the Econet
 Bridge ROM.
 
-Run via: uv run acorn-econet-bridge-disasm-tool disassemble 1
+Run via:
+  uv run python versions/econet-bridge-variant_1/disassemble/disasm_econet_bridge_variant_1.py
 
 The bridge contains an 8 KB ROM mapped at &E000-&FFFF on its own
 6502 processor. The hardware vectors are the last six bytes of the

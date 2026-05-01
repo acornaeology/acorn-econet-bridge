@@ -31,8 +31,8 @@ Requires [uv](https://docs.astral.sh/uv/) and [beebasm](https://github.com/stard
 ```sh
 uv sync
 {% for version in versions -%}
-uv run acorn-econet-bridge-disasm-tool disassemble {{ version.id }}
-uv run acorn-econet-bridge-disasm-tool verify {{ version.id }}
+uv run python versions/econet-bridge-{{ version.id }}/disassemble/disasm_econet_bridge_{{ version.id }}.py
+uv run fantasm verify {{ version.id }}
 {% endfor -%}
 ```
 
