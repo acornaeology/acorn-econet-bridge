@@ -1,6 +1,13 @@
 {
     "title": "Acorn Econet Bridge Variant 1",
-    "platform": "acorn-econet-bridge",
+    "memory_map_groups": {
+        "zero_page": "Zero page",
+        "ram_workspace": "RAM workspace",
+        "ram_buffers": "RAM buffers",
+        "io_a": "I/O — side A",
+        "io_b": "I/O — side B",
+        "mmio": "Memory-mapped I/O"
+    },
     "size": 8192,
     "md5": "d5328f517902a4d2659e302acfc0882f",
     "sha256": "abbbfbe70db02d4919b441f5b887d1b69c7f090706a2b376eeaca51b5d8e33ac",
