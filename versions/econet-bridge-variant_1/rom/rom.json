@@ -1,5 +1,6 @@
 {
     "title": "Acorn Econet Bridge Variant 1",
+    "platform": "acorn-econet-bridge",
     "size": 8192,
     "md5": "d5328f517902a4d2659e302acfc0882f",
     "sha256": "abbbfbe70db02d4919b441f5b887d1b69c7f090706a2b376eeaca51b5d8e33ac",

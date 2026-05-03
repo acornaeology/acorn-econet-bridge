@@ -4,6 +4,18 @@
     "description": "The Acorn Econet Bridge is a standalone 6502-based device that joins two Econet networks, forwarding traffic between them while isolating local traffic to each side. The bridge firmware lives in an 8 KB ROM at &E000-&FFFF and implements the bridge protocols that allow file servers, printer servers, and station clients on different Econet segments to communicate.",
     "glossary": "GLOSSARY.md",
     "versions": ["variant_1"],
+    "platforms": {
+        "acorn-econet-bridge": {
+            "memory_map_groups": {
+                "zero_page": "Zero page",
+                "ram_workspace": "RAM workspace",
+                "ram_buffers": "RAM buffers",
+                "io_a": "I/O — side A",
+                "io_b": "I/O — side B",
+                "mmio": "Memory-mapped I/O"
+            }
+        }
+    },
     "analyses": [
         {
             "label": "Acorn Econet Bridge — architecture overview",
