@@ -15,11 +15,11 @@ This repository contains annotated disassemblies of the Acorn Econet Bridge ROM,
 
 ## How it works
 
-The disassembly is produced by a Python script that drives a custom version of [py8dis](https://github.com/acornaeology/py8dis), a programmable disassembler for 6502 binaries. The script feeds the original ROM image to py8dis along with annotations — entry points, labels, constants, and comments — to produce readable assembly output.
+The disassembly is produced by a Python script that drives [dasmos](https://github.com/acornaeology/dasmos), a programmable disassembler for 6502 binaries. The script feeds the original ROM image to dasmos along with annotations — entry points, labels, constants, and comments — to produce readable assembly output.
 
 The output is verified by reassembling with [beebasm](https://github.com/stardot/beebasm) and comparing the result byte-for-byte against the original ROM. This round-trip verification runs automatically in CI on every push.
 
-The analysis surface around py8dis (verify, lint, audit, cfg, comments, address mapping across versions, …) is provided by [fantasm](https://acornaeology.github.io/fantasm/) — see its docs for the full command and API reference.
+The analysis surface around dasmos (verify, lint, audit, cfg, comments, address mapping across versions, …) is provided by [fantasm](https://acornaeology.github.io/fantasm/) — see its docs for the full command and API reference.
 
 ## Disassembling locally
 
@@ -87,7 +87,7 @@ Writeups of interesting details uncovered during the disassembly work.
 
 ## Credits
 
-- [py8dis](https://github.com/acornaeology/py8dis) by [SteveF](https://github.com/ZornsLemma), forked for use with acornaeology
+- [dasmos](https://github.com/acornaeology/dasmos), the programmable 6502 disassembler this project drives. dasmos is itself the spiritual successor to [py8dis](https://github.com/ZornsLemma/py8dis) by [SteveF](https://github.com/ZornsLemma) – the project's earlier driver was written against py8dis before the dasmos migration.
 - [beebasm](https://github.com/stardot/beebasm) by Rich Mayfield and contributors
 - [The BBC Micro ROM Library](https://tobylobster.github.io/rom_library/) by tobylobster
 

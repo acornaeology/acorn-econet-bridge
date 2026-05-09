@@ -19,7 +19,7 @@ The disassembly tooling is provided by [fantasm](https://acornaeology.github.io/
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `disassemble` | Run the py8dis driver to generate `.asm` and `.json` | `fantasm disassemble variant_1` |
+| `disassemble` | Run the dasmos driver to generate `.asm` and `.json` | `fantasm disassemble variant_1` |
 | `verify` | Reassemble and byte-compare against original ROM | `fantasm verify variant_1` |
 | `lint` | Validate annotation addresses against the disassembly | `fantasm lint variant_1 versions/econet-bridge-variant_1/disassemble/disasm_econet_bridge_variant_1.py` |
 | `compare` | Compare two ROM versions (byte and opcode level) | `fantasm compare a b` |
@@ -75,25 +75,48 @@ uv run fantasm verify <VER>
 Fix errors until verification passes, then annotate.
 
 
-## py8dis driver script reference
+## dasmos driver script reference
 
-The driver script configures py8dis using a Python DSL. Each call annotates the disassembly output.
+The driver script configures a `dasmos.Disassembler` instance. Each call annotates the disassembly output. The full driver-API guide lives at <https://acornaeology.github.io/dasmos/driver_api.html> – read it before non-trivial driver edits.
 
-### Core DSL calls
+### Bootstrap
 
-**`label(address, name)`** — Assign a symbolic name to a ROM or RAM address.
+```python
+import dasmos
+from dasmos import Align
 
-**`constant(name, value)`** — Define a named constant for a numeric value. Used for hardware register addresses, protocol codes, etc. The value is symbolic, not a ROM address.
+d = dasmos.Disassembler.create(cpu="6502")  # no environments — bridge is not a BBC Micro
+d.load(rom_filepath, 0xE000)
+d.entry(0xFFFC)  # or follow vectors
 
-**`comment(address, text)`** — Attach a comment to a specific instruction address.
+# ... annotations ...
 
-**`subroutine(address, title, description)`** — Mark the start of a subroutine with a title and description.
+ir = d.disassemble()
+asm_filepath.write_text(str(ir.render("beebasm")), encoding="utf-8")
+json_filepath.write_text(str(ir.render("json")), encoding="utf-8")
+```
 
-**`entry(address)`** — Mark an address as a code entry point.
+### Core API calls
 
-**`move(dest, source, length)`** — Declare a relocated code block.
+All calls are methods on the `Disassembler` instance (`d`).
 
-**`hook_subroutine(address, hook_function)`** — Register a custom Python function for special handling of dispatch tables, inline data, etc.
+**`d.label(address, name)`** — Assign a symbolic name to a ROM or RAM address. Also covers runtime-only addresses outside the ROM (no separate `external_label`).
+
+**`d.constant(name, value)`** — Define a named constant for a numeric value. Used for hardware register addresses, protocol codes, etc. The value is symbolic, not a ROM address.
+
+**`d.comment(address, text, align=Align.INLINE)`** — Attach a comment to a specific instruction address. `align` controls whether the comment renders inline or above the instruction.
+
+**`d.subroutine(address, name, ...)`** — Mark the start of a subroutine with a title and description.
+
+**`d.entry(address, name=...)`** — Mark an address as a code entry point.
+
+**`d.add_move(dest, source, length)`** — Declare a relocated code block. Returns a typed `Move` handle that is also a context manager (`with move: d.label(...)` scopes annotations under it).
+
+**`d.hook_subroutine(address, hook_fn)`** — Register a custom Python function for special handling of dispatch tables, inline data, etc. Bundled hooks (`stringhi_hook`, `stringz_hook`, `stringcr_hook`) live in `dasmos.hooks`.
+
+**`d.format_hint(address, FormatHint.X)`** — Declare the operand-byte's semantic intent (CHAR / DECIMAL / HEX / BINARY / OCTAL / INKEY); each renderer chooses its syntax. Sugars: `d.char_literal(addr)`, `d.inkey_code(addr)`.
+
+**`string_detection_min_length`** ctor kwarg / property — declarative replacement for the older `autostring(N)` post-trace step.
 
 
 ## Annotation guidelines
@@ -108,7 +131,7 @@ A good subroutine description:
 
 ### Comment length
 
-Assembly comments are formatted to fit within 62 characters (py8dis formatting constraint).
+Assembly comments are formatted to fit within 62 characters (legacy formatting constraint inherited from the py8dis-era driver, preserved by the `byte_column_format='py8dis'` renderer flag).
 
 ### Hex notation
 
@@ -118,7 +141,7 @@ Assembly comments are formatted to fit within 62 characters (py8dis formatting c
 
 ## Key gotchas
 
-1. **py8dis auto-labels can collide.** Any `return_N`, `loop_cXXXX`, etc. that appears in both main ROM and relocated code will cause beebasm duplicate label errors. Fix by adding explicit labels.
+1. **Auto-labels can collide.** Any `return_N`, `loop_cXXXX`, etc. that the disassembler synthesises in both main ROM and relocated code will cause beebasm duplicate label errors. Fix by adding explicit labels.
 
 2. **`constant()` doesn't take ROM addresses.** Constants are symbolic values and should NOT have their values transformed by address maps.
 

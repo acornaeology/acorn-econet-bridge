@@ -1,6 +1,6 @@
 """Disassembly driver for Acorn Econet Bridge version 1.
 
-Configures py8dis to produce an annotated disassembly of the Econet
+Configures dasmos to produce an annotated disassembly of the Econet
 Bridge ROM.
 
 Run via:
