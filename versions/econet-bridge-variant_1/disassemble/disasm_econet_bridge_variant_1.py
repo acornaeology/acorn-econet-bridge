@@ -241,15 +241,15 @@ d.comment(0xE41E, 'Mask: clear status flags, FC_TDRA, 2/1-byte, PSE', align=Alig
 d.comment(0xE420, 'Commit CR2; ADLC B now listening for incoming frames', align=Align.INLINE)
 d.comment(0xE423, 'Return; Econet side B is idle-listen', align=Align.INLINE)
 
-d.label(0x025A, 'reachable_via_b', description="""256-byte routing table for forwarding out of side B.
-Indexed by destination **network** number; a non-zero entry means "this network is reachable from here".
+d.index_base(0x025A, 'reachable_via_b', description="""256-byte routing table for forwarding out of side B.
+Indexed by destination **network** number; a non-zero entry means "this network is reachable from here". The table is only ever touched as `reachable_via_b,X` — the base byte itself is never read or written directly.
 
-Consulted by [`rx_frame_a`](address:E0E2). Initialised with [`net_num_b`](address:D000) (our own side-B network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side A.""", length=256, group='ram_buffers', access='rw')
+Consulted by [`rx_frame_a`](address:E0E2). Initialised with [`net_num_b`](address:D000) (our own side-B network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side A.""", length=256, group='ram_buffers')
 
-d.label(0x035A, 'reachable_via_a', description="""256-byte routing table for forwarding out of side A.
-Indexed by destination **network** number; a non-zero entry means "this network is reachable from here".
+d.index_base(0x035A, 'reachable_via_a', description="""256-byte routing table for forwarding out of side A.
+Indexed by destination **network** number; a non-zero entry means "this network is reachable from here". The table is only ever touched as `reachable_via_a,X` — the base byte itself is never read or written directly.
 
-Consulted by [`rx_frame_b`](address:E263). Initialised with [`net_num_a`](address:C000) (our own side-A network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side B.""", length=256, group='ram_buffers', access='rw')
+Consulted by [`rx_frame_b`](address:E263). Initialised with [`net_num_a`](address:C000) (our own side-A network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side B.""", length=256, group='ram_buffers')
 
 d.label(0x0214, 'ctr24_lo', description="""Low byte of a 24-bit counter reused by several routines.
 [`wait_adlc_a_idle`](address:E6DC) uses all three bytes as a timeout; [`stagger_delay`](address:E448) uses this low byte alone as an 8-bit delay.""", length=1, group='ram_workspace', access='rw')

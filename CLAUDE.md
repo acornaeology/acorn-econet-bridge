@@ -27,13 +27,15 @@ The disassembly tooling is provided by [fantasm](https://github.com/acornaeology
 
 **Full fantasm reference: <https://acornaeology.github.io/fantasm/>** — the user guide covers every subcommand, the `fantasm.toml` schema, the version-graph workflows, and the importable `fantasm.api`. Reach for it before guessing.
 
-[dasmos](https://github.com/acornaeology/dasmos) (a programmable 6502 disassembler with a stable 1.0 API, byte-faithful round-trip oracle, and Stevedore-managed CPU / renderer / environment plug-ins) is invoked directly via the per-version driver script under `versions/econet-bridge-<VER>/disassemble/`; fantasm operates on the `.asm` / `.json` artefacts dasmos emits. **dasmos driver-API guide: <https://acornaeology.github.io/dasmos/driver_api.html>** — read this before non-trivial driver edits. Local dasmos checkout for source-of-truth lookups: `/Users/rjs/Code/acornaeology/dasmos/` (sibling repo).
+[dasmos](https://github.com/acornaeology/dasmos) (a programmable 6502 disassembler with a stable 2.0 API, byte-faithful round-trip oracle, and Stevedore-managed CPU / renderer / environment plug-ins) is invoked directly via the per-version driver script under `versions/econet-bridge-<VER>/disassemble/`; fantasm operates on the `.asm` / `.json` artefacts dasmos emits. **dasmos driver-API guide: <https://acornaeology.github.io/dasmos/driver_api.html>** — read this before non-trivial driver edits. Local dasmos checkout for source-of-truth lookups: `/Users/rjs/Code/acornaeology/dasmos/` (sibling repo).
 
 The project was originally written against [py8dis](https://github.com/acornaeology/py8dis) and migrated to dasmos in 2026; py8dis is no longer a dependency. If you ever need to re-port a fresh py8dis driver, the AST translator at `/Users/rjs/Code/acornaeology/dasmos/scripts/py8dis2dasmos.py` does it as a one-shot.
 
 ### Disassembly driver
 
 `versions/econet-bridge-variant_1/disassemble/disasm_econet_bridge_variant_1.py` — the main annotation file. Configures a `dasmos.Disassembler` with labels, constants, subroutine descriptions, comments, and relocated code blocks using dasmos's API (`d.label()`, `d.comment()`, `d.subroutine()`, `d.entry()`, `d.add_move()`, `d.hook_subroutine()`, `d.format_hint()`). This is where most development work happens. Output is produced by `ir = d.disassemble(); ir.render('beebasm' | 'json')`.
+
+**Indexed-base labels (dasmos 2.0).** dasmos now classifies each cross-reference as a *direct* access or an *indexing base* (`lda base,X`, where the byte touched is `base+X` and the base itself is never read/written), and surfaces the split in the xref prose ("used as index base N times") and in the structured JSON `references` entries. For an address touched **only** as an indexing base, use `d.index_base(addr, name, description=…, group=…, length=…)` instead of `d.label()`: it keeps the name/description/group so the `,X` operand still resolves and stays documented, but tags it `access='indexed_base'` and lists it under the JSON `index_bases` section rather than `memory_map` (it does not own that fixed byte). For a cluster of bases around a named anchor reached with small displacements, use `d.index_region(anchor, name, window=(lo, hi), …)` so neighbours render as `anchor±k,X`. The two 256-byte routing tables `reachable_via_a`/`reachable_via_b` are declared this way. A genuine code entry point reached via a vector (e.g. `.reset` at &E000, read as `lda &e000,X` by the self-test checksum loop) stays a normal code label — `index_base` is for data bases only. To find candidates after regenerating, grep the `.asm` for `used as index base` lines that do **not** also say `referenced`.
 
 ### Lint
 
@@ -81,7 +83,7 @@ Both use the same shape: `{"pattern": "...", "occurrence": 0, "term"|"address": 
 - The bridge is a standalone device, not a BBC Micro sideways ROM
 - Reset vector (&FFFC/D) points into the ROM; IRQ/BRK vector (&FFFE/F) likewise
 - NMOS 6502 processor (confirm during disassembly)
-- dasmos is a regular PyPI dependency (`dasmos>=1.0`); the local source-of-truth checkout lives at `/Users/rjs/Code/acornaeology/dasmos/`
+- dasmos is a regular PyPI dependency (`dasmos>=2.0.1`); the local source-of-truth checkout lives at `/Users/rjs/Code/acornaeology/dasmos/`
 - Assembly output targets beebasm syntax
 - Assembly comments are formatted to fit within 62 characters
 

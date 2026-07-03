@@ -34,7 +34,7 @@ announce_tmr_hi = &022b  ; High byte of the 16-bit re-announcement countdown. Pa
 announce_count  = &022c  ; Remaining BridgeReply frames to emit in the current re-announcement burst. Initialised to 10 when a peer BridgeReset is heard, decremented in re_announce, and clears announce_flag on reaching zero.
 ; &022c referenced 4 times by &e0b0, &e0db, &e1e6, &e367
 rx_dst_stn      = &023c  ; RX frame buffer byte 0 – destination station number. First byte of the 20-byte RX staging area at &023C-&024F filled by rx_frame_a / rx_frame_b.
-; &023c referenced 20 times by &e0ec, &e111, &e118, &e136, &e169, &e1f0, &e202, &e21e, &e225, &e238, &e26d, &e292, &e299, &e2b7, &e2ea, &e371, &e383, &e39f, &e3a6, &e3b9
+; &023c referenced 4 times by &e0ec, &e169, &e26d, &e2ea; also used as index base 16 times by &e111, &e118, &e136, &e1f0, &e202, &e21e, &e225, &e238, &e292, &e299, &e2b7, &e371, &e383, &e39f, &e3a6, &e3b9
 rx_dst_net      = &023d  ; RX frame buffer byte 1 – destination network number.
 ; &023d referenced 8 times by &e101, &e15f, &e166, &e16c, &e282, &e2e0, &e2e7, &e2ed
 rx_src_stn      = &023e  ; RX frame buffer byte 2 – source station number.
@@ -49,10 +49,10 @@ rx_query_port   = &0248  ; RX frame buffer byte 12 – port on which the querier
 ; &0248 referenced 1 time by &e4a5
 rx_query_net    = &0249  ; RX frame buffer byte 13 – network number that a ctrl=&83 (IsNet) query is asking about. Checked against reachable_via_b / reachable_via_a in the query handlers.
 ; &0249 referenced 4 times by &e195, &e1c7, &e316, &e348
-reachable_via_b = &025a  ; 256-byte routing table for forwarding out of side B. Indexed by destination network number; a non-zero entry means "this network is reachable from here". Consulted by rx_frame_a. Initialised with net_num_b (our own side-B network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side A.
-; &025a referenced 7 times by &e0fc, &e198, &e377, &e428, &e43c, &e441, &e5e6
-reachable_via_a = &035a  ; 256-byte routing table for forwarding out of side A. Indexed by destination network number; a non-zero entry means "this network is reachable from here". Consulted by rx_frame_b. Initialised with net_num_a (our own side-A network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side B.
-; &035a referenced 7 times by &e1f6, &e27d, &e319, &e42b, &e436, &e444, &e677
+reachable_via_b = &025a  ; 256-byte routing table for forwarding out of side B. Indexed by destination network number; a non-zero entry means "this network is reachable from here". The table is only ever touched as reachable_via_b,X — the base byte itself is never read or written directly. Consulted by rx_frame_a. Initialised with net_num_b (our own side-B network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side A.
+; &025a used as index base 7 times by &e0fc, &e198, &e377, &e428, &e43c, &e441, &e5e6
+reachable_via_a = &035a  ; 256-byte routing table for forwarding out of side A. Indexed by destination network number; a non-zero entry means "this network is reachable from here". The table is only ever touched as reachable_via_a,X — the base byte itself is never read or written directly. Consulted by rx_frame_b. Initialised with net_num_a (our own side-A network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side B.
+; &035a used as index base 7 times by &e1f6, &e27d, &e319, &e42b, &e436, &e444, &e677
 tx_dst_stn      = &045a  ; TX frame buffer byte 0 – destination station number. First byte of the outbound frame staging area at &045A-&0460+, populated by the frame-builder subroutines and consumed by transmit_frame_a / transmit_frame_b.
 ; &045a referenced 4 times by &e45a, &e490, &e580, &e611
 tx_dst_net      = &045b  ; TX frame buffer byte 1 – destination network number.
@@ -92,7 +92,7 @@ adlc_b_tx2      = &d803  ; ADLC B TX-last-byte port. Write: push the final byte 
     org &e000
 
 .pydis_start
-; &e000 referenced 7 times by &f2a9, &f2ac, &f2af, &f2b2, &f2b5, &f2b8, &f2bb
+; &e000 used as index base 7 times by &f2a9, &f2ac, &f2af, &f2b2, &f2b5, &f2b8, &f2bb
 .reset
     cli                                                               ; e000: 58          X        ; Enable IRQs (self-test button wired to ~IRQ)
     cld                                                               ; e001: d8          .        ; Clear decimal mode (6502 arithmetic in binary)
