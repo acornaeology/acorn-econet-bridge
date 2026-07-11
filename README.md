@@ -12,6 +12,7 @@ This repository contains annotated disassemblies of the Acorn Econet Bridge ROM,
   - [Formatted disassembly on acornaeology.uk](https://acornaeology.uk/acorn-econet-bridge/variant_1.html)
   - [Disassembly source on GitHub](https://github.com/acornaeology/acorn-econet-bridge/blob/master/versions/econet-bridge-variant_1/output/econet-bridge-variant_1.asm)
   - [Acorn Econet Bridge in The BBC Micro ROM Library](https://tobylobster.github.io/rom_library/?md5=d5328f517902a4d2659e302acfc0882f)
+  - [Discuss this disassembly on the Stardot Forums thread: Full disassembly/reassembly of the Acorn Econet Bridge ROM](https://stardot.org.uk/forums/viewtopic.php?t=32895)
 
 ## How it works
 

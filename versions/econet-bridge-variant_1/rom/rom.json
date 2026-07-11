@@ -21,6 +21,11 @@
             "label": "Acorn Econet Bridge in The BBC Micro ROM Library",
             "url": "https://tobylobster.github.io/rom_library/?md5=d5328f517902a4d2659e302acfc0882f",
             "icon": "chip"
+        },
+        {
+            "label": "Discuss this disassembly on the Stardot Forums thread: Full disassembly/reassembly of the Acorn Econet Bridge ROM",
+            "url": "https://stardot.org.uk/forums/viewtopic.php?t=32895",
+            "icon": "chat"
         }
     ]
 }

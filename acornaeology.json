@@ -58,66 +58,77 @@
         {
             "label": "Econet Installation Guide (0482,009 Issue 1, 27 September 1988) (PDF)",
             "url": "https://www.theoddys.com/acorn/acorn_system_filing_systems/econet/documentation/Econet%20Installation%20Guide%200482%2C009%20Issue%201%2027%20September%201988.pdf",
+            "category": "source",
             "icon": "doc",
             "note": "Acorn's official Econet installation guide. Chapter 3 covers the Bridge. A local copy is kept in docs/."
         },
         {
             "label": "The Replica Acorn Econet Bridge project",
             "url": "https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/replica_acorn_econet_bridge.html",
+            "category": "related",
             "icon": "ref",
             "note": "Chris Oddy's modern reproduction of the Acorn Econet Bridge, with useful photographs and build notes."
         },
         {
             "label": "Replica Econet Bridge Schematic (PDF)",
             "url": "https://www.theoddys.com/acorn/acorn_replica_boards/replica_acorn_econet_bridge/Replica%20Econet%20Bridge%20Schematic.pdf",
+            "category": "related",
             "icon": "doc",
             "note": "Chris Oddy's schematic for the replica board, closely matching the original Acorn design."
         },
         {
             "label": "Ian Stocks's reverse-engineered Acorn Econet Bridge schematic (PDF) [requires Stardot login]",
             "url": "https://stardot.org.uk/forums/download/file.php?id=26508",
+            "category": "source",
             "icon": "doc",
             "note": "Schematic reverse-engineered from an original Acorn board, shared in the Stardot forum thread below."
         },
         {
             "label": "Stardot Forums: Econet Bridge schematic thread",
             "url": "https://stardot.org.uk/forums/viewtopic.php?t=12324",
+            "category": "discussion",
             "icon": "chat",
             "note": "Discussion of Ian Stocks's reverse-engineered schematic and Bridge hardware details."
         },
         {
             "label": "Stardot Forums: discussion of the Acorn Econet Bridge ROM",
             "url": "https://stardot.org.uk/forums/viewtopic.php?t=8696",
+            "category": "discussion",
             "icon": "chat",
             "note": "Thread discussing the Bridge ROM's behaviour and internals."
         },
         {
             "label": "Rick Murray's notes on the Acorn Econet Bridge",
             "url": "https://heyrick.eu/econet/bridge/acorn.html",
+            "category": "related",
             "icon": "ref",
             "note": "Overview of the Acorn Econet Bridge hardware, firmware behaviour, and configuration."
         },
         {
             "label": "Beebmaster: The Acorn Bridge",
             "url": "https://www.beebmaster.co.uk/Econet/AcornBridge.html",
+            "category": "related",
             "icon": "ref",
             "note": "Beebmaster's page on the Acorn Bridge, with photographs, configuration notes, and operational details."
         },
         {
             "label": "J.G. Harston's mdfs.net Econet Bridge archive",
             "url": "https://mdfs.net/System/ROMs/Econet/Bridge/",
+            "category": "source",
             "icon": "ref",
             "note": "Directory listing for the Acorn Econet Bridge on mdfs.net."
         },
         {
             "label": "J.G. Harston's Bridge disassembly (BBC BASIC embedded-assembler source)",
             "url": "https://mdfs.net/System/ROMs/Econet/Bridge/BRIDGE.SRC",
+            "category": "source",
             "icon": "ref",
             "note": "A parallel disassembly of the same binary variant using BBC BASIC's inline assembler, with memory-layout comments and protocol-level terminology (BridgeReset / BridgeReply / WhatNet / IsNet / BridgeQuery port). Useful as a second reading. JGH is a fellow reverse-engineer, and his comments have been paraphrased rather than quoted and weighed against the evidence, like ours."
         },
         {
             "label": "Motorola MC68B54P ADLC datasheet (PDF)",
             "url": "https://github.com/acornaeology/acorn-econet-bridge/raw/master/docs/Motorola-MC68B54P-datasheet.pdf",
+            "category": "source",
             "icon": "doc",
             "note": "Datasheet for the Advanced Data Link Controller used on each Econet port of the Bridge. Authoritative reference for CR1-CR4 and SR1/SR2 bit meanings. The canonical source has dropped off the web; this is the copy kept in the repository's `docs/` folder, served as raw PDF from GitHub."
         }
