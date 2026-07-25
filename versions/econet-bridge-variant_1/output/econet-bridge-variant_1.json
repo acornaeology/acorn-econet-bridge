@@ -1,10 +1,11 @@
 {
   "meta": {
-    "schema_version": 2,
+    "schema_version": 4,
     "load_addr": 57344,
     "end_addr": 65536
   },
   "constants": [],
+  "macros": [],
   "subroutines": [
     {
       "addr": 59176,
@@ -377,7 +378,10 @@
       "name": "st_ptr_lo",
       "length": 1,
       "group": "zero_page",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Low byte of the self-test scan pointer.\nPaired with [`st_ptr_hi`](address:0001) to form a 16-bit indirect pointer walked by [`self_test_rom_checksum`](address:F04C) and [`self_test_ram_pattern`](address:F070).\n\nAlso used as an anti-aliasing tripwire byte (the `INC $00`) in [`ram_test`](address:E00B), and as a scratch victim byte during [`self_test_zp`](address:F02F) when the zero-page itself is under test."
     },
     {
@@ -385,7 +389,10 @@
       "name": "st_ptr_hi",
       "length": 1,
       "group": "zero_page",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "High byte of the self-test scan pointer.\nPaired with [`st_ptr_lo`](address:0000); incremented page by page as the scanning loops stride through each 256-byte block of ROM or RAM.\n\nAlso a scratch victim byte during [`self_test_zp`](address:F02F)."
     },
     {
@@ -393,7 +400,10 @@
       "name": "st_page_count",
       "length": 1,
       "group": "zero_page",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Page counter for the self-test scans.\nPre-loaded with a hard-coded `&20` (32 pages = 8 KiB) at every site and decremented once per page by [`self_test_rom_checksum`](address:F04C), [`self_test_ram_pattern`](address:F070), and both phases of [`self_test_ram_incr`](address:F0A0). The self-test therefore always covers exactly the low 8 KiB of RAM (`&0000-&1FFF`) and the 8 KiB ROM (`&E000-&FFFF`), regardless of what the boot-time [`ram_test`](address:E00B) found: this counter is never loaded from [`top_ram_page`](address:0082).\n\nAlso a scratch victim byte during [`self_test_zp`](address:F02F)."
     },
     {
@@ -401,7 +411,10 @@
       "name": "st_pass_phase",
       "length": 1,
       "group": "zero_page",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Self-test pass-phase flag.\nInitialised by [`self_test`](address:F000) at entry and toggled by [`self_test_pass_done`](address:F264) at the end of each full pass; bit 7 then selects between a plain restart from [`self_test_reset_adlcs`](address:F005) and the alternate path through [`self_test_alt_pass`](address:F26F), which drives the ADLC control registers slightly differently to catch intermittent faults."
     },
     {
@@ -409,7 +422,10 @@
       "name": "mem_ptr_lo",
       "length": 1,
       "group": "zero_page",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Low byte of the indirect pointer.\nPaired with [`mem_ptr_hi`](address:0081).\n\nUsed by [`ram_test`](address:E00B) to scan memory upward one page at a time, and by the TX/RX byte loops in the frame handlers, e.g. [`transmit_frame_a`](address:E517)."
     },
     {
@@ -417,7 +433,10 @@
       "name": "mem_ptr_hi",
       "length": 1,
       "group": "zero_page",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "High byte of the indirect pointer.\nPaired with [`mem_ptr_lo`](address:0080)."
     },
     {
@@ -425,7 +444,10 @@
       "name": "top_ram_page",
       "length": 1,
       "group": "zero_page",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Highest page that verified `&AA`/`&55` during [`ram_test`](address:E00B).\nUsed later by workspace initialisation to decide how much RAM is safe to touch."
     },
     {
@@ -433,7 +455,10 @@
       "name": "tx_end_lo",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Low byte of the TX end-pointer, consumed by [`transmit_frame_a`](address:E517).\nThe TX loop sends byte pairs from [`mem_ptr_lo`](address:0080) upward and terminates once the index reaches or passes this pointer."
     },
     {
@@ -441,7 +466,10 @@
       "name": "tx_end_hi",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "High byte of the TX end-pointer.\nPaired with [`tx_end_lo`](address:0200)."
     },
     {
@@ -449,7 +477,10 @@
       "name": "ctr24_lo",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Low byte of a 24-bit counter reused by several routines.\n[`wait_adlc_a_idle`](address:E6DC) uses all three bytes as a timeout; [`stagger_delay`](address:E448) uses this low byte alone as an 8-bit delay."
     },
     {
@@ -457,7 +488,10 @@
       "name": "ctr24_mid",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Middle byte of the 24-bit counter.\nRooted at [`ctr24_lo`](address:0214)."
     },
     {
@@ -465,7 +499,10 @@
       "name": "ctr24_hi",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "High byte of the 24-bit counter.\nRooted at [`ctr24_lo`](address:0214)."
     },
     {
@@ -473,7 +510,10 @@
       "name": "rx_len",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Byte count received into the RX frame buffer.\nWritten by the drain loop once the ADLC reports end-of-frame; read back by the dispatch paths to decide how many payload bytes to process."
     },
     {
@@ -481,7 +521,10 @@
       "name": "announce_flag",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Event-driven re-announcement selector.\n\nSet by [`rx_a_handle_80`](address:E1D6) / [`rx_b_handle_80`](address:E357) to `&40` (side A selected) or `&80` (side B) when a peer bridge's `BridgeReset` scout arrives. Cleared in [`re_announce_done`](address:E0C2) once all ten `BridgeReply` frames have been emitted.\n\nPolled by [`main_loop_idle`](address:E089); the entire re-announcement state machine is quiescent while this byte is zero."
     },
     {
@@ -489,7 +532,10 @@
       "name": "announce_tmr_lo",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Low byte of the 16-bit re-announcement countdown.\nDecremented every pass through [`main_loop_idle`](address:E089); fires [`re_announce`](address:E098) when it reaches zero."
     },
     {
@@ -497,7 +543,10 @@
       "name": "announce_tmr_hi",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "High byte of the 16-bit re-announcement countdown.\nPaired with [`announce_tmr_lo`](address:022A)."
     },
     {
@@ -505,7 +554,10 @@
       "name": "announce_count",
       "length": 1,
       "group": "ram_workspace",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "Remaining `BridgeReply` frames to emit in the current re-announcement burst.\nInitialised to 10 when a peer `BridgeReset` is heard, decremented in [`re_announce`](address:E098), and clears [`announce_flag`](address:0229) on reaching zero."
     },
     {
@@ -513,7 +565,11 @@
       "name": "rx_dst_stn",
       "length": 1,
       "group": "ram_buffers",
-      "access": "rw",
+      "access": [
+        "r",
+        "w",
+        "b"
+      ],
       "description": "RX frame buffer byte 0 \u2013 destination station number.\nFirst byte of the 20-byte RX staging area at `&023C-&024F` filled by [`rx_frame_a`](address:E0E2) / [`rx_frame_b`](address:E263)."
     },
     {
@@ -521,7 +577,10 @@
       "name": "rx_dst_net",
       "length": 1,
       "group": "ram_buffers",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "RX frame buffer byte 1 \u2013 destination network number."
     },
     {
@@ -529,7 +588,10 @@
       "name": "rx_src_stn",
       "length": 1,
       "group": "ram_buffers",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "RX frame buffer byte 2 \u2013 source station number."
     },
     {
@@ -537,7 +599,10 @@
       "name": "rx_src_net",
       "length": 1,
       "group": "ram_buffers",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "RX frame buffer byte 3 \u2013 source network number."
     },
     {
@@ -545,7 +610,10 @@
       "name": "rx_ctrl",
       "length": 1,
       "group": "ram_buffers",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "RX frame buffer byte 4 \u2013 control byte.\nBridge protocol uses `&80`..`&83`; see [`rx_frame_a_dispatch`](address:E14A)."
     },
     {
@@ -553,7 +621,10 @@
       "name": "rx_port",
       "length": 1,
       "group": "ram_buffers",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "RX frame buffer byte 5 \u2013 port number.\nThe bridge-protocol port is `&9C`."
     },
     {
@@ -561,7 +632,10 @@
       "name": "rx_query_port",
       "length": 1,
       "group": "ram_buffers",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "RX frame buffer byte 12 \u2013 port on which the querier wants the bridge to send its response."
     },
     {
@@ -569,152 +643,20 @@
       "name": "rx_query_net",
       "length": 1,
       "group": "ram_buffers",
-      "access": "rw",
+      "access": [
+        "r",
+        "w"
+      ],
       "description": "RX frame buffer byte 13 \u2013 network number that a `ctrl=&83` (IsNet) query is asking about.\nChecked against [`reachable_via_b`](address:025A) / [`reachable_via_a`](address:035A) in the query handlers."
     },
-    {
-      "addr": 1114,
-      "name": "tx_dst_stn",
-      "length": 1,
-      "group": "ram_buffers",
-      "access": "rw",
-      "description": "TX frame buffer byte 0 \u2013 destination station number.\nFirst byte of the outbound frame staging area at `&045A-&0460+`, populated by the frame-builder subroutines and consumed by [`transmit_frame_a`](address:E517) / [`transmit_frame_b`](address:E4C0)."
-    },
-    {
-      "addr": 1115,
-      "name": "tx_dst_net",
-      "length": 1,
-      "group": "ram_buffers",
-      "access": "rw",
-      "description": "TX frame buffer byte 1 \u2013 destination network number."
-    },
-    {
-      "addr": 1116,
-      "name": "tx_src_stn",
-      "length": 1,
-      "group": "ram_buffers",
-      "access": "rw",
-      "description": "TX frame buffer byte 2 \u2013 source station number."
-    },
-    {
-      "addr": 1117,
-      "name": "tx_src_net",
-      "length": 1,
-      "group": "ram_buffers",
-      "access": "rw",
-      "description": "TX frame buffer byte 3 \u2013 source network number."
-    },
-    {
-      "addr": 1118,
-      "name": "tx_ctrl",
-      "length": 1,
-      "group": "ram_buffers",
-      "access": "rw",
-      "description": "TX frame buffer byte 4 \u2013 control byte in a scout frame, or the first data byte in a data frame.\nThe same buffer serves both frame types; the caller chooses the semantics."
-    },
-    {
-      "addr": 1119,
-      "name": "tx_port",
-      "length": 1,
-      "group": "ram_buffers",
-      "access": "rw",
-      "description": "TX frame buffer byte 5 \u2013 port in a scout frame, or the second data byte in a data frame.\nPair with [`tx_ctrl`](address:045E)."
-    },
-    {
-      "addr": 1120,
-      "name": "tx_data0",
-      "length": 1,
-      "group": "ram_buffers",
-      "access": "rw",
-      "description": "TX frame buffer byte 6 \u2013 first optional scout payload byte.\nFor example, a queried network number in a `WhatNet` response."
-    },
-    {
-      "addr": 49152,
-      "name": "net_num_a",
-      "length": 1,
-      "group": "io_a",
-      "access": "r",
-      "description": "Econet side A network number, read at `&C000`.\nSourced from a bank of jumpered links buffered by a 74LS244. 7-bit (range 1-127); the top link is always made, so bit 7 reads 0.\n\nThe Bridge has no station number of its own \u2013 it sits on each Econet segment as a promiscuous receiver and broadcaster."
-    },
-    {
-      "addr": 51200,
-      "name": "adlc_a_cr1",
-      "length": 1,
-      "group": "io_a",
-      "access": "rw",
-      "description": "ADLC A control/status port 0.\n\n**Write:** CR1 (or CR3 when AC=1 in CR1). **Read:** SR1.\n\nIRQ summary is in SR1 bit 7; [`wait_adlc_a_irq`](address:E3E4) spins on it."
-    },
-    {
-      "addr": 51201,
-      "name": "adlc_a_cr2",
-      "length": 1,
-      "group": "io_a",
-      "access": "rw",
-      "description": "ADLC A control/status port 1.\n\n**Write:** CR2 (or CR4 when AC=1). **Read:** SR2."
-    },
-    {
-      "addr": 51202,
-      "name": "adlc_a_tx",
-      "length": 1,
-      "group": "io_a",
-      "access": "rw",
-      "description": "ADLC A TX/RX FIFO port.\n\n**Write:** push a byte into the TX FIFO (frame continues). **Read:** pop a byte from the RX FIFO."
-    },
-    {
-      "addr": 51203,
-      "name": "adlc_a_tx2",
-      "length": 1,
-      "group": "io_a",
-      "access": "w",
-      "description": "ADLC A TX-last-byte port.\n**Write:** push the final byte of a frame (chip closes the frame and appends the FCS + flag). Reading this port is not used by the Bridge."
-    },
-    {
-      "addr": 53248,
-      "name": "net_num_b",
-      "length": 1,
-      "group": "io_b",
-      "access": "r",
-      "description": "Econet side B network number, read at `&D000`.\nSourced from a bank of jumpered links buffered by a 74LS244. 7-bit (range 1-127); the top link is always made, so bit 7 reads 0.\n\nPaired with [`net_num_a`](address:C000) on the opposite segment."
-    },
-    {
-      "addr": 55296,
-      "name": "adlc_b_cr1",
-      "length": 1,
-      "group": "io_b",
-      "access": "rw",
-      "description": "ADLC B control/status port 0.\n\n**Write:** CR1 (or CR3 when AC=1 in CR1). **Read:** SR1.\n\nIRQ summary is in SR1 bit 7; [`wait_adlc_b_irq`](address:E3EA) spins on it.\n\nCR3 bit 7 (reached via this port with AC=1) drives IC18's `~LOC/DTR` pin, which sources current to the front-panel status LED (anode tied to the pin, cathode to ground). The MC6854 inverts the bit when driving the pin, so CR3 bit 7 = 0 puts the pin HIGH and the LED LIT; CR3 bit 7 = 1 puts the pin LOW and the LED DARK. [`adlc_b_full_reset`](address:E40A) writes CR3 = &00 (LED on \u2013 the steady normal-operation state); [`self_test_reset_adlcs`](address:F005) writes CR3 = &80 (LED off \u2013 marks the start of a self-test pass)."
-    },
-    {
-      "addr": 55297,
-      "name": "adlc_b_cr2",
-      "length": 1,
-      "group": "io_b",
-      "access": "rw",
-      "description": "ADLC B control/status port 1.\n\n**Write:** CR2 (or CR4 when AC=1). **Read:** SR2."
-    },
-    {
-      "addr": 55298,
-      "name": "adlc_b_tx",
-      "length": 1,
-      "group": "io_b",
-      "access": "rw",
-      "description": "ADLC B TX/RX FIFO port.\n\n**Write:** push a byte into the TX FIFO (frame continues). **Read:** pop a byte from the RX FIFO."
-    },
-    {
-      "addr": 55299,
-      "name": "adlc_b_tx2",
-      "length": 1,
-      "group": "io_b",
-      "access": "w",
-      "description": "ADLC B TX-last-byte port.\n**Write:** push the final byte of a frame (chip closes the frame and appends the FCS + flag). Reading this port is not used by the Bridge."
-    }
-  ],
-  "index_bases": [
     {
       "addr": 602,
       "name": "reachable_via_b",
       "length": 256,
       "group": "ram_buffers",
+      "access": [
+        "b"
+      ],
       "description": "256-byte routing table for forwarding out of side B.\nIndexed by destination **network** number; a non-zero entry means \"this network is reachable from here\". The table is only ever touched as `reachable_via_b,X` \u2014 the base byte itself is never read or written directly.\n\nConsulted by [`rx_frame_a`](address:E0E2). Initialised with [`net_num_b`](address:D000) (our own side-B network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side A."
     },
     {
@@ -722,7 +664,193 @@
       "name": "reachable_via_a",
       "length": 256,
       "group": "ram_buffers",
+      "access": [
+        "b"
+      ],
       "description": "256-byte routing table for forwarding out of side A.\nIndexed by destination **network** number; a non-zero entry means \"this network is reachable from here\". The table is only ever touched as `reachable_via_a,X` \u2014 the base byte itself is never read or written directly.\n\nConsulted by [`rx_frame_b`](address:E263). Initialised with [`net_num_a`](address:C000) (our own side-A network, directly reachable) and 255 (broadcast), then extended by bridge-announcement messages received on side B."
+    },
+    {
+      "addr": 1114,
+      "name": "tx_dst_stn",
+      "length": 1,
+      "group": "ram_buffers",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "TX frame buffer byte 0 \u2013 destination station number.\nFirst byte of the outbound frame staging area at `&045A-&0460+`, populated by the frame-builder subroutines and consumed by [`transmit_frame_a`](address:E517) / [`transmit_frame_b`](address:E4C0)."
+    },
+    {
+      "addr": 1115,
+      "name": "tx_dst_net",
+      "length": 1,
+      "group": "ram_buffers",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "TX frame buffer byte 1 \u2013 destination network number."
+    },
+    {
+      "addr": 1116,
+      "name": "tx_src_stn",
+      "length": 1,
+      "group": "ram_buffers",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "TX frame buffer byte 2 \u2013 source station number."
+    },
+    {
+      "addr": 1117,
+      "name": "tx_src_net",
+      "length": 1,
+      "group": "ram_buffers",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "TX frame buffer byte 3 \u2013 source network number."
+    },
+    {
+      "addr": 1118,
+      "name": "tx_ctrl",
+      "length": 1,
+      "group": "ram_buffers",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "TX frame buffer byte 4 \u2013 control byte in a scout frame, or the first data byte in a data frame.\nThe same buffer serves both frame types; the caller chooses the semantics."
+    },
+    {
+      "addr": 1119,
+      "name": "tx_port",
+      "length": 1,
+      "group": "ram_buffers",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "TX frame buffer byte 5 \u2013 port in a scout frame, or the second data byte in a data frame.\nPair with [`tx_ctrl`](address:045E)."
+    },
+    {
+      "addr": 1120,
+      "name": "tx_data0",
+      "length": 1,
+      "group": "ram_buffers",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "TX frame buffer byte 6 \u2013 first optional scout payload byte.\nFor example, a queried network number in a `WhatNet` response."
+    },
+    {
+      "addr": 49152,
+      "name": "net_num_a",
+      "length": 1,
+      "group": "io_a",
+      "access": [
+        "r"
+      ],
+      "description": "Econet side A network number, read at `&C000`.\nSourced from a bank of jumpered links buffered by a 74LS244. 7-bit (range 1-127); the top link is always made, so bit 7 reads 0.\n\nThe Bridge has no station number of its own \u2013 it sits on each Econet segment as a promiscuous receiver and broadcaster."
+    },
+    {
+      "addr": 51200,
+      "name": "adlc_a_cr1",
+      "length": 1,
+      "group": "io_a",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "ADLC A control/status port 0.\n\n**Write:** CR1 (or CR3 when AC=1 in CR1). **Read:** SR1.\n\nIRQ summary is in SR1 bit 7; [`wait_adlc_a_irq`](address:E3E4) spins on it."
+    },
+    {
+      "addr": 51201,
+      "name": "adlc_a_cr2",
+      "length": 1,
+      "group": "io_a",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "ADLC A control/status port 1.\n\n**Write:** CR2 (or CR4 when AC=1). **Read:** SR2."
+    },
+    {
+      "addr": 51202,
+      "name": "adlc_a_tx",
+      "length": 1,
+      "group": "io_a",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "ADLC A TX/RX FIFO port.\n\n**Write:** push a byte into the TX FIFO (frame continues). **Read:** pop a byte from the RX FIFO."
+    },
+    {
+      "addr": 51203,
+      "name": "adlc_a_tx2",
+      "length": 1,
+      "group": "io_a",
+      "access": [
+        "w"
+      ],
+      "description": "ADLC A TX-last-byte port.\n**Write:** push the final byte of a frame (chip closes the frame and appends the FCS + flag). Reading this port is not used by the Bridge."
+    },
+    {
+      "addr": 53248,
+      "name": "net_num_b",
+      "length": 1,
+      "group": "io_b",
+      "access": [
+        "r"
+      ],
+      "description": "Econet side B network number, read at `&D000`.\nSourced from a bank of jumpered links buffered by a 74LS244. 7-bit (range 1-127); the top link is always made, so bit 7 reads 0.\n\nPaired with [`net_num_a`](address:C000) on the opposite segment."
+    },
+    {
+      "addr": 55296,
+      "name": "adlc_b_cr1",
+      "length": 1,
+      "group": "io_b",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "ADLC B control/status port 0.\n\n**Write:** CR1 (or CR3 when AC=1 in CR1). **Read:** SR1.\n\nIRQ summary is in SR1 bit 7; [`wait_adlc_b_irq`](address:E3EA) spins on it.\n\nCR3 bit 7 (reached via this port with AC=1) drives IC18's `~LOC/DTR` pin, which sources current to the front-panel status LED (anode tied to the pin, cathode to ground). The MC6854 inverts the bit when driving the pin, so CR3 bit 7 = 0 puts the pin HIGH and the LED LIT; CR3 bit 7 = 1 puts the pin LOW and the LED DARK. [`adlc_b_full_reset`](address:E40A) writes CR3 = &00 (LED on \u2013 the steady normal-operation state); [`self_test_reset_adlcs`](address:F005) writes CR3 = &80 (LED off \u2013 marks the start of a self-test pass)."
+    },
+    {
+      "addr": 55297,
+      "name": "adlc_b_cr2",
+      "length": 1,
+      "group": "io_b",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "ADLC B control/status port 1.\n\n**Write:** CR2 (or CR4 when AC=1). **Read:** SR2."
+    },
+    {
+      "addr": 55298,
+      "name": "adlc_b_tx",
+      "length": 1,
+      "group": "io_b",
+      "access": [
+        "r",
+        "w"
+      ],
+      "description": "ADLC B TX/RX FIFO port.\n\n**Write:** push a byte into the TX FIFO (frame continues). **Read:** pop a byte from the RX FIFO."
+    },
+    {
+      "addr": 55299,
+      "name": "adlc_b_tx2",
+      "length": 1,
+      "group": "io_b",
+      "access": [
+        "w"
+      ],
+      "description": "ADLC B TX-last-byte port.\n**Write:** push the final byte of a frame (chip closes the frame and appends the FCS + flag). Reading this port is not used by the Bridge."
     }
   ],
   "regions": [],
@@ -22751,7 +22879,12 @@
         57344
       ],
       "expressions": [
-        "reset"
+        {
+          "text": "reset",
+          "tree": {
+            "sym": "reset"
+          }
+        }
       ]
     },
     {
@@ -22766,7 +22899,12 @@
         61440
       ],
       "expressions": [
-        "self_test"
+        {
+          "text": "self_test",
+          "tree": {
+            "sym": "self_test"
+          }
+        }
       ]
     }
   ]
