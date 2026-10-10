@@ -89,7 +89,7 @@ Writeups of interesting details uncovered during the disassembly work.
 ## Credits
 
 - [dasmos](https://github.com/acornaeology/dasmos), the programmable 6502 disassembler this project drives. dasmos is itself the spiritual successor to [py8dis](https://github.com/ZornsLemma/py8dis) by [SteveF](https://github.com/ZornsLemma) – the project's earlier driver was written against py8dis before the dasmos migration.
-- [beebasm](https://github.com/stardot/beebasm) by Rich Mayfield and contributors
+- [beebasm](https://github.com/stardot/beebasm) by Rich Talbot-Watkins and contributors
 - [The BBC Micro ROM Library](https://tobylobster.github.io/rom_library/) by tobylobster
 
 ## License
