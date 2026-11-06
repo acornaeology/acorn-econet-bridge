@@ -2,7 +2,15 @@
   "meta": {
     "schema_version": 4,
     "load_addr": 57344,
-    "end_addr": 65536
+    "end_addr": 65536,
+    "images": [
+      {
+        "name": "econet-bridge-variant_1.rom",
+        "load_addr": 57344,
+        "end_addr": 65536
+      }
+    ],
+    "moves": []
   },
   "constants": [],
   "macros": [],
